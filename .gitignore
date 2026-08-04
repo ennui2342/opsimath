@@ -1,0 +1,7 @@
+# macOS
+.DS_Store
+
+# Real personal reading-history data used as local import/test fixtures —
+# not tracked, even though this repo is private. See docs/DATA_MODEL.md's
+# Goodreads-integration open question.
+/import/
