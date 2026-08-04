@@ -43,6 +43,9 @@ gem "image_processing", "~> 1.2"
 # — see docs/PHILOSOPHY.md principle 15
 gem "paper_trail"
 
+# No longer a default gem as of Ruby 3.4 — needed for the Goodreads CSV import
+gem "csv"
+
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"

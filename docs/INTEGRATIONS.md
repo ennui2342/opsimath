@@ -77,7 +77,71 @@ A single batch job (Solid Queue, per `PHILOSOPHY.md` principle 13) over
 all imported `Work`s against `isfdb-adapter` — same `EnrichmentRecord`/
 `field_sources`/`PendingDecision` machinery already designed, not new
 mechanism. `isfdb-adapter`'s current API is used as-is; revisit its shape
-only if real friction shows up using it here, not speculatively.
+only if real friction shows up using it here, not speculatively. **Not
+built yet** — the CSV importer below (`Goodreads::Importer`) stops at
+cataloging; this batch job is a separate follow-up.
+
+### Addendum: real-data findings from building and running the importer
+
+Implemented as `Goodreads::RowParser` (pure parsing) and
+`Goodreads::Importer` (`bin/rails goodreads:import[path]`), tested against
+real extracted rows (`test/fixtures/files/goodreads_sample.csv`) and then
+run against the actual 2,306-row export. Several things only surfaced by
+doing that — recorded here because they extend or correct what's written
+above, not just implementation detail:
+
+- **`Owned Copies` doesn't reflect "to-read is where a book becomes
+  owned" in practice.** Confirmed directly: `Owned Copies` is `0` for all
+  1,140 `to-read` rows and all but 12 of 819 `read` rows in the real
+  export — it's essentially an unused Goodreads field for this account,
+  the same shape of problem as `Read Count`. Resolved the same way:
+  trust the better signal instead. The importer treats any non-wishlist
+  shelf as the ownership signal and creates at least one `Copy`
+  (`max(Owned Copies, 1)`), using the column only as a multiplier for the
+  rare case it's genuinely > 1. Confirmed against the run: 1,985 catalog
+  rows → 1,985 `Copy` rows.
+- **Reading-duplication risk from Goodreads catalog churn, not from this
+  design.** 7 real `(title, author)` pairs have two independent
+  `read`-shelf rows for what's clearly one actual read — one row carries
+  real rating/date/review, the other is an empty husk (Goodreads
+  re-adding/splitting an edition leaves the old shelf entry behind with
+  no data). A naive row-by-row importer would double-count these as
+  rereads. Worse: in 2 of the 7 cases the empty row appears *before* the
+  real one in the file, and in one case (`The Medusa Chronicles`) both
+  rows carry the *same* rating, so rating alone can't discriminate real
+  from cruft either — only the date can. Fixed by grouping all of a
+  work's `read`/`did-not-finish` rows together and deriving Reading rows
+  from the *union* of dated read events across the group, not per-row —
+  this resolves every real case correctly regardless of file order, and
+  needed no `PendingDecision` fallback in practice (all 7 cases resolved
+  cleanly). Verified against an independent recount: 815 expected
+  completed+dnf `Reading` rows, 815 created.
+- **`Contributor.sort_name`** ("Author l-f", e.g. "Delany, Samuel R.") is
+  only available for the primary author — `Additional Authors` is a raw
+  comma-separated name list with no l-f equivalent. Only the primary
+  author gets `sort_name` populated on import.
+- **`Work.work_type` has no signal in the CSV at all** — defaults to
+  `novel` for every imported `Work`, hand-correct per `PHILOSOPHY.md`
+  principle 6 where it matters (anthologies, collections).
+- **Genre seeding from Thema (principle 9) hasn't been done yet** — a
+  separate task, not part of this import. Until it is, every
+  `Bookshelves` label lands as a `Tag` (confirmed: 29 distinct labels →
+  29 `Tag` rows, 0 `Genre` matches) — expected, not broken, since `Tag`
+  is free-form and reclassifying a label to `Genre` later is just
+  re-pointing one join row.
+- **Real author-field data quality issues in the export**, left as-is
+  rather than auto-corrected: Goodreads slug artifacts as literal author
+  names (`delany-samuel-r`, `wil-mccarthy`), and garbled joint-author
+  fields (`"Larry & Jerry Niven & Pournelle"`, `"William;Sterling
+  Gibson"`). Affects a small number of rows; auto-detecting these
+  patterns risks misfiring on legitimately hyphenated or "&"-joined pen
+  names, so they're left for manual `Contributor` cleanup rather than
+  guessed at.
+- `currently-reading`'s `date_started` uses `Date Added` as the best
+  available proxy — extending the same reasoning Phase 2's RSS section
+  below already gives for `user_date_added` (no field is a true "date
+  started") to the CSV's equivalent column, which the doc didn't say
+  explicitly for Phase 1.
 
 ## Phase 2: ongoing sync
 
