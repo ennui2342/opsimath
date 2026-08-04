@@ -684,7 +684,72 @@ applied again. Worth being precise about what this does *not* reopen:
 this is a login gate for the one owner, not a reversal of "no
 multi-tenancy" (Non-goals, below) — no roles, no sharing, no per-library
 membership hang off `User`/`Session`, and exactly one `User` row is ever
-expected to exist. See `DATA_MODEL.md`'s `User`/`Session` entry.
+expected to exist. Alongside it, confirmed needed rather than deferred:
+an `ApiToken` model for automation/integration access (matching
+librarium's own PAT pattern), separate from the human login — real
+near-term need, not speculative. See `DATA_MODEL.md`'s `User`/`Session`/
+`ApiToken` entry.
+
+### 20. Goodreads import/sync is the first feature built, and it's self-contained
+
+Deliberately built before any UI — see `docs/INTEGRATIONS.md` for the full
+design. Two reasons this comes first rather than last: it forces the
+schema to meet real, messy data immediately (librarium's own experience
+with Goodreads date handling is a fair warning), and it gives the rest of
+the app real data to be built against rather than synthetic fixtures.
+Checked directly against `~/projects/opsimath/import/`'s real 2,306-book
+export before designing anything, rather than assuming its shape.
+
+Two architecture decisions, both extending principles already established
+rather than new ones:
+
+- **Self-contained, not an external pipeline** — a Solid Queue recurring
+  job inside opsimath, not the aswarm/Rhai pipeline pattern already
+  proven for librarium (`goodreads-librarium-sync`/`-reading-sync`/
+  `-read-sync`). The existing pipelines' *logic* (RSS mechanics,
+  snapshot-based change detection, series-suffix stripping, matching) is
+  ported directly — real, hard-won lessons, not rediscovered — but the
+  *infrastructure* isn't, for the same reason principle 13 argued against
+  external cron for enrichment: opsimath shouldn't depend on
+  infrastructure outside its own control for something core to how it
+  stays useful day to day.
+- **Goodreads is the source of truth for now, deliberately, not
+  permanently.** Goodreads' community/network value means it needs to
+  stay in sync; the easiest way to guarantee that right now is one-way
+  sync in. Inverting this (opsimath as source of truth, syncing back to
+  Goodreads) is a real future direction, explicitly not this phase — see
+  `docs/INTEGRATIONS.md`'s "out of scope."
+
+### 21. Development practices, pinned down before writing the first line
+
+- **Test-first, targeted rather than blanket TDD ceremony.** Earns its
+  keep specifically on the data-integrity/business-logic layer — CSV
+  import parsing, shelf matching/dedup, `Reading` creation rules,
+  `PendingDecision` triggers — where a silent bug does real damage
+  (a miscounted reread, a duplicated `Work`) and where `docs/
+  INTEGRATIONS.md` already enumerates most of the tricky cases in
+  advance (the `read_dates`-vs-`Read Count` distinction, series-in-title
+  parsing, two date formats, ambiguous shelf matches) — close to a
+  ready-made list of "write the failing test for this case, then make it
+  pass." Not insisted on for plain scaffolding/CRUD views, where there's
+  no subtle behavior to pin down. Fixtures for the risk-bearing tests are
+  **real rows extracted from the actual export**, not synthetic data —
+  already known to be representative, with any review/notes text in them
+  replaced by placeholder text before committing (the full private
+  export stays gitignored regardless, per the earlier discussion).
+- **RuboCop and Brakeman from day one** — the same buy-don't-build
+  instinct as principle 16, applied to style/security tooling: a
+  maintained community ruleset beats inventing conventions ad hoc, and
+  static security analysis matters given this becomes network-reachable
+  once deployed (principle 19's login gate exists for the same reason).
+- **Trunk-based, direct commits** — no feature-branch/PR ceremony for a
+  solo project with no second reviewer; small, focused commits straight
+  onto the main branch.
+- **Commit after each coherent, tested slice, without waiting to be
+  asked each time** — a deliberate change from the documentation phase's
+  "only commit when explicitly requested." Still every commit is visible
+  and reviewable after the fact; this just removes the per-commit
+  approval step now that there's code, not just docs, being produced.
 
 ## Considered and explicitly not adopted
 

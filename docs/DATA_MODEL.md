@@ -394,16 +394,37 @@ columns before real cross-posting patterns are known.
 
 ## WishlistItem
 
+Deliberately self-contained, not a reference — confirmed by stress-testing
+against a future feature (browsing a metadata provider and adding a
+result to the wishlist, not just Goodreads' `wishlist` shelf). Considered
+and rejected: creating a real `Work`/`Edition` at wishlist time with
+"not owned" derived from the absence of a `Copy` — elegant-looking, but
+inconsistent with the Goodreads-wishlist rule already settled (see
+`docs/INTEGRATIONS.md`), and it commits to a specific edition before one
+is actually owned (you might wishlist a listing for one printing and
+later acquire a different one entirely). Also considered: referencing a
+cached `EnrichmentRecord` — doesn't fit `EnrichmentRecord`'s design, which
+is always attached to an already-catalogued entity, not something that
+doesn't exist as a `Work` yet; and a browse-time cache can go stale over
+the months a wishlist item might sit unfulfilled anyway. `external_ids`
+already covers what that option was reaching for, without either problem.
+
 | Field | Notes |
 |---|---|
 | `id` | |
 | `title` | |
 | `author_name` | free text — the wanted book may not exist as a `Work` row yet |
+| `cover_url` | bare URL string, not an Active Storage attachment — proportionate to how speculative a wishlist entry is; downloading/storing an image is deferred until the book is actually acquired and gets a real `Edition.cover_image` |
 | `work_id` | optional, once matched to a real `Work` |
 | `series_id` | optional — restored from librarium's own `wishlist_items.series_id`, dropped in the initial port without a reason. Lets "next volume I need in this series" be tracked even before the specific book is known as a `Work` — a common completionist habit for numbered SF lines |
 | `priority` | |
 | `notes` | |
-| `external_ids` | same flexible-bag pattern, for a matched OpenLibrary/ISFDB id to ease later matching |
+| `external_ids` | same flexible-bag pattern — a matched OpenLibrary/ISFDB/Goodreads id, used to drive a *fresh* enrichment fetch when the item is fulfilled, not a pointer to a stale cached one |
+
+Fulfillment (however the item arrived — Goodreads shelf sync or a future
+provider-browse feature): fetch fresh via `external_ids`, create the real
+`Work`/`Edition`/`Copy`/`EnrichmentRecord` through the normal enrichment
+path, then delete the `WishlistItem` outright. No merge, no conversion.
 
 ## EnrichmentRecord
 
@@ -501,7 +522,7 @@ what this actually needs, per principle 16.
 | `status` | `pending` / `accepted` / `rejected` |
 | `created_at` / `resolved_at` | |
 
-### User / Session (authentication only)
+### User / Session / ApiToken (authentication only)
 
 Per `PHILOSOPHY.md` principle 19 — Rails 8's built-in
 `bin/rails generate authentication` scaffold, generated as-is rather than
@@ -514,6 +535,25 @@ owner, no multi-tenancy" (`PHILOSOPHY.md` Non-goals) — that principle is
 about not building sharing/RBAC/multiple libraries, which this doesn't
 touch; it's a login gate, not a multi-user system.
 
+`ApiToken` — confirmed needed (per `docs/INTEGRATIONS.md`) for automation/
+integration access separate from the human login, matching librarium's
+own PAT pattern (`internal/api/middleware/auth.go`). Not required by the
+Goodreads sync itself (principle 20's self-contained job calls Ruby code
+directly, no HTTP round-trip to authenticate), but a real near-term need
+for other external access.
+
+| Field | Notes |
+|---|---|
+| `id` | |
+| `user_id` | belongs to the one `User` |
+| `name` | free text label, e.g. "aswarm" or a future mobile client |
+| `token_digest` | hashed, never the raw token, after issuance |
+| `last_used_at` | |
+| `created_at` | |
+
+No scopes/permissions system — single-user, single-purpose tokens are
+enough for now; add scoping later only if a real need for it shows up.
+
 ## Open questions (intentionally not decided here)
 
 - ~~**Storage engine.**~~ **Resolved: Postgres.** Confirmed alongside
@@ -522,14 +562,17 @@ touch; it's a login gate, not a multi-user system.
   Solid Queue's `FOR UPDATE SKIP LOCKED` locking wants Postgres/MySQL to
   perform well under concurrent workers (not that a single-user app's
   actual concurrency needs would have forced the issue on their own).
-- **Goodreads integration shape.** Whether this pulls Goodreads data
-  (mirroring the existing `goodreads-librarium-sync` pipeline pattern you
-  already run against librarium) or Goodreads becomes one of the `Review`
-  channels, or both — deferred to an `INTEGRATIONS.md` once this model is
-  settled. ISFDB enrichment specifically already has a running answer,
-  not just a future one: `~/projects/isfdb-adapter`'s JSON API
-  (`/isbn/{isbn}`, `/search`, `/series/*`, `/authors/*`) is deployed and
-  reusable as-is; the integration work is a client, not a new service.
+- ~~**Goodreads integration shape.**~~ **Resolved: see `docs/INTEGRATIONS.md`.**
+  Bulk CSV import (one-time) plus an ongoing self-contained Solid Queue
+  sync (shelf RSS polling, diffed against a new `GoodreadsSyncState`
+  table) — the first real feature built, ahead of any UI, per
+  `PHILOSOPHY.md` principle 20. Also introduces `GoodreadsSyncState` (new,
+  not previously in this document) and confirms `Review.channels`' first
+  real shape (`channel: goodreads`, from `My Review`). ISFDB enrichment
+  specifically already has a running answer, not just a future one:
+  `~/projects/isfdb-adapter`'s JSON API (`/isbn/{isbn}`, `/search`,
+  `/series/*`, `/authors/*`) is deployed and reusable as-is; the
+  integration work is a client, not a new service.
 - ~~**Full-text search.**~~ **Resolved: Postgres native** (`tsvector`/
   `tsquery` + GIN indexes on `Work.title`/`description`, matching exactly
   what librarium's own schema already did with `idx_books_fulltext`). Its

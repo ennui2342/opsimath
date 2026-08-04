@@ -21,6 +21,8 @@ yet.
   guiding principles, what it's explicitly not trying to be.
 - [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) — the entity model: Work,
   Edition, Copy, Reading, Review, and how they relate.
+- [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md) — the Goodreads import/
+  sync design: the first real feature being built, ahead of any UI.
 
 ## Stack
 
