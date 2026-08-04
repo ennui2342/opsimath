@@ -144,28 +144,31 @@ module Goodreads
       GENRE_ALIASES[label.downcase] || label
     end
 
-    # A few real Bookshelves labels describe the book's *form*, not its
-    # genre or subject — and map directly onto Work.work_type's own
-    # enum values, confirmed against real rows (e.g. "The Ruins of
+    # A few real Bookshelves labels describe the book's *literary form*,
+    # not its genre or subject — and map directly onto Work.literary_form's
+    # own enum values, confirmed against real rows (e.g. "The Ruins of
     # Earth" shelved anthology+sci-fi; "The Jewel-hinged Jaw" shelved
     # essays+sci-fi). Deliberately narrow: other subject-area shelf
     # labels (biography, philosophy, science, ai, ...) are NOT mapped to
-    # work_type: "nonfiction" here, even though most of those books
+    # literary_form: "nonfiction" here, even though most of those books
     # likely are nonfiction, because several of them (ai, futurism,
     # politics, psychology, astronomy, culture) are exactly the kind of
     # theme a genuine SF *novel* also explores — inferring nonfiction
     # from a subject tag risks silently mis-typing a real novel. Only
-    # the three unambiguous structural labels below are trusted.
-    WORK_TYPE_SHELF_SIGNALS = {
+    # the three unambiguous structural labels below are trusted. Biography
+    # is the same kind of subject/genre fact (per MARC's own 008/34
+    # Biography fixed field, kept deliberately separate from 008/33
+    # Literary form) — not mapped here either, for the same reason.
+    LITERARY_FORM_SHELF_SIGNALS = {
       "anthology" => "anthology",
       "collection" => "collection",
       "essays" => "essay"
     }.freeze
 
-    def self.work_type_from_shelves(bookshelves_raw)
+    def self.literary_form_from_shelves(bookshelves_raw)
       labels = extra_shelves(bookshelves_raw).map(&:downcase)
-      WORK_TYPE_SHELF_SIGNALS.each do |label, work_type|
-        return work_type if labels.include?(label)
+      LITERARY_FORM_SHELF_SIGNALS.each do |label, literary_form|
+        return literary_form if labels.include?(label)
       end
       nil
     end

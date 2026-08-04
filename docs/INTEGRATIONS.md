@@ -120,17 +120,19 @@ above, not just implementation detail:
   only available for the primary author — `Additional Authors` is a raw
   comma-separated name list with no l-f equivalent. Only the primary
   author gets `sort_name` populated on import.
-- **`Work.work_type` mostly has no signal in the CSV — but three
-  `Bookshelves` labels are an exact, unambiguous exception.** `anthology`,
-  `collection`, and `essays` map directly onto three of `work_type`'s own
-  enum values (confirmed against real rows — e.g. "The Ruins of Earth"
-  shelved `anthology, sci-fi`) and are consumed into `Work.work_type`
-  instead of becoming a redundant `Tag`/`Genre`. Deliberately *not*
-  extended to the many other subject-area labels that are also very
-  likely nonfiction (`biography`, `philosophy`, `science`, `business`,
-  ...): several of them (`ai`, `futurism`, `politics`, `psychology`,
-  `astronomy`, `culture`) are exactly the kind of theme a genuine SF
-  *novel* explores too, so inferring `work_type: nonfiction` from a
+- **`Work.literary_form`** (renamed from `work_type` — see
+  `DATA_MODEL.md`'s note on why) **mostly has no signal in the CSV — but
+  three `Bookshelves` labels are an exact, unambiguous exception.**
+  `anthology`, `collection`, and `essays` map directly onto three of
+  `literary_form`'s own enum values (confirmed against real rows — e.g.
+  "The Ruins of Earth" shelved `anthology, sci-fi`) and are consumed into
+  `Work.literary_form` instead of becoming a redundant `Tag`/`Genre`.
+  Deliberately *not* extended to the many other subject-area labels that
+  are also very likely nonfiction (`biography`, `philosophy`, `science`,
+  `business`, ...): several of them (`ai`, `futurism`, `politics`,
+  `psychology`, `astronomy`, `culture`) are exactly the kind of theme a
+  genuine SF *novel* explores too, so inferring `literary_form:
+  nonfiction` from a
   subject tag risks silently mis-typing a real novel — a materially
   different risk from the three structural labels above, which describe
   the book's form, not its subject. Everything else still defaults to

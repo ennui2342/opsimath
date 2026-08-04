@@ -111,16 +111,16 @@ module Goodreads
       assert_equal "philosophy", RowParser.genre_lookup_name("philosophy")
     end
 
-    test "work_type_from_shelves recognizes the real structural shelf labels" do
-      assert_equal "anthology", RowParser.work_type_from_shelves("anthology, sci-fi")
-      assert_equal "collection", RowParser.work_type_from_shelves("sci-fi, collection")
-      assert_equal "essay", RowParser.work_type_from_shelves("essays, sci-fi")
+    test "literary_form_from_shelves recognizes the real structural shelf labels" do
+      assert_equal "anthology", RowParser.literary_form_from_shelves("anthology, sci-fi")
+      assert_equal "collection", RowParser.literary_form_from_shelves("sci-fi, collection")
+      assert_equal "essay", RowParser.literary_form_from_shelves("essays, sci-fi")
     end
 
-    test "work_type_from_shelves returns nil for subject-area labels — deliberately not inferring nonfiction" do
-      assert_nil RowParser.work_type_from_shelves("philosophy, sci-fi")
-      assert_nil RowParser.work_type_from_shelves("biography")
-      assert_nil RowParser.work_type_from_shelves("ai")
+    test "literary_form_from_shelves returns nil for subject-area labels — deliberately not inferring nonfiction" do
+      assert_nil RowParser.literary_form_from_shelves("philosophy, sci-fi")
+      assert_nil RowParser.literary_form_from_shelves("biography")
+      assert_nil RowParser.literary_form_from_shelves("ai")
     end
   end
 end

@@ -59,12 +59,32 @@ format or printing.
 | `id` | |
 | `title` | |
 | `subtitle` | optional |
-| `work_type` | `novel` / `novella` / `short_story` / `collection` / `anthology` / `nonfiction` / `essay` |
+| `literary_form` | `novel` / `novella` / `short_story` / `collection` / `anthology` / `nonfiction` / `essay` — renamed from an initial `work_type`; see note below |
 | `original_publication_year` | often known even when a specific edition's date isn't |
 | `original_language` | |
 | `description` | synopsis/blurb, freeform |
 | `notes` | private notes about the work itself, not a reading of it |
 | `field_sources` | optional map, e.g. `{"description": "isfdb", "original_publication_year": "manual"}` — see `EnrichmentRecord` below and `PHILOSOPHY.md` principle 10 |
+
+**`literary_form`, not `work_type`.** Renamed after building the
+Goodreads importer surfaced a real ambiguity in the original name: is
+this field structural (how the text is organized — novel vs. anthology)
+or does it also cover things like biography, which is really a
+subject/genre fact, not a structural one? MARC 21 answers this by
+keeping the two on entirely separate fixed fields — 008/33 "Literary
+form" (fiction/not fiction/essays/novels/short stories/drama/poetry/...,
+a flat list with `essay` a sibling of `novel`, not nested under
+nonfiction) and 008/34 "Biography" (a wholly separate field). Thema
+draws the same line: biography lives in its own subject branch (`DN`
+and children), not alongside its fiction-form codes. `literary_form`
+matches MARC's own name for this exact field and makes the field's
+scope self-documenting: extent (`novel`/`novella`/`short_story`),
+compilation shape (`collection`/`anthology`), and prose form
+(`essay`, with `nonfiction` as the residual "none of the fiction/essay
+forms apply" bucket, mirroring MARC's own "Not fiction" value in the
+same fixed field) — never a subject/genre classification like
+`biography`, which belongs in `Genre`/`Tag` instead, exactly as MARC and
+Thema both keep it.
 
 Authorship lives here via `WORK_CONTRIBUTOR` (role e.g. `author`,
 `original author`, `anthology editor`) — the credit that doesn't change
@@ -131,7 +151,7 @@ Also linked to `EDITION_IDENTIFIER` for the flexible identifier bag (see
 below) and to `EDITION_CONTRIBUTOR` for printing-specific credits.
 
 **An anthology's own `Work` row is one of its edition's contents, not
-something separate from them.** An anthology (`work_type = anthology`)
+something separate from them.** An anthology (`literary_form = anthology`)
 has its own `Work` row (title, description, `WORK_CONTRIBUTOR` role
 `anthology editor`) — and its `Edition` links to *that* `Work` via
 `EditionContent` (`billing = "whole"`, `display_order = 0`, say) in

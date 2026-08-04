@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_04_215714) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_04_233247) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -357,13 +357,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_04_215714) do
     t.datetime "created_at", null: false
     t.text "description"
     t.jsonb "field_sources", default: {}, null: false
+    t.string "literary_form", null: false
     t.text "notes"
     t.string "original_language"
     t.integer "original_publication_year"
     t.string "subtitle"
     t.string "title", null: false
     t.datetime "updated_at", null: false
-    t.string "work_type", null: false
     t.index ["title"], name: "index_works_on_title"
   end
 

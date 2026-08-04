@@ -95,7 +95,7 @@ module Goodreads
 
     def import_work_group(group_rows, counts)
       work = find_or_create_work(group_rows.first)
-      update_work_type(work, group_rows)
+      update_literary_form(work, group_rows)
       fresh = []
 
       group_rows.each do |row|
@@ -134,13 +134,13 @@ module Goodreads
                       .first
       return existing if existing
 
-      # work_type defaults to "novel" — update_work_type upgrades this
-      # right after creation when a group row's Bookshelves gives a real
-      # signal (anthology/collection/essay); otherwise hand-correct per
-      # PHILOSOPHY.md principle 6.
+      # literary_form defaults to "novel" — update_literary_form upgrades
+      # this right after creation when a group row's Bookshelves gives a
+      # real signal (anthology/collection/essay); otherwise hand-correct
+      # per PHILOSOPHY.md principle 6.
       Work.create!(
         title: info.title,
-        work_type: "novel",
+        literary_form: "novel",
         original_publication_year: row["Original Publication Year"].presence&.to_i
       )
     end
@@ -149,11 +149,11 @@ module Goodreads
     # prior import or a manual correction — "novel" is treated as the
     # implicit unset/default sentinel for imported Works specifically,
     # not as a real confirmed classification to protect.
-    def update_work_type(work, group_rows)
-      return unless work.work_type == "novel"
+    def update_literary_form(work, group_rows)
+      return unless work.literary_form == "novel"
 
-      work_type = group_rows.filter_map { |row| RowParser.work_type_from_shelves(row["Bookshelves"]) }.first
-      work.update!(work_type: work_type) if work_type
+      literary_form = group_rows.filter_map { |row| RowParser.literary_form_from_shelves(row["Bookshelves"]) }.first
+      work.update!(literary_form: literary_form) if literary_form
     end
 
     def link_series(work, row)
@@ -192,12 +192,13 @@ module Goodreads
     # Tag — this is the expected, correct outcome for personal labels
     # (woodworking, ai, business...) that no controlled vocabulary should
     # cover, not a fallback for missing seed data. The structural labels
-    # already consumed by update_work_type (anthology/collection/essays)
-    # are excluded here — Work.work_type already says "anthology"; a
-    # redundant "anthology" Tag/Genre on top of that would just be noise.
+    # already consumed by update_literary_form (anthology/collection/
+    # essays) are excluded here — Work.literary_form already says
+    # "anthology"; a redundant "anthology" Tag/Genre on top of that
+    # would just be noise.
     def link_shelves(work, row)
       RowParser.extra_shelves(row["Bookshelves"]).each do |label|
-        next if RowParser::WORK_TYPE_SHELF_SIGNALS.key?(label.downcase)
+        next if RowParser::LITERARY_FORM_SHELF_SIGNALS.key?(label.downcase)
 
         lookup_name = RowParser.genre_lookup_name(label)
         genre = Genre.find_by("lower(name) = ?", lookup_name.downcase)

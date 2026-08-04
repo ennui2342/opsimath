@@ -1,7 +1,7 @@
 class Work < ApplicationRecord
   has_paper_trail
 
-  enum :work_type, {
+  enum :literary_form, {
     novel: "novel",
     novella: "novella",
     short_story: "short_story",
