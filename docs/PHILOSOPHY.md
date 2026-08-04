@@ -409,6 +409,27 @@ single-user app's actual concurrency needs are modest enough that this
 shouldn't be the deciding factor on its own. Worth weighing when that
 decision actually gets made, not before.
 
+**Correction, made explicit after actually building this and hitting real
+friction setting it up** (a Rails multi-database configuration quirk,
+`db:prepare` not cascading to a same-named secondary database role — see
+`docker-compose.yml`'s comments): the "self-contained, no external
+dependency" framing above overstated the case against Redis specifically.
+That framing is really about not depending on infrastructure *outside
+opsimath's own control* (an external cron job on a different system) — a
+Redis container living in opsimath's *own* `docker-compose.yml`/k8s
+manifests wouldn't actually be "external" in that sense, any more than
+Postgres already isn't. Asked directly whether the setup friction meant
+this was fighting the grain; the answer, confirmed together, was no — the
+friction was mostly self-inflicted (an earlier `--skip-bundle` shortcut
+broke Solid Queue's own install hooks) plus one now-fixed, one-time
+config quirk, not an ongoing tax. The reasons that actually hold up
+independent of the "external infra" framing: transactional consistency
+(a job enqueues in the same DB transaction as the business logic that
+creates it, which a Redis-backed queue can't offer as cleanly), it's
+Rails 8's own first-party default rather than a third-party addition
+(principle 16), and it's one fewer service to operate for the life of
+this app, not just at setup.
+
 What stays custom, because no library can know it: which of the (say)
 200 books in one enrichment run succeeded or failed, and why. A thin
 domain-specific `JobItem`-equivalent (`entity_type`/`entity_id`, `status`,

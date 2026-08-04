@@ -43,6 +43,10 @@
 # macOS
 .DS_Store
 
+# Claude Code session-local tooling state (e.g. scheduled-task locks) —
+# not part of the project, shouldn't be committed.
+/.claude/
+
 # Real personal reading-history data used as local import/test fixtures —
 # not tracked, even though this repo is private. See docs/INTEGRATIONS.md.
 /import/

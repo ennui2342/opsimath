@@ -3,14 +3,37 @@
 # external infrastructure, and principle 21 for the Docker-for-dev decision
 # (keeps the host OS clean; no Ruby/Postgres installed on the host at all).
 #
-# Gems are baked into the Dockerfile.dev image at build time, not a
-# separate volume — simpler for a solo project than managing a
-# gem-volume/entrypoint dance, at the cost of `docker compose build`
-# (not just a restart) when Gemfile changes. Source is bind-mounted for
-# live reload; the image doesn't need rebuilding for ordinary code edits.
+# Gems install at container start (bundle_data volume), not baked into the
+# image at build time — see Dockerfile.dev's own comment for why an
+# earlier, build-time version made Gemfile.lock unreproducible on the
+# host. `bundle check || bundle install` is fast (near-instant) once gems
+# are already installed, so this costs nothing on ordinary restarts.
 #
-# web + worker share the same image — mirrors ~/projects/isfdb-adapter's
-# own compose shape (db + app + a worker-ish profile).
+# `setup` runs db:prepare exactly once, and web/worker/css wait for it to
+# *complete* rather than each running db:prepare themselves — confirmed
+# live that running it redundantly in multiple services isn't actually
+# safe: on a freshly-created volume, two services calling `db:prepare`
+# at the same startup moment raced each other's `CREATE DATABASE` and one
+# hit `PG::UniqueViolation: duplicate key value ... already exists`.
+# db:prepare is idempotent when run *sequentially*, not when run
+# *concurrently* from two separate connections — a real distinction, not
+# a redundant one.
+#
+# web + worker + css share one image and one x-app anchor — mirrors
+# ~/projects/isfdb-adapter's own compose shape (db + app + a worker-ish
+# profile).
+x-app: &app
+  build:
+    context: .
+    dockerfile: Dockerfile.dev
+  volumes:
+    - .:/rails
+    - bundle_data:/usr/local/bundle
+  environment:
+    DATABASE_HOST: db
+    DATABASE_USERNAME: postgres
+    DATABASE_PASSWORD: postgres
+
 services:
   db:
     image: postgres:18
@@ -29,37 +52,28 @@ services:
       timeout: 5s
       retries: 20
 
-  web:
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
-    command: bash -c "bin/rails db:prepare && rm -f tmp/pids/server.pid && bin/rails server -b 0.0.0.0"
-    volumes:
-      - .:/rails
-    ports:
-      - "3000:3000"
-    environment:
-      DATABASE_HOST: db
-      DATABASE_USERNAME: postgres
-      DATABASE_PASSWORD: postgres
+  setup:
+    <<: *app
+    command: bash -c "bundle check || bundle install && bin/rails db:prepare"
     depends_on:
       db:
         condition: service_healthy
 
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
-    command: bin/rails solid_queue:start
-    volumes:
-      - .:/rails
-    environment:
-      DATABASE_HOST: db
-      DATABASE_USERNAME: postgres
-      DATABASE_PASSWORD: postgres
+  web:
+    <<: *app
+    command: bash -c "bundle check || bundle install && rm -f tmp/pids/server.pid && bin/rails server -b 0.0.0.0"
+    ports:
+      - "3000:3000"
     depends_on:
-      db:
-        condition: service_healthy
+      setup:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *app
+    command: bash -c "bundle check || bundle install && bin/rails solid_queue:start"
+    depends_on:
+      setup:
+        condition: service_completed_successfully
 
   # Known limitation, confirmed live, not yet resolved: this exits after
   # one build instead of watching continuously — the underlying
@@ -69,12 +83,12 @@ services:
   # editing views/Tailwind classes: `docker compose run --rm web bin/rails
   # tailwindcss:build`.
   css:
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
-    command: bin/rails tailwindcss:watch
-    volumes:
-      - .:/rails
+    <<: *app
+    command: bash -c "bundle check || bundle install && bin/rails tailwindcss:watch"
+    depends_on:
+      setup:
+        condition: service_completed_successfully
 
 volumes:
   postgres_data:
+  bundle_data:
