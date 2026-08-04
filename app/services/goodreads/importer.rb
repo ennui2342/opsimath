@@ -173,16 +173,16 @@ module Goodreads
       end
     end
 
-    # Bookshelves labels matched against existing Genre rows become a
-    # WorkGenre; everything else becomes a Tag. No Genre is seeded yet
-    # (Thema-seeding is a separate, not-yet-done task — see project
-    # memory), so on a fresh database every label lands as a Tag today.
-    # That's an expected, not a broken, consequence — Tag is free-form by
-    # design and genre reclassification later is cheap (just re-point the
-    # join row once Genre rows exist).
+    # Bookshelves labels matched (via RowParser::GENRE_ALIASES, then a
+    # direct case-insensitive name match) against the Thema-seeded Genre
+    # rows (db/seeds.rb) become a WorkGenre; everything else becomes a
+    # Tag — this is the expected, correct outcome for personal labels
+    # (woodworking, ai, business...) that no controlled vocabulary should
+    # cover, not a fallback for missing seed data.
     def link_shelves(work, row)
       RowParser.extra_shelves(row["Bookshelves"]).each do |label|
-        genre = Genre.find_by("lower(name) = ?", label.downcase)
+        lookup_name = RowParser.genre_lookup_name(label)
+        genre = Genre.find_by("lower(name) = ?", lookup_name.downcase)
         if genre
           WorkGenre.find_or_create_by!(work: work, genre: genre)
         else

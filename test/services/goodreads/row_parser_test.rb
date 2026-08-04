@@ -100,5 +100,15 @@ module Goodreads
       assert_equal [ "essays", "sci-fi" ], RowParser.extra_shelves("essays, sci-fi")
       assert_equal [ "philosophy" ], RowParser.extra_shelves("philosophy, did-not-finish")
     end
+
+    test "genre_lookup_name bridges Goodreads' informal 'sci-fi' to Thema's official 'Science fiction'" do
+      assert_equal "Science fiction", RowParser.genre_lookup_name("sci-fi")
+      assert_equal "Science fiction", RowParser.genre_lookup_name("SF")
+    end
+
+    test "genre_lookup_name passes an already-matching label through unchanged" do
+      assert_equal "fantasy", RowParser.genre_lookup_name("fantasy")
+      assert_equal "philosophy", RowParser.genre_lookup_name("philosophy")
+    end
   end
 end

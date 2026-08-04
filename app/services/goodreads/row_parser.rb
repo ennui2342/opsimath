@@ -129,5 +129,19 @@ module Goodreads
     def self.extra_shelves(bookshelves_raw)
       bookshelves_raw.to_s.split(",").map { |s| s.strip }.reject { |s| s.empty? || STATUS_SHELVES.include?(s) }
     end
+
+    # Bridges Goodreads' informal shelf spelling to the seeded Thema
+    # Genre's official name (db/seeds.rb) — "fantasy" already matches
+    # "Fantasy" case-insensitively, but "sci-fi" (661 real books shelved
+    # this way) never will against "Science fiction" without this.
+    GENRE_ALIASES = {
+      "sci-fi" => "Science fiction",
+      "scifi" => "Science fiction",
+      "sf" => "Science fiction"
+    }.freeze
+
+    def self.genre_lookup_name(label)
+      GENRE_ALIASES[label.downcase] || label
+    end
   end
 end

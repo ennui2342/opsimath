@@ -123,12 +123,30 @@ above, not just implementation detail:
 - **`Work.work_type` has no signal in the CSV at all** — defaults to
   `novel` for every imported `Work`, hand-correct per `PHILOSOPHY.md`
   principle 6 where it matters (anthologies, collections).
-- **Genre seeding from Thema (principle 9) hasn't been done yet** — a
-  separate task, not part of this import. Until it is, every
-  `Bookshelves` label lands as a `Tag` (confirmed: 29 distinct labels →
-  29 `Tag` rows, 0 `Genre` matches) — expected, not broken, since `Tag`
-  is free-form and reclassifying a label to `Genre` later is just
-  re-pointing one join row.
+- **Genre seeding from Thema (principle 9), done in `db/seeds.rb`** —
+  fetched directly from EDItEUR's own Thema code list
+  (`ns.editeur.org/thema/en/FL`, `/FM`), not reconstructed from memory:
+  the FL (Science fiction) tree, plus FM (Fantasy) as a deliberate small
+  extension beyond `DATA_MODEL.md`'s literal "FL" wording (this
+  collection has real fantasy books — 15 shelved `fantasy` in the real
+  export). `bisac_code` is only set on the two top-level rows
+  (`FIC028000`/`FIC009000`, confirmed against BISG's own list directly);
+  left blank on sub-codes rather than guessed. The importer's
+  `goodreads:import` rake task now runs `db:seed` itself before
+  importing — not just documented as a manual prerequisite — because
+  skipping it silently changes results (every label reclassifies as a
+  `Tag` instead) in a way that's easy to forget when this gets
+  productionized. One real matching gap seeding alone didn't close:
+  Goodreads' informal `sci-fi` shelf label (661 real books) never
+  matches Thema's official `Science fiction` name by case-insensitive
+  string comparison — bridged with a small alias table
+  (`RowParser::GENRE_ALIASES`) rather than renaming the seeded Genre to
+  the informal spelling, which would have defeated the point of using
+  the standard's real vocabulary. `fantasy` needed no alias — it already
+  matches Thema's `Fantasy` directly. Confirmed against the real run:
+  659 `Work`s classified `Science fiction`, 15 `Fantasy`, all other 27
+  personal labels (business, woodworking, ai, ...) correctly still
+  `Tag`s.
 - **Real author-field data quality issues in the export**, left as-is
   rather than auto-corrected: Goodreads slug artifacts as literal author
   names (`delany-samuel-r`, `wil-mccarthy`), and garbled joint-author

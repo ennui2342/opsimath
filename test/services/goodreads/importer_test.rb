@@ -81,13 +81,24 @@ module Goodreads
       assert_nil reading.rating
     end
 
-    test "an unseeded Bookshelves label becomes a Tag, not a Genre" do
+    test "a Bookshelves label with no matching Genre becomes a Tag" do
       Importer.import(FIXTURE)
 
       work = Work.find_by!(title: "Heavy Weather")
       assert_equal [ "sci-fi" ], work.tags.pluck(:name)
       assert_equal 0, work.genres.count
     end
+
+    test "a Bookshelves label matching a seeded Genre becomes a WorkGenre, not a Tag" do
+      Genre.create!(name: "Science fiction", thema_code: "FL")
+
+      Importer.import(FIXTURE)
+
+      work = Work.find_by!(title: "Heavy Weather")
+      assert_equal [ "Science fiction" ], work.genres.pluck(:name)
+      assert_equal 0, work.tags.count
+    end
+
 
     test "duplicate read-shelf rows for the same work collapse to one real Reading regardless of file order" do
       Importer.import(FIXTURE)
