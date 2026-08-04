@@ -9,6 +9,7 @@ module Goodreads
 
       work = Work.find_by!(title: "The Jewel-hinged Jaw: Notes on the Language of Science Fiction")
       assert_equal "Samuel R. Delany", work.contributors.sole.name
+      assert_equal "essay", work.work_type
 
       reading = work.readings.sole
       assert_equal "completed", reading.status
@@ -87,6 +88,26 @@ module Goodreads
       work = Work.find_by!(title: "Heavy Weather")
       assert_equal [ "sci-fi" ], work.tags.pluck(:name)
       assert_equal 0, work.genres.count
+    end
+
+    test "anthology/collection Bookshelves labels set Work.work_type instead of becoming a Tag or Genre" do
+      Genre.create!(name: "Science fiction", thema_code: "FL")
+
+      Importer.import(FIXTURE)
+
+      # Both real rows are shelved "anthology, sci-fi" / "sci-fi,
+      # collection" — the structural label should be consumed into
+      # work_type, leaving only the real "sci-fi" -> Science fiction
+      # Genre behind, no redundant anthology/collection Tag or Genre.
+      anthology_work = Work.find_by!(title: "The Ruins of Earth")
+      assert_equal "anthology", anthology_work.work_type
+      assert_equal 0, anthology_work.tags.count
+      assert_equal [ "Science fiction" ], anthology_work.genres.pluck(:name)
+
+      collection_work = Work.find_by!(title: "The Adventures of Alyx")
+      assert_equal "collection", collection_work.work_type
+      assert_equal 0, collection_work.tags.count
+      assert_equal [ "Science fiction" ], collection_work.genres.pluck(:name)
     end
 
     test "a Bookshelves label matching a seeded Genre becomes a WorkGenre, not a Tag" do

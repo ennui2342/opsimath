@@ -95,6 +95,7 @@ module Goodreads
 
     def import_work_group(group_rows, counts)
       work = find_or_create_work(group_rows.first)
+      update_work_type(work, group_rows)
       fresh = []
 
       group_rows.each do |row|
@@ -133,14 +134,26 @@ module Goodreads
                       .first
       return existing if existing
 
-      # work_type defaults to "novel" — the CSV export carries no signal
-      # distinguishing novel/novella/collection/anthology; hand-correct
-      # per PHILOSOPHY.md principle 6 where it matters.
+      # work_type defaults to "novel" — update_work_type upgrades this
+      # right after creation when a group row's Bookshelves gives a real
+      # signal (anthology/collection/essay); otherwise hand-correct per
+      # PHILOSOPHY.md principle 6.
       Work.create!(
         title: info.title,
         work_type: "novel",
         original_publication_year: row["Original Publication Year"].presence&.to_i
       )
+    end
+
+    # Only overrides the "novel" default, never a value already set by a
+    # prior import or a manual correction — "novel" is treated as the
+    # implicit unset/default sentinel for imported Works specifically,
+    # not as a real confirmed classification to protect.
+    def update_work_type(work, group_rows)
+      return unless work.work_type == "novel"
+
+      work_type = group_rows.filter_map { |row| RowParser.work_type_from_shelves(row["Bookshelves"]) }.first
+      work.update!(work_type: work_type) if work_type
     end
 
     def link_series(work, row)
@@ -178,9 +191,14 @@ module Goodreads
     # rows (db/seeds.rb) become a WorkGenre; everything else becomes a
     # Tag — this is the expected, correct outcome for personal labels
     # (woodworking, ai, business...) that no controlled vocabulary should
-    # cover, not a fallback for missing seed data.
+    # cover, not a fallback for missing seed data. The structural labels
+    # already consumed by update_work_type (anthology/collection/essays)
+    # are excluded here — Work.work_type already says "anthology"; a
+    # redundant "anthology" Tag/Genre on top of that would just be noise.
     def link_shelves(work, row)
       RowParser.extra_shelves(row["Bookshelves"]).each do |label|
+        next if RowParser::WORK_TYPE_SHELF_SIGNALS.key?(label.downcase)
+
         lookup_name = RowParser.genre_lookup_name(label)
         genre = Genre.find_by("lower(name) = ?", lookup_name.downcase)
         if genre

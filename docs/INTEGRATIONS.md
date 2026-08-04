@@ -120,9 +120,25 @@ above, not just implementation detail:
   only available for the primary author — `Additional Authors` is a raw
   comma-separated name list with no l-f equivalent. Only the primary
   author gets `sort_name` populated on import.
-- **`Work.work_type` has no signal in the CSV at all** — defaults to
-  `novel` for every imported `Work`, hand-correct per `PHILOSOPHY.md`
-  principle 6 where it matters (anthologies, collections).
+- **`Work.work_type` mostly has no signal in the CSV — but three
+  `Bookshelves` labels are an exact, unambiguous exception.** `anthology`,
+  `collection`, and `essays` map directly onto three of `work_type`'s own
+  enum values (confirmed against real rows — e.g. "The Ruins of Earth"
+  shelved `anthology, sci-fi`) and are consumed into `Work.work_type`
+  instead of becoming a redundant `Tag`/`Genre`. Deliberately *not*
+  extended to the many other subject-area labels that are also very
+  likely nonfiction (`biography`, `philosophy`, `science`, `business`,
+  ...): several of them (`ai`, `futurism`, `politics`, `psychology`,
+  `astronomy`, `culture`) are exactly the kind of theme a genuine SF
+  *novel* explores too, so inferring `work_type: nonfiction` from a
+  subject tag risks silently mis-typing a real novel — a materially
+  different risk from the three structural labels above, which describe
+  the book's form, not its subject. Everything else still defaults to
+  `novel`, hand-correct per `PHILOSOPHY.md` principle 6 where it matters.
+  Confirmed against the real run: 18 `anthology`, 5 `collection`, 2
+  `essay`, 1,949 `novel` (down from 1,974 before this distinction was
+  drawn), zero redundant `anthology`/`collection`/`essays` Tags left
+  behind.
 - **Genre seeding from Thema (principle 9), done in `db/seeds.rb`** —
   fetched directly from EDItEUR's own Thema code list
   (`ns.editeur.org/thema/en/FL`, `/FM`), not reconstructed from memory:
