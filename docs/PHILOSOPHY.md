@@ -489,8 +489,7 @@ convention). Per principle 16, and now that principle 17 has settled on
 Ruby: **PaperTrail** — versions ActiveRecord models automatically, with a
 continuous, single-lineage maintenance history back to 2010 (still
 actively updated) rather than the forked-package situation found for the
-Python equivalent (SQLAlchemy-Continuum/SQLAlchemy-History). Revert to
-any past state, including recovering a row that was deleted. Strictly
+Python equivalent (SQLAlchemy-Continuum/SQLAlchemy-History). Strictly
 more capable than what was designed here by hand (full history at any
 past point, not just "current value plus one prior value"), for less
 custom code, applied selectively to the entities/fields that actually
@@ -500,20 +499,48 @@ need it:
   expensive to lose to a fat-fingered overwrite. Not sync-conflict
   resolution — "don't silently destroy a carefully-written draft,"
   valuable even with exactly one device.
-- `Work`, `Edition`, `Copy`, `Contributor`, `Series` — the entities
-  expensive to re-catalog by hand if accidentally deleted. Cataloging a
-  pre-ISBN paperback by hand is real effort; recovering from an accidental
-  delete shouldn't cost redoing it.
+- `Work`, `Edition`, `Copy`, `Contributor`, `Series` — attribute-level
+  history on records that still exist: what a title/name used to say
+  before a correction, who changed what and when. Cataloging a
+  pre-ISBN paperback by hand is real effort, and this is what makes an
+  accidental bad edit (not delete) cheap to walk back.
+
+**Correction, caught in review: this is not a safe "undelete."** The
+original framing here ("revert to any past state, including recovering a
+row that was deleted") oversold PaperTrail's `reify` for exactly the
+entities listed above, because none of them are deleted in isolation.
+Deleting a `Work` cascades to its `Edition`s, `Copy` records, and several
+join-style tables (`WorkContributor`, `EditionContent`,
+`EditionIdentifier`, `WorkGenre`, `WorkTag`) that aren't individually
+versioned. `reify`-ing the `Work` back would produce a zombie row — no
+credited author, no edition contents, no identifiers — because there's no
+version history for the rows that would need to come back with it.
+PaperTrail doesn't know these rows were ever one logical unit; only
+application code walking the association graph could restore them
+coherently, and that's real, unbuilt machinery, not a gem away. So:
+PaperTrail's job for these five entities is attribute-history on records
+that still exist, full stop — not deletion recovery.
+
+Deletion safety is instead handled by not letting the cascade reach the
+one thing principle 4 says must never be silently lost: `Work` and
+`Edition` use `dependent: :restrict_with_error` toward `Reading` and
+`Review`, so a record with reading history attached simply cannot be
+deleted out from under it — deleting the readings/reviews first is a
+separate, deliberate action. Pure join/denormalized rows with no
+independent meaning (`WorkContributor`, `EditionContent`,
+`EditionIdentifier`, `WorkGenre`, `WorkTag`) still cascade-delete
+(`dependent: :destroy`) — there's nothing to protect there.
 
 `EnrichmentRecord` still doesn't need this — it's already append-only (a
 new row per fetch, never overwritten), which is most of "what did the
 data used to say" for anything automatically sourced, for free, per
 principle 10.
 
-Everything beyond what the versioning library covers relies on regular
-whole-database backups (e.g. `litestream` for SQLite, `pg_dump` for
-Postgres) as the actual disaster-recovery mechanism, deliberately, rather
-than more bespoke machinery on top.
+Everything beyond what the versioning library covers — including
+recovering from an accidental cascading delete of a whole `Work`/`Edition`
+graph — relies on regular whole-database backups (e.g. `litestream` for
+SQLite, `pg_dump` for Postgres) as the actual disaster-recovery mechanism,
+deliberately, rather than more bespoke machinery on top.
 
 ### 16. Build what's core and differentiating; buy (open source) everything else
 
