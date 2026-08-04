@@ -1,0 +1,13 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  user: one
+  name: fixture-token-one
+  token_digest: digest-one
+  last_used_at: 2026-08-04 20:40:39
+
+two:
+  user: two
+  name: fixture-token-two
+  token_digest: digest-two
+  last_used_at: 2026-08-04 20:40:39

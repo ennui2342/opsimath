@@ -1,0 +1,109 @@
+# PostgreSQL. Versions 9.5 and up are supported.
+#
+# Install the pg driver:
+#   gem install pg
+# On macOS with Homebrew:
+#   gem install pg -- --with-pg-config=/opt/homebrew/bin/pg_config
+# On Windows:
+#   gem install pg
+#       Choose the win32 build.
+#       Install PostgreSQL and put its /bin directory on your path.
+#
+# Configure Using Gemfile
+# gem "pg"
+#
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  # For details on connection pooling, see Rails configuration guide
+  # https://guides.rubyonrails.org/configuring.html#database-pooling
+  max_connections: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+
+  # Docker Compose runs Postgres as its own "db" service, reached over TCP,
+  # not a local socket — see docker-compose.yml. Defaults match that
+  # service's own environment (POSTGRES_USER/POSTGRES_PASSWORD), overridable
+  # for anyone running outside Compose.
+  host: <%= ENV.fetch("DATABASE_HOST", "db") %>
+  username: <%= ENV.fetch("DATABASE_USERNAME", "postgres") %>
+  password: <%= ENV.fetch("DATABASE_PASSWORD", "postgres") %>
+  port: <%= ENV.fetch("DATABASE_PORT", 5432) %>
+
+# Development/test both need a named "queue" connection (Solid Queue's
+# own tables) for `bin/rails db:prepare` to set it up automatically and
+# reproducibly (a fresh clone, or CI, just works), rather than a one-off
+# manual `bin/rails runner "load ... queue_schema.rb"` step. Confirmed
+# live: solid_queue:start otherwise fails with
+# `PG::UndefinedTable: relation "solid_queue_processes" does not exist`
+# the first time, since nothing else creates those tables. Also confirmed
+# live: giving "queue" the *same* database name as primary (simplest-
+# looking option, one physical database) silently breaks `db:prepare`'s
+# cascade to it — `db:schema:load:queue` alone works, but `db:prepare`
+# skips it, apparently deduplicating identical database names before
+# reaching the schema-load step. A real, separate database name per role
+# — matching production's own pattern exactly, just smaller — sidesteps
+# that entirely.
+development:
+  primary: &primary_development
+    <<: *default
+    database: app_development
+  queue:
+    <<: *primary_development
+    database: app_development_queue
+    migrations_paths: db/queue_migrate
+
+# Warning: The database defined as "test" will be erased and
+# re-generated from your development database when you run "rake".
+# Do not set this db to the same as development or production.
+test:
+  primary: &primary_test
+    <<: *default
+    database: app_test
+  queue:
+    <<: *primary_test
+    database: app_test_queue
+    migrations_paths: db/queue_migrate
+
+# As with config/credentials.yml, you never want to store sensitive information,
+# like your database password, in your source code. If your source code is
+# ever seen by anyone, they now have access to your database.
+#
+# Instead, provide the password or a full connection URL as an environment
+# variable when you boot the app. For example:
+#
+#   DATABASE_URL="postgres://myuser:mypass@localhost/somedatabase"
+#
+# If the connection URL is provided in the special DATABASE_URL environment
+# variable, Rails will automatically merge its configuration values on top of
+# the values provided in this file. Alternatively, you can specify a connection
+# URL environment variable explicitly:
+#
+#   production:
+#     url: <%= ENV["MY_APP_DATABASE_URL"] %>
+#
+# Connection URLs for non-primary databases can also be configured using
+# environment variables. The variable name is formed by concatenating the
+# connection name with `_DATABASE_URL`. For example:
+#
+#   CACHE_DATABASE_URL="postgres://cacheuser:cachepass@localhost/cachedatabase"
+#
+# Read https://guides.rubyonrails.org/configuring.html#configuring-a-database
+# for a full overview on how database connection configuration can be specified.
+#
+production:
+  primary: &primary_production
+    <<: *default
+    database: app_production
+    username: app
+    password: <%= ENV["APP_DATABASE_PASSWORD"] %>
+  cache:
+    <<: *primary_production
+    database: app_production_cache
+    migrations_paths: db/cache_migrate
+  queue:
+    <<: *primary_production
+    database: app_production_queue
+    migrations_paths: db/queue_migrate
+  cable:
+    <<: *primary_production
+    database: app_production_cable
+    migrations_paths: db/cable_migrate

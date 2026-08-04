@@ -1,0 +1,80 @@
+# Local development only — see docs/PHILOSOPHY.md principle 13 for why
+# scheduling/jobs are self-contained (Solid Queue) rather than depending on
+# external infrastructure, and principle 21 for the Docker-for-dev decision
+# (keeps the host OS clean; no Ruby/Postgres installed on the host at all).
+#
+# Gems are baked into the Dockerfile.dev image at build time, not a
+# separate volume — simpler for a solo project than managing a
+# gem-volume/entrypoint dance, at the cost of `docker compose build`
+# (not just a restart) when Gemfile changes. Source is bind-mounted for
+# live reload; the image doesn't need rebuilding for ordinary code edits.
+#
+# web + worker share the same image — mirrors ~/projects/isfdb-adapter's
+# own compose shape (db + app + a worker-ish profile).
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    # Postgres 18's official image changed convention: it now wants a
+    # single mount at /var/lib/postgresql (it manages a version-specific
+    # subdirectory itself) rather than .../postgresql/data — confirmed by
+    # a real failed boot before this fix.
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 20
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: bash -c "bin/rails db:prepare && rm -f tmp/pids/server.pid && bin/rails server -b 0.0.0.0"
+    volumes:
+      - .:/rails
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_HOST: db
+      DATABASE_USERNAME: postgres
+      DATABASE_PASSWORD: postgres
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: bin/rails solid_queue:start
+    volumes:
+      - .:/rails
+    environment:
+      DATABASE_HOST: db
+      DATABASE_USERNAME: postgres
+      DATABASE_PASSWORD: postgres
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Known limitation, confirmed live, not yet resolved: this exits after
+  # one build instead of watching continuously — the underlying
+  # tailwindcss binary's native filesystem-event watching doesn't reliably
+  # cross a Docker-Desktop-on-macOS bind mount. Not a functional blocker
+  # (the app runs fine either way); until fixed, rebuild CSS by hand after
+  # editing views/Tailwind classes: `docker compose run --rm web bin/rails
+  # tailwindcss:build`.
+  css:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: bin/rails tailwindcss:watch
+    volumes:
+      - .:/rails
+
+volumes:
+  postgres_data:

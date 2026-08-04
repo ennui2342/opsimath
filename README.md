@@ -12,8 +12,24 @@ over, what's deliberately dropped, and why.
 
 ## Status
 
-Documentation phase — data model first, before any code. Nothing here runs
-yet.
+Rails app scaffolded and running: authentication (Rails 8's built-in
+generator) and `ApiToken` are in place; the bibliographic data model
+(`Work`/`Edition`/`Copy`/...) itself hasn't been built yet. Goodreads
+import/sync (`docs/INTEGRATIONS.md`) is the first real feature to build
+against it.
+
+## Running it locally
+
+```sh
+docker compose up -d
+```
+
+Web at `http://localhost:3000` (redirects to login — no user exists yet;
+create one via `docker compose run --rm web bin/rails runner
+"User.create!(email_address: '...', password: '...')"`). `db:prepare`
+runs automatically on boot. See `docker-compose.yml`'s comments for the
+Postgres 18 volume-path and Solid Queue multi-connection gotchas already
+hit and fixed once.
 
 ## Docs
 

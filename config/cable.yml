@@ -1,0 +1,16 @@
+development:
+  adapter: async
+
+test:
+  adapter: test
+
+production:
+  # Rails' own template defaults this to Redis — fixed to solid_cable
+  # (already in the Gemfile) to match principle 13's self-containment
+  # decision: no Redis anywhere in this stack, not even for Action Cable.
+  adapter: solid_cable
+  connects_to:
+    database:
+      writing: cable
+  polling_interval: 0.1.seconds
+  message_retention: 1.day
