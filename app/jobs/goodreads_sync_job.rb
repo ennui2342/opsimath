@@ -72,11 +72,31 @@ class GoodreadsSyncJob < ApplicationJob
     # found here was necessarily just raised by this exact call.
     PendingDecision.where(status: "pending")
                    .where("payload @> ?", { "entity_type" => "Edition", "entity_id" => edition.id }.to_json)
-                   .find_each do |pending_decision|
-      Notifications.notify(Notifications::Event.new(
-        kind: :pending_decision, level: :warn, title: "ISFDB enrichment needs review: #{pending_decision.kind}",
-        fields: { "edition_id" => edition.id, "pending_decision_id" => pending_decision.id }
-      ))
+                   .find_each { |pending_decision| notify_enrichment_conflict(pending_decision, edition) }
+  end
+
+  # The bare kind ("enrichment_field_conflict"/"enrichment_edition_mismatch")
+  # told you nothing actionable on its own — no title, no idea what's
+  # actually in dispute. Pull both out of the PendingDecision's own
+  # payload (see FieldApplier#find_or_create_conflict and
+  # IsfdbEditionEnricher#create_edition_mismatch for the two shapes) so
+  # the Discord message alone is enough to judge whether it's worth
+  # opening the console for.
+  def notify_enrichment_conflict(pending_decision, edition)
+    title = edition.works.map(&:title).join(", ").presence || "Edition #{edition.id}"
+
+    Notifications.notify(Notifications::Event.new(
+      kind: :pending_decision, level: :warn,
+      title: "ISFDB enrichment needs review: #{pending_decision.kind} — #{title}",
+      fields: { "title" => title, "pending_decision_id" => pending_decision.id }.merge(conflict_summary(pending_decision.payload))
+    ))
+  end
+
+  def conflict_summary(payload)
+    fields = payload["fields"] || [ payload.slice("field", "current_value", "proposed") ]
+    fields.each_with_object({}) do |f, summary|
+      proposed = f["proposed"].is_a?(Array) ? f["proposed"].first&.dig("value") : f["proposed"]
+      summary[f["field"]] = "#{f["current_value"] || "(blank)"} → #{proposed}"
     end
   end
 
