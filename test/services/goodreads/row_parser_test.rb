@@ -34,9 +34,14 @@ module Goodreads
       assert_equal [ "audiobook", nil ], RowParser.format_and_detail("Audio CD")
     end
 
-    test "format_and_detail falls back to paperback for unknown/blank binding" do
-      assert_equal [ "paperback", nil ], RowParser.format_and_detail("Unknown Binding")
-      assert_equal [ "paperback", nil ], RowParser.format_and_detail("")
+    test "format_and_detail returns nil for genuinely blank/unknown binding, not a fabricated guess" do
+      assert_equal [ nil, nil ], RowParser.format_and_detail("Unknown Binding")
+      assert_equal [ nil, nil ], RowParser.format_and_detail("")
+      assert_equal [ nil, nil ], RowParser.format_and_detail("unknown")
+    end
+
+    test "format_and_detail returns nil for a real but unrecognized binding string too, not a guess" do
+      assert_equal [ nil, nil ], RowParser.format_and_detail("Board book")
     end
 
     test "read_events parses a real two-pair read_dates string (Echopraxia)" do
@@ -121,6 +126,16 @@ module Goodreads
       assert_nil RowParser.literary_form_from_shelves("philosophy, sci-fi")
       assert_nil RowParser.literary_form_from_shelves("biography")
       assert_nil RowParser.literary_form_from_shelves("ai")
+    end
+
+    test "literary_form_from_shelves recognizes a magazine/periodical shelf tag" do
+      assert_equal "periodical", RowParser.literary_form_from_shelves("magazine, sci-fi")
+      assert_equal "periodical", RowParser.literary_form_from_shelves("periodical")
+    end
+
+    test "periodical_title? detects the real Clarkesworld case by title alone" do
+      assert RowParser.periodical_title?("Clarkesworld Magazine, Issue 238, July 2026")
+      assert_not RowParser.periodical_title?("Neuromancer")
     end
 
     test "subject_lookup_name bridges Goodreads' informal 'ai' to the seeded 'Artificial intelligence'" do

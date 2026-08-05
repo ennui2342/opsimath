@@ -8,7 +8,12 @@ class Work < ApplicationRecord
     collection: "collection",
     anthology: "anthology",
     nonfiction: "nonfiction",
-    essay: "essay"
+    essay: "essay",
+    # A standalone magazine/periodical issue — a genuinely different
+    # structural type from anthology (MARC/ONIX both distinguish serial/
+    # continuing resources from monographs), not a novel or an edited
+    # one-off collection. See docs/INTEGRATIONS.md's Phase 2 addendum.
+    periodical: "periodical"
   }
 
   has_many :work_alternate_titles, dependent: :destroy

@@ -31,6 +31,10 @@ class Edition < ApplicationRecord
   has_many :readings, dependent: :restrict_with_error
   has_many :enrichment_records, as: :entity, dependent: :destroy
 
-  validates :format, presence: true
+  # No presence validation — Goodreads' RSS feed (Phase 2) gives no
+  # binding/format signal at all for some editions; forcing a value would
+  # fabricate data, same reasoning as publish_date's own EDTF fix. Left
+  # blank until real ISFDB enrichment fills it in cleanly. The enum itself
+  # still rejects any non-nil value outside the known set.
   validates :publish_date, format: { with: PUBLISH_DATE_FORMAT }, allow_nil: true
 end

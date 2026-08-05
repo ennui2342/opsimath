@@ -53,12 +53,19 @@ module Goodreads
       "audio cd" => [ "audiobook", nil ]
     }.freeze
 
-    # Falls back to paperback (the real export's overwhelming majority
-    # format) for "Unknown Binding"/"unknown"/blank — a cheap default to
-    # hand-correct later per PHILOSOPHY.md principle 6, not a guess
-    # dressed up as data.
+    # Blank/"Unknown Binding"/"unknown", or a real Binding string this map
+    # just doesn't recognize yet (confirmed: 0 real rows currently hit
+    # that case, but the function shouldn't guess if one ever does) —
+    # returns nil rather than fabricating "paperback", which ISFDB
+    # enrichment can otherwise fill in cleanly with no conflict either
+    # way.
+    BLANK_BINDINGS = [ "", "unknown binding", "unknown" ].freeze
+
     def self.format_and_detail(binding_value)
-      FORMAT_BY_BINDING.fetch(binding_value.to_s.strip.downcase, [ "paperback", nil ])
+      normalized = binding_value.to_s.strip.downcase
+      return [ nil, nil ] if BLANK_BINDINGS.include?(normalized)
+
+      FORMAT_BY_BINDING.fetch(normalized, [ nil, nil ])
     end
 
     DATE_SLASH = /\A(\d{4})\/(\d{2})\/(\d{2})\z/
@@ -162,7 +169,9 @@ module Goodreads
     LITERARY_FORM_SHELF_SIGNALS = {
       "anthology" => "anthology",
       "collection" => "collection",
-      "essays" => "essay"
+      "essays" => "essay",
+      "magazine" => "periodical",
+      "periodical" => "periodical"
     }.freeze
 
     def self.literary_form_from_shelves(bookshelves_raw)
@@ -171,6 +180,19 @@ module Goodreads
         return literary_form if labels.include?(label)
       end
       nil
+    end
+
+    # A standalone magazine issue is a real, if previously unseen, way for
+    # a book to enter the library (a Phase 2 RSS finding — no magazine
+    # ever appeared in the Phase 1 CSV export). Goodreads gives no
+    # structured signal for this at all, only the title text itself
+    # (confirmed real example: "Clarkesworld Magazine, Issue 238, July
+    # 2026") — same "detect from a real, narrow signal, default and
+    # hand-correct otherwise" policy as every other literary_form default.
+    PERIODICAL_TITLE_PATTERN = /\bmagazine\b/i
+
+    def self.periodical_title?(title)
+      title.to_s.match?(PERIODICAL_TITLE_PATTERN)
     end
 
     # Bridges Goodreads' informal "ai" to the seeded Subject's official
