@@ -148,11 +148,63 @@ matched in the ISFDB mirror (380 didn't — real, expected coverage gaps,
 not an error) — 1,367 editions got a real downloaded cover image, 1,306
 got a `language` value (never populated by the Goodreads import at all),
 1,343 editions now carry real `field_sources` provenance. 2,705
-`PendingDecision`s were raised for genuine field conflicts (mostly
-`publish_date` precision disagreements — Goodreads' year-only vs ISFDB's
-year+month — exactly the kind of case principle 10 says to surface, not
-guess between) — reviewing those is real, separate follow-up work with
-no UI to do it through yet, not a defect in this job.
+`PendingDecision`s were raised for genuine field conflicts.
+
+**That real conflict data led to a real schema fix, not just a bigger
+review queue.** Breaking the 2,705 down by field (`publish_date` 1,291,
+`publisher` 846, `page_count` 558, `format` 10) and actually looking at
+the `publish_date` ones surfaced that 986 of 1,291 (76%) weren't real
+disagreements at all — they were `Edition.publish_date_precision ==
+"year"` (our own Jan-1-fabricated placeholder, from Goodreads only ever
+giving a bare year) being "contradicted" by a genuinely more precise
+ISFDB value in the *same* year. That's a refinement, not a conflict —
+and it only looked like one because `publish_date`/`publish_date_precision`
+(a `date` column + a companion enum) couldn't represent "I only know the
+year" without lying about the day/month in the `date` column itself.
+
+**Fixed at the representation, not just the comparison**: replaced
+`publish_date`/`publish_date_precision` with a single EDTF-formatted
+string column (`"1978"`, `"1978-06"`, `"1978-06-15"` — see
+`DATA_MODEL.md`'s `Edition.publish_date` entry for the full reasoning).
+`Enrichment::IsfdbEditionEnricher#apply_publish_date` now compares by
+string-prefix: if the proposed value extends what we already know (same
+year, more digits), it's applied directly; if what we already have
+already extends the proposed value, nothing changes; only a genuine
+disagreement (neither extends the other — different year, or same
+precision but a different value) goes through `FieldApplier`'s normal
+conflict gate. Added `IsfdbEditionEnricher.reprocess(edition, payload)` —
+re-applies an already-fetched `raw_payload` without a new fetch, the
+concrete use `EnrichmentRecord`'s "keep the full payload" design was
+built for — and used it to retroactively re-resolve the existing backlog
+against the fixed logic, without hitting isfdb-adapter again. Confirmed
+against the real data: `publish_date` `PendingDecision`s dropped from
+1,291 to 305 (all genuine year-level disagreements), 1,033 editions
+gained real month/day precision (up from 2), total pending conflicts
+1,291+1,414 -> 305+1,414 (2,705 -> 1,719).
+
+**The remaining 1,719 were also analyzed, not just left alone**:
+- `publish_date` (305) — genuine year-level disagreements; worth a human
+  look, possibly indicating ISFDB matched a different printing under a
+  reused ISBN (a caveat its own README names directly).
+- `publisher` (846) — only 31 are pure formatting noise (identical once
+  case/punctuation is stripped — a real `FieldApplier` comparison gap,
+  not yet fixed); 521 are one name substring-containing the other
+  (`"Penguin Classics"` vs `"Penguin"`) — left alone deliberately, since
+  `PHILOSOPHY.md` principle 11 is explicit that imprint-level precision
+  matters for vintage SF collecting, and silently collapsing these risks
+  losing exactly the distinction this project cares about getting right.
+  The remaining 294 are genuinely different strings, real disagreements.
+- `page_count` (558) — no safe auto-resolution identified; smooth
+  distribution of gap sizes (187 off by 1-5, 205 by 6-20, 81 by 21-50, 85
+  by 50+) with no clean threshold separating a front-matter-counting
+  convention difference from a wrong-edition match. The 85 with 50+-page
+  gaps are worth reviewing first — a large gap is a plausible sign of a
+  reused-ISBN mismatch.
+- `format` (10) — all substantive (paperback vs. hardcover, ebook vs.
+  hardcover), no safe auto-resolution, genuinely need a human.
+
+Reviewing what's left is real, separate follow-up work with no UI to do
+it through yet — not a defect in this job.
 
 ### Addendum: real-data findings from building and running the importer
 

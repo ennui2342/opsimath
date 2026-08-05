@@ -261,15 +261,12 @@ module Goodreads
 
     def create_edition(row, book_id)
       format, format_detail = RowParser.format_and_detail(row["Binding"])
-      year = row["Year Published"].presence&.to_i
-      publish_date = year && Date.new(year, 1, 1)
 
       edition = Edition.create!(
         format: format,
         format_detail: format_detail,
         publisher: row["Publisher"].presence,
-        publish_date: publish_date,
-        publish_date_precision: publish_date && "year",
+        publish_date: row["Year Published"].presence, # year only — an EDTF string, not a fabricated day/month
         page_count: row["Number of Pages"].presence&.to_i
       )
 

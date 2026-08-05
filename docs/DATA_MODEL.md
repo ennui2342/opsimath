@@ -120,8 +120,7 @@ A specific printing/format, containing one or more works.
 | `format_detail` | optional, seeded from ONIX Codelist 175: `mass_market` (B101), `trade_us` (B102), `a_format` (B104, UK), `b_format` (B105, UK), `trade_uk` (B106), `tall_rack` (B107) — see `PHILOSOPHY.md` principle 9. Not enforced as a closed set; free text for anything the codelist doesn't cover |
 | `publisher` | |
 | `imprint` | e.g. Ace, DAW, Ballantine — often more meaningful than the parent publisher for vintage SF |
-| `publish_date` | see `publish_date_precision` |
-| `publish_date_precision` | `day` / `month` / `year` — vintage paperbacks routinely only give a year, sometimes only a printing number; don't force false precision |
+| `publish_date` | a plain EDTF-formatted string (`"1978"`, `"1978-06"`, or `"1978-06-15"`) — not a `date` column. Vintage paperbacks routinely only give a year, sometimes only a printing number; a `date` type can't represent "only the year is known" without fabricating a day/month, which is exactly the false precision to avoid. No separate precision column either — the string only ever contains the digits actually known, so there's nothing else to track. Originally built as a `date` column + a `publish_date_precision` enum (`day`/`month`/`year`); replaced once real ISFDB-enrichment data made the smell concrete — see `docs/INTEGRATIONS.md`'s enrichment addendum for the real numbers. |
 | `printing` | e.g. "3rd printing," free text — distinct from edition_name |
 | `edition_name` | e.g. "25th Anniversary Edition" |
 | `variant_of_edition_id` | optional, self-referencing — per `PHILOSOPHY.md` principle 11 (Grand Comics Database's variant-issue pattern): for a later printing that's the same text but new cover art, points back to the base edition it's a cover variant of, without merging their distinct `cover_image`/cover-artist credit |

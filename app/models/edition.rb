@@ -8,7 +8,14 @@ class Edition < ApplicationRecord
     audiobook: "audiobook",
     omnibus: "omnibus"
   }
-  enum :publish_date_precision, { day: "day", month: "month", year: "year" }
+  # publish_date is a plain EDTF-formatted string ("1978", "1978-06", or
+  # "1978-06-15") rather than a `date` column — a `date` type can't
+  # represent "only the year is known" without fabricating a day/month,
+  # which is exactly the false-precision problem PHILOSOPHY.md warns
+  # against. No separate precision column either: the string itself only
+  # ever contains the digits actually known, so there's nothing else to
+  # track. See docs/DATA_MODEL.md.
+  PUBLISH_DATE_FORMAT = /\A\d{4}(-\d{2}(-\d{2})?)?\z/
 
   belongs_to :variant_of_edition, class_name: "Edition", optional: true
   has_many :variants, class_name: "Edition", foreign_key: :variant_of_edition_id, inverse_of: :variant_of_edition, dependent: :nullify
@@ -25,4 +32,5 @@ class Edition < ApplicationRecord
   has_many :enrichment_records, as: :entity, dependent: :destroy
 
   validates :format, presence: true
+  validates :publish_date, format: { with: PUBLISH_DATE_FORMAT }, allow_nil: true
 end

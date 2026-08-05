@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_05_001149) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_05_130413) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -133,8 +133,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_05_001149) do
     t.string "language"
     t.integer "page_count"
     t.string "printing"
-    t.date "publish_date"
-    t.string "publish_date_precision"
+    t.string "publish_date"
     t.string "publisher"
     t.datetime "updated_at", null: false
     t.bigint "variant_of_edition_id"

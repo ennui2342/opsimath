@@ -66,8 +66,7 @@ module Enrichment
       assert_equal "Ace Books", @edition.publisher
       assert_equal "eng", @edition.language
       assert_equal 883, @edition.page_count
-      assert_equal Date.new(2010, 1, 1), @edition.publish_date
-      assert_equal "year", @edition.publish_date_precision
+      assert_equal "2010", @edition.publish_date
       assert_equal "isfdb", @edition.field_sources["publisher"]
 
       # "pb" -> paperback/mass_market; format was already "paperback" so
@@ -77,6 +76,19 @@ module Enrichment
 
       assert @edition.edition_identifiers.exists?(id_type: "isfdb", value: "426303")
       assert @edition.cover_image.attached?
+    end
+
+    test "reprocess re-applies an already-fetched payload without a new EnrichmentRecord or network call" do
+      data = JSON.parse(DUNE_RESPONSE.to_json) # string-keyed, matching a real stored raw_payload
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      IsfdbEditionEnricher.reprocess(@edition, data)
+      @edition.reload
+
+      assert_equal 0, EnrichmentRecord.count # no new fetch happened
+      assert_equal "Ace Books", @edition.publisher
+      assert_equal "2010", @edition.publish_date
+      assert @edition.edition_identifiers.exists?(id_type: "isfdb", value: "426303")
     end
 
     test "a genuinely conflicting non-blank field creates a PendingDecision instead of overwriting" do
@@ -99,6 +111,53 @@ module Enrichment
       assert_equal :success, result.status
       assert_not @edition.reload.cover_image.attached?
       assert_equal "Ace Books", @edition.publisher
+    end
+
+    test "a more precise publish_date from isfdb is applied as a refinement, not flagged as a conflict" do
+      @edition.update!(publish_date: "2010")
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.merge(publish_date: "2010-06").to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal "2010-06", @edition.reload.publish_date
+      assert_equal "isfdb", @edition.field_sources["publish_date"]
+      assert_equal 0, PendingDecision.where(kind: "enrichment_field_conflict").where("payload ->> 'field' = ?", "publish_date").count
+    end
+
+    test "a less precise publish_date from isfdb is left alone — we already know more" do
+      @edition.update!(publish_date: "2010-06-15")
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.merge(publish_date: "2010").to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal "2010-06-15", @edition.reload.publish_date
+      assert_equal 0, PendingDecision.count
+    end
+
+    test "the same publish_date value at the same precision is a no-op, not a conflict" do
+      @edition.update!(publish_date: "2010")
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal "2010", @edition.reload.publish_date
+      assert_equal 0, PendingDecision.count
+    end
+
+    test "a genuinely different publish_date (neither value extends the other) is a real conflict" do
+      @edition.update!(publish_date: "2011")
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.to_json) # "2010"
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal "2011", @edition.reload.publish_date # untouched
+      decision = PendingDecision.where(kind: "enrichment_field_conflict").where("payload ->> 'field' = ?", "publish_date").sole
+      assert_equal "2011", decision.payload["current_value"]
+      assert_equal "2010", decision.payload["proposed"].first["value"]
     end
 
     test "unmapped pub_ptype values are left alone rather than guessed at" do

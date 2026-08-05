@@ -38,6 +38,17 @@ module Enrichment
       new(edition, client: client).enrich
     end
 
+    # Re-applies an already-fetched payload (an existing EnrichmentRecord's
+    # raw_payload) without hitting isfdb-adapter again — the concrete use
+    # case DATA_MODEL.md's EnrichmentRecord section calls out for keeping
+    # the full raw payload: "a source can be re-diffed later or fields
+    # re-derived without re-fetching if mapping logic improves." Doesn't
+    # create a new EnrichmentRecord (no new fetch happened) or re-resolve
+    # the ISBN (the payload is already known to match this edition).
+    def self.reprocess(edition, data)
+      new(edition, client: nil).reprocess(data)
+    end
+
     def initialize(edition, client:)
       @edition = edition
       @client = client
@@ -51,13 +62,17 @@ module Enrichment
       return Result.new(status: :skipped, message: "not found in isfdb mirror") unless data
 
       record_enrichment(data)
-      apply_fields(data)
-      backfill_isfdb_identifier(data)
-      attach_cover(data)
+      reprocess(data)
 
       Result.new(status: :success)
     rescue Isfdb::ServiceError => e
       Result.new(status: :failed, message: e.message)
+    end
+
+    def reprocess(data)
+      apply_fields(data)
+      backfill_isfdb_identifier(data)
+      attach_cover(data)
     end
 
     private
@@ -80,25 +95,27 @@ module Enrichment
       apply_format(data["binding"])
     end
 
-    # publish_date/publish_date_precision are one coupled fact, not two
-    # independent fields — precision only ever gets (re)written alongside
-    # a date that was actually just filled in, never against an existing
-    # or conflicting date it wouldn't describe correctly.
+    # publish_date is an EDTF string (see Edition::PUBLISH_DATE_FORMAT),
+    # and isfdb-adapter's own date_str already normalizes ISFDB's raw
+    # dates into the same shape ("1973-00-00" -> "1973", full dates pass
+    # through). Because the string's own length *is* its precision, a
+    # "conflict" here often isn't one: if the proposed value is current's
+    # value with more digits appended (same year, or same year+month,
+    # just more precise), that's a refinement — apply it directly rather
+    # than raising a PendingDecision a human would just confirm every
+    # time. Only a genuine disagreement (neither string extends the
+    # other) goes through FieldApplier's normal conflict gate.
     def apply_publish_date(raw)
-      return if raw.blank?
+      return if raw.blank? || !raw.match?(Edition::PUBLISH_DATE_FORMAT)
 
-      date, precision = parse_isfdb_date(raw)
-      return unless date
+      current = @edition.publish_date
 
-      result = FieldApplier.apply(@edition, :publish_date, date, "isfdb")
-      @edition.update!(publish_date_precision: precision) if result.status == :applied
-    end
-
-    def parse_isfdb_date(raw)
-      case raw
-      when /\A(\d{4})-(\d{2})-(\d{2})\z/ then [ Date.new($1.to_i, $2.to_i, $3.to_i), "day" ]
-      when /\A(\d{4})-(\d{2})\z/ then [ Date.new($1.to_i, $2.to_i, 1), "month" ]
-      when /\A(\d{4})\z/ then [ Date.new($1.to_i, 1, 1), "year" ]
+      if current.present? && raw.start_with?(current) && raw != current
+        @edition.update!(publish_date: raw, field_sources: @edition.field_sources.merge("publish_date" => "isfdb"))
+      elsif current.present? && current.start_with?(raw) && current != raw
+        nil # already at least as precise as isfdb's value — nothing to gain
+      else
+        FieldApplier.apply(@edition, :publish_date, raw, "isfdb")
       end
     end
 
