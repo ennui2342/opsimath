@@ -15,4 +15,10 @@ namespace :goodreads do
     counts = Goodreads::Importer.import(path)
     puts counts
   end
+
+  desc "Phase 2 ongoing sync against the live Goodreads RSS feeds (see docs/INTEGRATIONS.md)"
+  task sync: :environment do
+    counts = GoodreadsSyncJob.perform_now
+    puts counts
+  end
 end

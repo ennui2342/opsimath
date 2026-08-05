@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_05_130413) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_05_172500) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -127,7 +127,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_05_130413) do
     t.integer "duration_seconds"
     t.string "edition_name"
     t.jsonb "field_sources", default: {}, null: false
-    t.string "format", null: false
+    t.string "format"
     t.string "format_detail"
     t.string "imprint"
     t.string "language"
@@ -158,6 +158,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_05_130413) do
     t.string "name"
     t.string "thema_code"
     t.datetime "updated_at", null: false
+  end
+
+  create_table "goodreads_sync_states", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "goodreads_book_id", null: false
+    t.jsonb "last_synced_payload", default: {}, null: false
+    t.string "shelf", null: false
+    t.datetime "updated_at", null: false
+    t.index ["goodreads_book_id", "shelf"], name: "index_goodreads_sync_states_on_goodreads_book_id_and_shelf", unique: true
   end
 
   create_table "job_items", force: :cascade do |t|

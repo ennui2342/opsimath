@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" >
+  <channel>
+    <title>Mark's bookshelf: did-not-finish</title>
+    <description><![CDATA[Mark's bookshelf: did-not-finish]]></description>
+    <language>en-US</language>
+  <item>
+    <guid><![CDATA[https://www.goodreads.com/review/show/6401565624?utm_medium=api&utm_source=rss]]></guid>
+    <pubDate><![CDATA[Tue, 17 Mar 2026 06:52:24 -0700]]></pubDate>
+    <title><![CDATA[The Unknown Craftsman: A Japanese Insight into Beauty]]></title>
+    <link><![CDATA[https://www.goodreads.com/review/show/6401565624?utm_medium=api&utm_source=rss]]></link>
+    <book_id>17823844</book_id>
+    <book_image_url><![CDATA[https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/books/1378071216l/17823844._SX50_.jpg]]></book_image_url>
+    <book_small_image_url><![CDATA[https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/books/1378071216l/17823844._SX50_.jpg]]></book_small_image_url>
+    <book_medium_image_url><![CDATA[https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/books/1378071216l/17823844._SX98_.jpg]]></book_medium_image_url>
+    <book_large_image_url><![CDATA[https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/books/1378071216l/17823844.jpg]]></book_large_image_url>
+    <book_description><![CDATA[This book challenges the conventional ideas of art and beauty. What is the value of things made by an anonymous craftsman working in a set tradition for a lifetime? What is the value of handwork? Why should even the roughly lacquered rice bowl of a Japanese farmer be thought beautiful? The late Soetsu Yanagi was the first to fully explore the traditional Japanese appreciation for "objects born, not made."<br /><br />Mr. Yanagi sees folk art as a manifestation of the essential world from which art, philosophy, and religion arise and in which the barriers between them disappear. The implications of the author's ideas are both far-reaching and practical.<br /><br />Soetsu Yanagi is often mentioned in books on Japanese art, but this is the first translation in any Western language of a selection of his major writings. The late Bernard Leach, renowned British potter and friend of Mr. Yanagi for fifty years, has clearly transmitted the insights of one of Japan's most important thinkers. The seventy-six plates illustrate objects that underscore the universality of his concepts. The author's profound view of the creative process and his plea for a new artistic freedom within tradition are especially timely now when the importance of craft and the handmade object is being rediscovered.]]></book_description>
+    <book id="17823844">
+      <num_pages>232</num_pages>
+    </book>
+    <author_name>Soetsu Yanagi</author_name>
+    <isbn>1568365209</isbn>
+    <user_name>Mark</user_name>
+    <user_rating>1</user_rating>
+    <user_read_at><![CDATA[Fri, 3 May 2024 00:00:00 +0000]]></user_read_at>
+    <user_date_added><![CDATA[Tue, 17 Mar 2026 06:52:24 -0700]]></user_date_added>
+    <user_date_created><![CDATA[Thu, 04 Apr 2024 08:37:53 -0700]]></user_date_created>
+    <user_shelves>philosophy, did-not-finish</user_shelves>
+    <user_review></user_review>
+    <average_rating>4.09</average_rating>
+    <book_published></book_published>
+    <description>
+      <![CDATA[
+      <a href="https://www.goodreads.com/book/show/17823844-the-unknown-craftsman?utm_medium=api&amp;utm_source=rss"><img alt="The Unknown Craftsman: A Japanese Insight into Beauty" src="https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/books/1378071216l/17823844._SX50_.jpg" /></a><br/>
+                                      author: Soetsu Yanagi<br/>
+                                      name: Mark<br/>
+                                      average rating: 4.09<br/>
+                                      book published: <br/>
+                                      rating: 1<br/>
+                                      read at: 2024/05/03<br/>
+                                      date added: 2026/03/17<br/>
+                                      shelves: philosophy, did-not-finish<br/>
+                                      review: <br/><br/>
+                                      ]]>
+    </description>
+  </item>
+  </channel>
+</rss>

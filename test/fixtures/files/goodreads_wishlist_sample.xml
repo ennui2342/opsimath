@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" >
+  <channel>
+    <title>Mark's bookshelf: wishlist</title>
+    <description><![CDATA[Mark's bookshelf: wishlist]]></description>
+    <language>en-US</language>
+  <item>
+    <guid><![CDATA[https://www.goodreads.com/review/show/8800921313?utm_medium=api&utm_source=rss]]></guid>
+    <pubDate><![CDATA[Sat, 25 Jul 2026 12:54:55 -0700]]></pubDate>
+    <title>A Greater Music</title>
+    <link><![CDATA[https://www.goodreads.com/review/show/8800921313?utm_medium=api&utm_source=rss]]></link>
+    <book_id>29363290</book_id>
+    <book_image_url><![CDATA[https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/books/1469296531l/29363290._SY75_.jpg]]></book_image_url>
+    <book_small_image_url><![CDATA[https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/books/1469296531l/29363290._SY75_.jpg]]></book_small_image_url>
+    <book_medium_image_url><![CDATA[https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/books/1469296531l/29363290._SX98_.jpg]]></book_medium_image_url>
+    <book_large_image_url><![CDATA[https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/books/1469296531l/29363290._SY475_.jpg]]></book_large_image_url>
+    <book_description><![CDATA["Bae Suah offers the chance to <i>unknow</i>—to see the everyday afresh and be defamiliarized with what we believe we know—which is no small offering."—Sophie Hughes, <i>Music &amp; Literature</i><br /><br />Near the beginning of <i>A Greater Music</i>, the narrator, a young Korean writer, falls into an icy river in the Berlin suburbs, where she's been housesitting for her on-off boyfriend Joachim. This sets into motion a series of memories that move between the hazily defined present and the period three years ago when she first lived in Berlin. Throughout, the narrator's relationship with Joachim, a rough-and-ready metalworker, is contrasted with her friendship with M, an ultra-refined music-loving German teacher, whom, it is suggested, later became her lesbian lover.<br /><br />A novel of memories and wandering, <i>A Greater Music </i>blends riffs on music, language, and literature with a gut-punch of an emotional ending, establishing Bae Suah as one of the most exciting novelists working today.<br /><br /><b>Bae Suah</b>, one of the most highly acclaimed contemporary Korean authors, has published more than a dozen works and won several prestigious awards. She has also translated several books from the German, including works by W. G. Sebald, Franz Kafka, and Jenny Erpenbeck. Her first book to appear in English, <i>Nowhere to be Found</i>, was longlisted for a PEN Translation Prize.<br /><br /><b>Deborah Smith</b>'s literary translations from the Korean include two novels by Han Kang (<i>The Vegetarian </i>and <i>Human Acts</i>), and two by Bae Suah, (<i>A Greater Music </i>and <i>Recitation</i>).]]></book_description>
+    <book id="29363290">
+      <num_pages>132</num_pages>
+    </book>
+    <author_name>Bae Suah</author_name>
+    <isbn>1940953464</isbn>
+    <user_name>Mark</user_name>
+    <user_rating>0</user_rating>
+    <user_read_at></user_read_at>
+    <user_date_added><![CDATA[Sat, 25 Jul 2026 12:54:55 -0700]]></user_date_added>
+    <user_date_created><![CDATA[Sat, 25 Jul 2026 12:54:54 -0700]]></user_date_created>
+    <user_shelves>wishlist</user_shelves>
+    <user_review></user_review>
+    <average_rating>3.62</average_rating>
+    <book_published>2003</book_published>
+    <description>
+      <![CDATA[
+      <a href="https://www.goodreads.com/book/show/29363290-a-greater-music?utm_medium=api&amp;utm_source=rss"><img alt="A Greater Music" src="https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/books/1469296531l/29363290._SY75_.jpg" /></a><br/>
+                                      author: Bae Suah<br/>
+                                      name: Mark<br/>
+                                      average rating: 3.62<br/>
+                                      book published: 2003<br/>
+                                      rating: 0<br/>
+                                      read at: <br/>
+                                      date added: 2026/07/25<br/>
+                                      shelves: wishlist<br/>
+                                      review: <br/><br/>
+                                      ]]>
+    </description>
+  </item>
+  </channel>
+</rss>

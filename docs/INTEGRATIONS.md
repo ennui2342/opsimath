@@ -229,6 +229,48 @@ not just accepting the count:
   `PendingDecision`s; a plain reprocess of the existing `EnrichmentRecord`
   backlog then filled `page_count` cleanly for 1,420 editions with zero
   new conflicts.
+- **`format` — the same "don't fabricate a value" fix, caught while
+  building Phase 2, fixed retroactively in Phase 1's already-imported
+  data too (2026-08-05).** Mark caught this directly while reviewing the
+  Phase 2 plan: Phase 2's RSS feed has no binding/format field at all
+  (not even an "Unknown" value — a real absence, not just an unhelpful
+  one), and defaulting to `"paperback"` there would fabricate data and
+  manufacture avoidable `PendingDecision`s that ISFDB enrichment could
+  otherwise have filled in cleanly with no conflict — the same
+  false-precision problem `publish_date`'s EDTF fix already solved for
+  dates. Checked how far this already applied to Phase 1's *existing*
+  CSV-imported data before fixing it: only 10 of the 1,985 real catalog
+  rows ever had a genuinely blank/`Unknown Binding` `Binding` value
+  (`RowParser.format_and_detail`'s fallback only ever fired for these
+  10 — the other 1,798 `"paperback"` values came from a real Goodreads
+  `Binding` string, not a guess). Of those 10 real `Edition`s, 2 had
+  already been ISFDB-matched and, in both cases, ISFDB's real answer
+  happened to also be paperback — coincidentally correct, but never
+  actually verified until this fix reprocessed them; the rest either
+  hadn't been ISFDB-matched yet or have no ISBN at all and never will
+  be.
+  Fixed: `Edition.format` is now nullable (`allow_nil`, not
+  `presence: true` — same shape as `publish_date`'s own validation);
+  `RowParser.format_and_detail` returns `[nil, nil]` for a genuinely
+  blank/`Unknown Binding` value instead of guessing paperback; the 10
+  affected `Edition`s had their fabricated `format` cleared and were
+  reprocessed against ISFDB directly (no new HTTP call needed — the
+  `EnrichmentRecord`'s stored `raw_payload` already had the real
+  answer). Phase 2's auto-create path (see below) follows the same
+  policy from the start: leaves `format` blank when Goodreads gives no
+  signal, never fabricates a default. Audited both phases for the same
+  shape of problem right after (2026-08-05, prompted by Mark): the one
+  other candidate, a real-but-*unrecognized* `Binding` string (e.g. some
+  hypothetical "Board book" — not in `FORMAT_BY_BINDING` but not blank
+  either) also fell back to a guessed `"paperback"`, though 0 real rows
+  in the actual export currently hit that path. Fixed the same way for
+  consistency — `format_and_detail` never fabricates a value regardless
+  of input now, only ever a real mapped value or `nil`. (`literary_form`'s
+  own `"novel"` default was audited too and deliberately left as-is: it's
+  already visibly documented as a default-and-hand-correct convention,
+  and unlike `format`, ISFDB has no work-type data at all to clean it up
+  automatically later — nullable would just mean permanently blank
+  rather than usually-right.)
 
 **A new `PendingDecision` kind, `enrichment_edition_mismatch`, for when
 *multiple* fields disagree on the same edition at once.** Checking this
@@ -432,15 +474,42 @@ confirmed as a real near-term need.
 ### RSS mechanics
 
 `https://www.goodreads.com/review/list_rss/{GOODREADS_USER_ID}?shelf={SHELF}&key={GOODREADS_RSS_KEY}`
-— confirmed working against the real account in the existing pipelines.
-Needs the numeric user id (not the vanity username — 404s otherwise) and
-the shelf RSS key, both credentials (Rails encrypted credentials, not
-`.env` — no external pipeline process to configure this time). Per-item
-fields available and already proven useful: `book_id`, `isbn`, `isbn13`,
-`author_name`, `user_date_added`, `user_rating`, `user_review` (HTML),
-`user_read_at` (read shelf only). **No field is a true "date started"** —
-`user_date_added` (when shelved) is the best available proxy, same
-conclusion the existing pipelines already reached.
+— confirmed working against the real account in the existing pipelines,
+and again directly against the live feed before writing any Phase 2 code
+(2026-08-05, per Mark's explicit instruction — see below). Needs the
+numeric user id (not the vanity username — 404s otherwise) and the shelf
+RSS key, both credentials (Rails encrypted credentials, not `.env` — no
+external pipeline process to configure this time).
+
+**Real per-item field list, confirmed against the live feed, not
+assumed**: `book_id`, `title`, `author_name` (primary author only, a
+single string — no equivalent of the CSV's `Additional Authors`),
+`isbn`, `book_published` (year only), `book_description` (a real
+synopsis, unlike ISFDB's — see the enrichment addendum below),
+`num_pages` (nested under a nested `<book id="...">` element, not a
+flat tag), `user_rating` (0 = unrated, same convention as the CSV),
+`user_review` (HTML, with literal `<br />` tags), `user_read_at` (read/
+did-not-finish shelves only), `user_date_added`, `user_date_created`,
+`user_shelves` (comma-separated when a book carries more than one
+shelf — same shape as the CSV's `Bookshelves`). **`isbn13` does not
+exist in this feed at all** — only `isbn` (always a real ISBN10,
+confirmed across all 291 non-blank values across all 5 shelves in a
+live pull). An earlier draft of this doc assumed both were available;
+matching against the feed must key off `EditionIdentifier(id_type:
+"isbn10")` only. **No binding/format field exists either** — Phase 2's
+auto-create path leaves `Edition.format` blank rather than guessing, see
+the Phase 0 fix note below.
+
+**No field is a true "date started"** — `user_date_added` (the shelf's
+most recent transition date, not `user_date_created`, which is the
+original first-ever-shelved date and can be much earlier) is the best
+available proxy, same conclusion the existing pipelines already reached.
+Double-checked directly against a real to-read → currently-reading
+transition (*The Solaris Book of New Science Fiction*: `user_date_created`
+2026-01-30 = when first added to any shelf; `user_date_added` 2026-07-28
+= the actual move to currently-reading) before trusting this, since an
+earlier pass in this same session suspected the doc had it backwards —
+it didn't.
 
 ### State tracking: `GoodreadsSyncState`
 
@@ -523,9 +592,19 @@ present is a free improvement, not a redesign.
 - **`to-read`** → create `Work`/`Edition`/`Copy` if genuinely new (direct
   precedent: `goodreads-librarium-sync.yaml`). Per your stated convention,
   this is where a book becomes an owned copy.
-- **`currently-reading`** → open a `Reading` (`status: reading`,
-  `date_started` from `user_date_added`) — direct precedent
-  (`-reading-sync`).
+- **`currently-reading`** → **gets the same auto-create-if-unmatched
+  behavior as `to-read`, not just "open a Reading against an existing
+  match"** — a real, caught-live example: a magazine issue (*Clarkesworld
+  Magazine, Issue 238*) arrived in the post and was started the same day,
+  entering the feed via `currently-reading` with no prior `to-read`/
+  `wishlist` history at all. An earlier draft of this doc only described
+  `currently-reading` as opening a `Reading` against an already-known
+  book — real usage shows a book can enter the library for the first time
+  through *any* status shelf, not just `to-read`. So: auto-create if
+  `Matcher` finds nothing, then open a `Reading` (`status: reading`,
+  `date_started` from `user_date_added`) on the fresh `Edition` — direct
+  precedent for the "open a Reading" half (`-reading-sync`), new for the
+  auto-create half.
 - **`read`** → close the matching open `Reading` (`status: completed`,
   `date_finished` from `user_read_at`, plus rating/review) or create one
   if none is open — direct precedent (`-read-sync`).
@@ -545,6 +624,22 @@ that don't disambiguate, or an already-open `Reading` when
 `currently-reading` fires again) still route to `PendingDecision` rather
 than guessing.
 
+**A standalone magazine issue is a real auto-create case, distinct from a
+novel or an anthology** — the same *Clarkesworld* example above. No
+magazine ever appeared in the Phase 1 CSV export, so this never came up
+until Phase 2's live feed surfaced it. `Work.literary_form` gained a
+`periodical` value (alongside `novel`/`novella`/`short_story`/
+`collection`/`anthology`/`nonfiction`/`essay`) — a magazine issue is a
+genuinely different structural type (MARC/ONIX both distinguish serial/
+continuing resources from monographs), not well served by defaulting to
+`novel` or overloading `anthology`. Detected the same way `anthology`/
+`collection`/`essay` already are: a `magazine`/`periodical` shelf tag, or
+(new, since Goodreads gives no shelf-tag signal for a book it's never
+seen shelved before) the title itself containing "Magazine" — confirmed
+against the real example. Defaults to `novel` and hand-corrects
+otherwise when neither signal is present, same safety net every other
+`literary_form` default already relies on.
+
 ### Ambiguous outcomes → `PendingDecision`
 
 Every case the existing pipelines handled with a Discord alert becomes a
@@ -557,10 +652,47 @@ ambiguously), and a new one this design surfaces —
 event, a forgotten-to-close previous read, or an intentional reread
 starting before the last one's paperwork caught up).
 
-Out-of-band notification (Discord or similar, matching the existing
-pipelines' pattern) isn't built in this phase — the `PendingDecision`
-queue is the v1 review mechanism. A notification layer on top is a
-reasonable future nicety, not a requirement here.
+### Out-of-band notification: `Notifications::`
+
+Built the same day the RSS sync itself went live, at Mark's request —
+an earlier draft of this doc said out-of-band notification "isn't built
+in this phase... a reasonable future nicety, not a requirement here."
+That held only until the sync was actually running against a live
+account: without it, "did the last hourly run do anything unexpected"
+meant opening a Rails console, exactly the friction principle 20 already
+argues against. `PendingDecision` remains the actionable, in-app review
+queue — notification is purely a visibility layer on top, not a
+replacement for it.
+
+`app/services/notifications.rb` + `app/services/notifications/` — a
+small, deliberately generic subsystem (`Notifications.notify(event)`,
+one `LogNotifier` always active, one `DiscordNotifier` that joins when a
+Discord bot token credential is configured), *not* Goodreads-specific,
+so any future job can reuse it. Posts via the Discord bot REST API
+(`POST /channels/{id}/messages`, `Authorization: Bot {token}`) using the
+real bot token/channel id the existing `~/projects/aswarm` Goodreads
+pipelines already use (`DISCORD_BOT_TOKEN`/`DISCORD_CHANNEL_ID` in that
+project's `.env`) — the same mechanism their own `discord.py` connector
+wraps, not a separate incoming webhook.
+
+`GoodreadsSyncJob` is the only place this feature calls it — deliberately
+not `Syncer`/`ShelfSync`, which stay pure/testable. Per event, one
+message each: `auto_created` (a new Work/Edition/WishlistItem), a
+`pending_decision` alert for each `reread_conflict`/
+`possible_duplicate_work` `ShelfSync` raises, one `sync_summary` at the
+end of every run, and `sync_error` if the run itself blows up (re-raised
+after notifying, so Solid Queue's own retry/failure tracking isn't
+short-circuited).
+
+**A newly auto-created `Edition` also gets ISFDB enrichment triggered
+immediately, scoped to just that one `Edition`** — a deliberate design
+choice to satisfy "notify on the Goodreads updater's own activity"
+without flooding Discord: this is a *separate, per-item* call, not a
+hook into the existing bulk `IsfdbEnrichmentJob`/`isfdb:enrich_editions`
+rake task, which stays completely untouched and silent (a full-library
+run would otherwise generate hundreds of messages). Any conflict this
+per-item enrichment raises gets its own `pending_decision` notification,
+same as `ShelfSync`'s own.
 
 ## Explicitly out of scope for this phase
 
@@ -570,6 +702,5 @@ reasonable future nicety, not a requirement here.
   for now, deliberately, because it's what keeps your community/network
   presence in sync; inverting that is a real future direction, not this
   phase.
-- Discord/notification layer on top of `PendingDecision`.
 - Any `isfdb-adapter` API changes — use it as-is; revisit only on real
   friction.
