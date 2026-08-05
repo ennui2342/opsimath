@@ -18,6 +18,8 @@ class Work < ApplicationRecord
   has_many :series, through: :work_series
   has_many :work_genres, dependent: :destroy
   has_many :genres, through: :work_genres
+  has_many :work_subjects, dependent: :destroy
+  has_many :subjects, through: :work_subjects
   has_many :work_tags, dependent: :destroy
   has_many :tags, through: :work_tags
   has_many :work_awards, dependent: :destroy

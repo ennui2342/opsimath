@@ -48,3 +48,57 @@ THEMA_GENRES.each do |attrs|
     genre.bisac_code = attrs[:bisac_code]
   end
 end
+
+# Subject — a shallow, curated general-classification vocabulary, added
+# alongside Genre/Tag per DATA_MODEL.md's "Genre / Subject / Tag" section
+# (the reasoning is written there in full, not repeated here). Deliberately
+# NOT a full Dewey Decimal Classification seed: only the 10 top-level DDC
+# classes (confirmed via a live search, not memory — 000 Computer science/
+# general works, 100 Philosophy & psychology, 200 Religion, 300 Social
+# sciences, 400 Language, 500 Science, 600 Technology, 700 Arts &
+# recreation, 800 Literature, 900 History & geography) are ever used as
+# ddc_code, and only where a real topic maps onto one confidently — left
+# blank elsewhere rather than guessed at a deeper DDC subclass I haven't
+# verified (e.g. Business/Economics genuinely straddle 300 vs 600
+# depending on the DDC edition; not resolved here, left blank).
+#
+# This list is curated to match the real ~20 distinct nonfiction topics
+# actually found in the Goodreads export, not an attempt at a general
+# library's full subject range — matches "shallow is good, we only really
+# use 20" (confirmed directly).
+#
+# "Fiction" is the one subject every fiction Work gets, applied
+# structurally by Goodreads::Importer from Work.literary_form rather than
+# matched from a shelf label — see its own comment there.
+SUBJECTS = [
+  { name: "Fiction", ddc_code: "800" },
+  { name: "Philosophy", ddc_code: "100" },
+  { name: "Psychology", ddc_code: "100" },
+  { name: "Sociology", ddc_code: "300" },
+  { name: "Politics", ddc_code: "300" },
+  { name: "Economics" },
+  { name: "Business" },
+  { name: "Marketing" },
+  { name: "Science", ddc_code: "500" },
+  { name: "Astronomy", ddc_code: "500" },
+  { name: "Technology", ddc_code: "600" },
+  { name: "Woodworking" },
+  { name: "Ceramics" },
+  { name: "Metalworking" },
+  { name: "Artificial intelligence", ddc_code: "000" },
+  { name: "Art", ddc_code: "700" },
+  { name: "Games", ddc_code: "700" },
+  { name: "History", ddc_code: "900" },
+  { name: "Biography", ddc_code: "900" },
+  { name: "Travel", ddc_code: "900" },
+  { name: "Culture" },
+  { name: "Writing" },
+  { name: "Reference" },
+  { name: "Futurism" }
+].freeze
+
+SUBJECTS.each do |attrs|
+  Subject.find_or_create_by!(name: attrs[:name]) do |subject|
+    subject.ddc_code = attrs[:ddc_code]
+  end
+end

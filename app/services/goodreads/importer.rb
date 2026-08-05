@@ -120,6 +120,13 @@ module Goodreads
         counts.imported_rows += 1
       end
 
+      # Runs after link_shelves for the whole group, not before: a real
+      # nonfiction topic match (e.g. "SPQR: A History of Ancient Rome" ->
+      # Subject "History") must win over the structural "Fiction" default
+      # — a Work can't honestly be both. Only applied when nothing more
+      # specific matched.
+      ensure_fiction_subject(work)
+
       create_readings_for_group(work, fresh)
     end
 
@@ -156,6 +163,34 @@ module Goodreads
       work.update!(literary_form: literary_form) if literary_form
     end
 
+    # Every fiction Work gets exactly one shared "Fiction" Subject row —
+    # not classified further under Subject, the same way a library
+    # wouldn't Dewey-classify a novel beyond "this is fiction" (most
+    # public libraries don't apply Dewey to fiction at all, shelving it
+    # separately by author). "nonfiction"/"essay" are the only
+    # literary_form values that are genuinely non-fiction; those Works
+    # get their real Subject from link_shelves instead, never "Fiction".
+    #
+    # Only applied when the Work has no other Subject already — Goodreads
+    # gives no reliable fiction/nonfiction signal for the many books that
+    # default to literary_form "novel" without ever being confirmed as
+    # fiction (the same reason literary_form itself isn't inferred from a
+    # subject tag), so a book that already matched a real Subject (e.g.
+    # "History") is trusted over the structural default: it can't
+    # honestly be both. A genuinely nonfiction book with *no* recognized
+    # subject tag at all will still default to "Fiction" here — a real,
+    # bounded gap (Goodreads gives no better signal), hand-correct per
+    # PHILOSOPHY.md principle 6.
+    FICTION_LITERARY_FORMS = %w[novel novella short_story collection anthology].freeze
+
+    def ensure_fiction_subject(work)
+      return unless FICTION_LITERARY_FORMS.include?(work.literary_form)
+      return if work.subjects.any?
+
+      fiction = Subject.find_by!(name: "Fiction")
+      WorkSubject.find_or_create_by!(work: work, subject: fiction)
+    end
+
     def link_series(work, row)
       info = RowParser.series_info(row["Title"])
       return unless info.series_name
@@ -188,26 +223,39 @@ module Goodreads
 
     # Bookshelves labels matched (via RowParser::GENRE_ALIASES, then a
     # direct case-insensitive name match) against the Thema-seeded Genre
-    # rows (db/seeds.rb) become a WorkGenre; everything else becomes a
-    # Tag — this is the expected, correct outcome for personal labels
-    # (woodworking, ai, business...) that no controlled vocabulary should
-    # cover, not a fallback for missing seed data. The structural labels
-    # already consumed by update_literary_form (anthology/collection/
-    # essays) are excluded here — Work.literary_form already says
-    # "anthology"; a redundant "anthology" Tag/Genre on top of that
-    # would just be noise.
+    # rows (db/seeds.rb) become a WorkGenre; failing that, matched (via
+    # RowParser::SUBJECT_ALIASES) against the seeded Subject rows become
+    # a WorkSubject; everything else becomes a Tag — this is the
+    # expected, correct outcome for the deep SF-critical/personal labels
+    # (see DATA_MODEL.md's "Genre / Subject / Tag") that neither
+    # controlled vocabulary should cover, not a fallback for missing seed
+    # data. Two labels are skipped outright rather than classified at
+    # all: the structural ones already consumed by update_literary_form
+    # (anthology/collection/essays — Work.literary_form already says
+    # "anthology", a redundant Tag/Genre/Subject on top would just be
+    # noise), and the bare "fiction" label, which is redundant with the
+    # single shared "Fiction" Subject every fiction Work gets structurally
+    # (see ensure_fiction_subject) rather than from this per-label match.
+    SKIPPED_SHELF_LABELS = (RowParser::LITERARY_FORM_SHELF_SIGNALS.keys + %w[fiction]).freeze
+
     def link_shelves(work, row)
       RowParser.extra_shelves(row["Bookshelves"]).each do |label|
-        next if RowParser::LITERARY_FORM_SHELF_SIGNALS.key?(label.downcase)
+        next if SKIPPED_SHELF_LABELS.include?(label.downcase)
 
-        lookup_name = RowParser.genre_lookup_name(label)
-        genre = Genre.find_by("lower(name) = ?", lookup_name.downcase)
+        genre = Genre.find_by("lower(name) = ?", RowParser.genre_lookup_name(label).downcase)
         if genre
           WorkGenre.find_or_create_by!(work: work, genre: genre)
-        else
-          tag = Tag.find_or_create_by!(name: label)
-          WorkTag.find_or_create_by!(work: work, tag: tag)
+          next
         end
+
+        subject = Subject.find_by("lower(name) = ?", RowParser.subject_lookup_name(label).downcase)
+        if subject
+          WorkSubject.find_or_create_by!(work: work, subject: subject)
+          next
+        end
+
+        tag = Tag.find_or_create_by!(name: label)
+        WorkTag.find_or_create_by!(work: work, tag: tag)
       end
     end
 

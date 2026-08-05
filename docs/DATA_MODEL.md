@@ -19,6 +19,7 @@ erDiagram
     WORK ||--o{ WISHLIST_ITEM : "wanted as"
     WORK ||--o{ WORK_TAG : tagged
     WORK ||--o{ WORK_GENRE : classified
+    WORK ||--o{ WORK_SUBJECT : classified
     WORK ||--o{ WORK_AWARD : "won/nominated via"
     WORK ||--o{ ENRICHMENT_RECORD : "fetched for"
 
@@ -46,6 +47,7 @@ erDiagram
     READING ||--o{ REVIEW : prompts
 
     GENRE ||--o{ WORK_GENRE : classifies
+    SUBJECT ||--o{ WORK_SUBJECT : classifies
     TAG ||--o{ WORK_TAG : labels
 ```
 
@@ -292,21 +294,25 @@ a work into a series, optionally into one of its arcs. `position` is
 numeric rather than integer so novellas/interstitial works can sit at e.g.
 `2.5` without renumbering everything after them.
 
-## Genre / Tag
+## Genre / Subject / Tag
 
-Kept as two distinct concepts, matching librarium:
+Three distinct concepts, not two — added `Subject` after building the
+Goodreads importer surfaced a real ambiguity between them (see below for
+the reasoning, kept in full since it's the kind of thing worth not
+re-deriving):
 
-- **Genre** — a small, curated, shared vocabulary for actual classification
-  (hard SF, space opera, cyberpunk, first contact...). Structured because
-  it's meant to support filtering/browsing. Per `PHILOSOPHY.md` principle
-  9, seeded from Thema's `FL` (Science Fiction) subject tree rather than
-  invented from scratch, with each row optionally cross-referencing the
-  corresponding BISAC code:
+- **Genre** — a small, curated, shared vocabulary for actual fiction
+  classification, at the common-usage level (SF, Fantasy, space opera,
+  cyberpunk, hard SF...). Structured because it's meant to support
+  filtering/browsing. Per `PHILOSOPHY.md` principle 9, seeded from
+  Thema's `FL` (Science fiction) and `FM` (Fantasy) subject trees rather
+  than invented from scratch, with each row optionally cross-referencing
+  the corresponding BISAC code:
 
   | Field | Notes |
   |---|---|
   | `id` | |
-  | `name` | e.g. "Space Opera" |
+  | `name` | e.g. "Science fiction: space opera" |
   | `thema_code` | optional, e.g. `FLS` |
   | `bisac_code` | optional, e.g. `FIC028090` |
 
@@ -314,14 +320,64 @@ Kept as two distinct concepts, matching librarium:
   label Thema/BISAC don't cover (e.g. "New Wave," "planetary romance") can
   still be added with both code fields left blank. Check the standard
   before inventing a new label, per principle 9, but don't block on it.
+  Deliberately stays at the subgenre level, not deeper — see `Tag` below
+  for why tropes/themes don't live here.
+- **Subject** — a shallow, curated general-classification vocabulary,
+  Dewey-flavored, covering the whole library (not just fiction):
+
+  | Field | Notes |
+  |---|---|
+  | `id` | |
+  | `name` | e.g. "Philosophy", "Woodworking", "Fiction" |
+  | `ddc_code` | optional, top-level DDC class only (e.g. `100`), left
+    blank where the real topic doesn't map cleanly onto one — never a
+    deeper DDC subclass; see `db/seeds.rb` |
+
+  Deliberately shallow by design, not by laziness: a personal library's
+  real nonfiction tail is small (confirmed: ~20 real distinct topics
+  across 2,306 books), and DDC's own deeper subclassing would be
+  structure the data doesn't need. Real library practice backs the
+  scoping decision here too — most public libraries don't apply Dewey to
+  fiction at all, shelving it separately by author, because subject
+  classification isn't the right tool for browsing fiction. Matched here:
+  every fiction `Work` (`literary_form` other than `nonfiction`/`essay`)
+  gets exactly one `Subject`, a single shared "Fiction" row — not
+  classified further under `Subject`, the same way a library wouldn't
+  Dewey-classify a novel beyond "this is fiction."
 - **Tag** — free-form, personal, uncontrolled (`signed`, `beach-read`,
   `want-to-reread`, `duplicate-oops`). No shared vocabulary — this is
   exactly the kind of personal labeling no standard covers or should.
+  Also, deliberately, where deep SF-critical tagging lives (`Big Dumb
+  Object`, `First Contact`, `Posthuman`, `Political` as a *trope*, not a
+  *topic* — see the distinction from `Subject` below): unlike Thema for
+  Genre, there's no fetchable, coded standard for this vocabulary (the
+  closest real-world analogue, the Science Fiction Encyclopedia, is a
+  curated reference work, not a controlled vocabulary with stable codes),
+  so treating it as free-form `Tag` is the accurate description, not a
+  compromise.
 
-Collapsing these into one system was considered and rejected — they serve
-different jobs (classification vs. personal labeling) and conflating them
-is how tag lists end up half genre-like cruft, half personal notes, useful
-for neither.
+**Why three, not two.** MARC 21 keeps "what a book is about" (650
+Subject Added Entry — topical term) and "what kind of thing a book is"
+(655 Genre/Form) on two structurally separate field families, precisely
+so the same word can mean different things in each without colliding —
+the Library of Congress maintains this as two separate controlled
+vocabularies (LCSH for subject, LCGFT for genre/form) for exactly this
+reason. The concrete case that surfaced this: "Political" as a `Genre`-
+or `Tag`-level *trope* ("this SF novel has political themes") and
+"Politics" as a `Subject`-level *topic* ("this nonfiction book is about
+political science") are genuinely different facts, and conflating them
+in one vocabulary risks a real book actually about politics getting
+mistaken for political SF. `Genre` does LCGFT's job for fiction; `Subject`
+does LCSH/Dewey's job for topic, deliberately not applied to fiction
+beyond the single shared "Fiction" row; `Tag` absorbs both genuinely
+personal labels and the deep, uncontrolled SF-critical vocabulary that
+has no formal standard to seed from.
+
+Collapsing these into fewer systems was considered and rejected each
+time — they serve different jobs (fiction classification vs. general
+topic vs. personal/critical labeling) and conflating them is how tag
+lists end up half genre-like cruft, half personal notes, half topic
+labels, useful for none of the three.
 
 Genre labels sourced from Wikidata enrichment (its `P136` "genre" property,
 pulled from Wikipedia infoboxes) won't reliably match Thema's controlled

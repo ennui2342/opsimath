@@ -1,0 +1,4 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+# Empty on purpose — no synthetic placeholder data (see PHILOSOPHY.md principle 21: real
+# fixtures come from actual extracted data, not generator boilerplate).

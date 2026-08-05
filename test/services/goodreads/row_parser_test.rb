@@ -122,5 +122,15 @@ module Goodreads
       assert_nil RowParser.literary_form_from_shelves("biography")
       assert_nil RowParser.literary_form_from_shelves("ai")
     end
+
+    test "subject_lookup_name bridges Goodreads' informal 'ai' to the seeded 'Artificial intelligence'" do
+      assert_equal "Artificial intelligence", RowParser.subject_lookup_name("ai")
+      assert_equal "Artificial intelligence", RowParser.subject_lookup_name("AI")
+    end
+
+    test "subject_lookup_name passes an already-matching label through unchanged" do
+      assert_equal "history", RowParser.subject_lookup_name("history")
+      assert_equal "business", RowParser.subject_lookup_name("business")
+    end
   end
 end

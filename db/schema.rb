@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_04_233247) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_05_001149) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -252,6 +252,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_04_233247) do
     t.index ["parent_location_id"], name: "index_storage_locations_on_parent_location_id"
   end
 
+  create_table "subjects", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "ddc_code"
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_subjects_on_name", unique: true
+  end
+
   create_table "tags", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "name"
@@ -344,6 +352,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_04_233247) do
     t.index ["work_id"], name: "index_work_series_on_work_id"
   end
 
+  create_table "work_subjects", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "subject_id", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "work_id", null: false
+    t.index ["subject_id"], name: "index_work_subjects_on_subject_id"
+    t.index ["work_id", "subject_id"], name: "index_work_subjects_on_work_id_and_subject_id", unique: true
+    t.index ["work_id"], name: "index_work_subjects_on_work_id"
+  end
+
   create_table "work_tags", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.bigint "tag_id", null: false
@@ -398,6 +416,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_04_233247) do
   add_foreign_key "work_series", "series"
   add_foreign_key "work_series", "series_arcs", column: "arc_id"
   add_foreign_key "work_series", "works"
+  add_foreign_key "work_subjects", "subjects"
+  add_foreign_key "work_subjects", "works"
   add_foreign_key "work_tags", "tags"
   add_foreign_key "work_tags", "works"
 end

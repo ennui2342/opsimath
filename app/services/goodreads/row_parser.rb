@@ -172,5 +172,17 @@ module Goodreads
       end
       nil
     end
+
+    # Bridges Goodreads' informal "ai" to the seeded Subject's official
+    # "Artificial intelligence" name — every other seeded Subject name
+    # (db/seeds.rb) already matches its real shelf-label spelling
+    # case-insensitively, so this is the only alias subject matching needs.
+    SUBJECT_ALIASES = {
+      "ai" => "Artificial intelligence"
+    }.freeze
+
+    def self.subject_lookup_name(label)
+      SUBJECT_ALIASES[label.downcase] || label
+    end
   end
 end

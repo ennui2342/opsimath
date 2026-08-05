@@ -162,9 +162,37 @@ above, not just implementation detail:
   the informal spelling, which would have defeated the point of using
   the standard's real vocabulary. `fantasy` needed no alias — it already
   matches Thema's `Fantasy` directly. Confirmed against the real run:
-  659 `Work`s classified `Science fiction`, 15 `Fantasy`, all other 27
-  personal labels (business, woodworking, ai, ...) correctly still
-  `Tag`s.
+  659 `Work`s classified `Science fiction`, 15 `Fantasy`.
+- **`Subject` (Dewey-flavored, shallow, curated)** — added alongside
+  Genre/Tag once deepening the *fiction*-side tagging (to match the
+  richer trope/theme vocabulary used on published reviews — see
+  `DATA_MODEL.md`'s "Genre / Subject / Tag" section for the full
+  reasoning) made the collision risk in the previous "27 personal labels
+  correctly still Tags" line real rather than hypothetical: a `Tag`
+  meaning "this SF novel explores politics as a theme" and a `Tag`
+  meaning "this nonfiction book is about politics" would have been
+  indistinguishable strings in the same table. `link_shelves` now tries
+  Genre, then `Subject` (via `RowParser::SUBJECT_ALIASES` — only `ai` ->
+  `Artificial intelligence` needed one), before falling back to `Tag`.
+  Every fiction `Work` also gets a single shared `Subject` "Fiction" row
+  structurally (`Goodreads::Importer#ensure_fiction_subject`), applied
+  from `literary_form` rather than matched from a shelf label — mirroring
+  how most public libraries don't apply Dewey to fiction at all. That
+  default only applies when no *other* Subject already matched (a real
+  nonfiction topic match, e.g. "SPQR: A History of Ancient Rome" ->
+  `History`, wins over the default — a Work can't honestly be both).
+  Bounded, disclosed gap: a genuinely nonfiction book with no recognized
+  subject tag *and* a defaulted `literary_form` (still "novel", since
+  Goodreads gives no reliable fiction/nonfiction signal) will incorrectly
+  default to `Fiction` — hand-correct per principle 6, same as
+  `literary_form`'s own default. Confirmed against the real run: 1,855
+  `Work`s -> `Fiction`, the remaining ~24 real nonfiction topics
+  correctly classified (`Business` 30, `Technology` 21, `Science` 16,
+  ... down to `History`/`Travel`/`Futurism`/`Reference` at 1 each), zero
+  `Tag`s left over, and exactly 2 Works (both `essay` `literary_form`,
+  correctly excluded from the `Fiction` default) end up with no Subject
+  at all — an honest gap, not a bug, since nothing in this curated list
+  covers "literary criticism about SF."
 - **Real author-field data quality issues in the export**, left as-is
   rather than auto-corrected: Goodreads slug artifacts as literal author
   names (`delany-samuel-r`, `wil-mccarthy`), and garbled joint-author

@@ -4,6 +4,14 @@ module Goodreads
   class ImporterTest < ActiveSupport::TestCase
     FIXTURE = Rails.root.join("test/fixtures/files/goodreads_sample.csv")
 
+    setup do
+      # Every import touches ensure_fiction_subject, which requires the
+      # seeded "Fiction" Subject to exist (db/seeds.rb) — unlike Genre,
+      # not optional per-test, so seeded once here rather than repeated
+      # in every test.
+      Subject.create!(name: "Fiction", ddc_code: "800")
+    end
+
     test "imports a normal single-read row with review and rating" do
       Importer.import(FIXTURE)
 
@@ -69,6 +77,44 @@ module Goodreads
       work = Work.find_by!(title: "The Color of Neanderthal Eyes / And Strange at Ecbatan the Trees")
       names = work.work_contributors.order(:display_order).map { |wc| wc.contributor.name }
       assert_equal [ "James Tiptree Jr.", "Michael Bishop" ], names
+    end
+
+    test "a fiction Work with no genre/subject shelf signal at all still gets the structural Fiction Subject" do
+      Importer.import(FIXTURE)
+
+      # Real row: Bookshelves is just "to-read" — no sci-fi tag, no
+      # subject tag, nothing to match against. This is the ordinary case
+      # for most of the real collection (Mark doesn't re-tag every book
+      # "sci-fi" when the whole shelf already implies it).
+      work = Work.find_by!(title: "The Color of Neanderthal Eyes / And Strange at Ecbatan the Trees")
+      assert_equal [ "Fiction" ], work.subjects.pluck(:name)
+    end
+
+    test "a real nonfiction Subject match wins over the structural Fiction default" do
+      Subject.create!(name: "History", ddc_code: "900")
+
+      Importer.import(FIXTURE)
+
+      work = Work.find_by!(title: "SPQR: A History of Ancient Rome")
+      assert_equal [ "History" ], work.subjects.pluck(:name)
+    end
+
+    test "multiple nonfiction Subject labels on one row all attach, no Fiction" do
+      Subject.create!(name: "Artificial intelligence", ddc_code: "000")
+      Subject.create!(name: "Business")
+
+      Importer.import(FIXTURE)
+
+      work = Work.find_by!(title: "Reshuffle: Who wins when AI restacks the knowledge economy")
+      assert_equal [ "Artificial intelligence", "Business" ], work.subjects.order(:name).pluck(:name)
+    end
+
+    test "an essay (nonfiction) Work gets no Fiction Subject, even with no other Subject match" do
+      Importer.import(FIXTURE)
+
+      work = Work.find_by!(title: "The Jewel-hinged Jaw: Notes on the Language of Science Fiction")
+      assert_equal "essay", work.literary_form
+      assert_equal 0, work.subjects.count
     end
 
     test "a read row with no date signal at all still gets exactly one Reading with nil dates" do
