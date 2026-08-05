@@ -35,7 +35,10 @@ x-app: &app
     DATABASE_PASSWORD: postgres
     # Not a secret (just a LAN hostname) — a plain env var, unlike the
     # Goodreads RSS key, which does need Rails encrypted credentials.
-    ISFDB_ADAPTER_URL: http://isfdb-adapter.k8s.ecafe.org:8080
+    # Reached via the Traefik Ingress (plain port 80), not the
+    # cluster-internal service port (8080) — a real bug in the first
+    # version of this line, caught by actually testing connectivity.
+    ISFDB_ADAPTER_URL: http://isfdb-adapter.k8s.ecafe.org
 
 services:
   db:

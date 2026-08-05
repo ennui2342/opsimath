@@ -92,14 +92,15 @@ queries through the running adapter pod, not guessed):
   listening on that hostname). Added `k8s` repo's `isfdb/ingress.yaml`
   (Traefik only, matching `home-assistant`/`grafana`'s pattern — an
   internal API other services consume, not something browsed directly,
-  so no Tailscale funnel the way `librarium`/`wallabag` have). Verified
-  end-to-end from inside the cluster post-deploy (a throwaway pod curling
-  through Traefik's own ClusterIP got a real `200` and a real `/isbn`
-  response) — but not from this session's own sandbox, which has no route
-  to the LAN at all (confirmed: even a plain `Net::HTTP` call from inside
-  opsimath's own Docker container times out here). The final live
-  end-to-end check against the real 2,306-book library needs to happen
-  from an environment that's actually on the LAN.
+  so no Tailscale funnel the way `librarium`/`wallabag` have). `ISFDB_
+  ADAPTER_URL` is plain port 80 (Traefik), not `:8080` (the cluster-
+  internal service port) — a real bug in the first version of that line,
+  caught by testing connectivity rather than assuming the URL was right.
+  DNS for `k8s.ecafe.org` names resolves to a cluster-internal-only IP
+  through this session's own Tailscale-routed DNS, but the real LAN IP
+  (`192.168.0.8`) answers correctly with the right `Host` header —
+  worth checking whether Tailscale's DNS config misdirects other
+  tailnet-connected devices the same way, independent of opsimath.
 - **Edition-scoped, not Work-scoped, and ISBN-only for v1** — `/isbn/{isbn}`
   returns edition-shaped data (publisher, publish date, page count,
   cover), so `EnrichmentRecord`s here are `entity_type: "Edition"`, not
@@ -141,8 +142,17 @@ queries through the running adapter pod, not guessed):
 
 Verified with WebMock against real response shapes (curled live from the
 adapter after the Ingress fix, not fabricated) — 72/72 tests pass,
-RuboCop/Brakeman clean. The full-library live run against isfdb-adapter
-itself is still pending an environment that's actually on the LAN.
+RuboCop/Brakeman clean. **Also run for real against the full 2,306-book
+library** (2026-08-05): of 1,811 `Edition`s with a real ISBN, 1,431
+matched in the ISFDB mirror (380 didn't — real, expected coverage gaps,
+not an error) — 1,367 editions got a real downloaded cover image, 1,306
+got a `language` value (never populated by the Goodreads import at all),
+1,343 editions now carry real `field_sources` provenance. 2,705
+`PendingDecision`s were raised for genuine field conflicts (mostly
+`publish_date` precision disagreements — Goodreads' year-only vs ISFDB's
+year+month — exactly the kind of case principle 10 says to surface, not
+guess between) — reviewing those is real, separate follow-up work with
+no UI to do it through yet, not a defect in this job.
 
 ### Addendum: real-data findings from building and running the importer
 
