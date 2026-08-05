@@ -74,12 +74,75 @@ principle 4 — never a count copied in from an untrusted source field.
 ### Enrichment at import time
 
 A single batch job (Solid Queue, per `PHILOSOPHY.md` principle 13) over
-all imported `Work`s against `isfdb-adapter` — same `EnrichmentRecord`/
+imported `Edition`s against `isfdb-adapter` — same `EnrichmentRecord`/
 `field_sources`/`PendingDecision` machinery already designed, not new
 mechanism. `isfdb-adapter`'s current API is used as-is; revisit its shape
-only if real friction shows up using it here, not speculatively. **Not
-built yet** — the CSV importer below (`Goodreads::Importer`) stops at
-cataloging; this batch job is a separate follow-up.
+only if real friction shows up using it here, not speculatively.
+
+**Built as `IsfdbEnrichmentJob`** (`Isfdb::Client`,
+`Enrichment::FieldApplier`, `Enrichment::IsfdbEditionEnricher`; triggered
+via `bin/rails isfdb:enrich_editions`). A few things only became clear by
+actually building this and checking the live mirror directly (read-only
+queries through the running adapter pod, not guessed):
+
+- **`isfdb-adapter` had no external route at all before this** — ClusterIP
+  only, no `Ingress`, despite `isfdb-adapter.k8s.ecafe.org` already
+  resolving via DNS (to Traefik's IP, matching every other `*.k8s.ecafe.org`
+  service — just with no matching `Ingress` rule, so nothing was actually
+  listening on that hostname). Added `k8s` repo's `isfdb/ingress.yaml`
+  (Traefik only, matching `home-assistant`/`grafana`'s pattern — an
+  internal API other services consume, not something browsed directly,
+  so no Tailscale funnel the way `librarium`/`wallabag` have). Verified
+  end-to-end from inside the cluster post-deploy (a throwaway pod curling
+  through Traefik's own ClusterIP got a real `200` and a real `/isbn`
+  response) — but not from this session's own sandbox, which has no route
+  to the LAN at all (confirmed: even a plain `Net::HTTP` call from inside
+  opsimath's own Docker container times out here). The final live
+  end-to-end check against the real 2,306-book library needs to happen
+  from an environment that's actually on the LAN.
+- **Edition-scoped, not Work-scoped, and ISBN-only for v1** — `/isbn/{isbn}`
+  returns edition-shaped data (publisher, publish date, page count,
+  cover), so `EnrichmentRecord`s here are `entity_type: "Edition"`, not
+  `"Work"`. `/search`'s fuzzy title/author matching is deliberately out
+  of scope for v1 — a real, harder false-positive-match problem, not
+  rushed in alongside this.
+- **`description`/`categories` are hardcoded empty in the adapter's actual
+  code**, not just in its README's example — confirmed by reading
+  `adapter.py` directly. `titles.title_synopsis` in the live mirror turned
+  out to be an `int(11)` — a dangling reference to ISFDB's real synopsis
+  table, which `refresh.py`'s import filtering doesn't currently pull in
+  at all. Getting real descriptions would mean changing `isfdb-adapter`
+  itself (a separate project) to import that table too; out of scope
+  here. `notes` (1.2M rows, real bibliographic/editorial trivia — printing
+  history, series cross-references — not plot synopses) exists in the
+  mirror and could enrich `Work.notes` someday, but isn't wired in now.
+- **Cover coverage is good**: 861k/957k `pubs` (~90%) have a
+  `pub_frontimage` in the live mirror, so `Edition.cover_image` (Active
+  Storage, downloaded and kept — never hotlinked) should fill for most
+  editions matched. A cover-download failure is logged and skipped, never
+  raised — it shouldn't block the other fields from applying.
+- **A real, verified `pub_ptype` -> `format`/`format_detail` mapping**,
+  not a guess: queried the live distribution directly (`tp` 264k, `ebook`
+  214k, `hc` 159k, `pb` 152k, plus `digital audio download`, `digest`,
+  `audio CD`, `pulp`, and print-size terms — `quarto`, `octavo`, `A4` —
+  that don't map onto either our `format` enum or ONIX `format_detail` at
+  all). Only the confident cases are mapped
+  (`Enrichment::IsfdbEditionEnricher::FORMAT_BY_PTYPE`); the long tail is
+  left untouched rather than forced into a guessed bucket.
+- **The empty-fills-automatically / non-empty-creates-a-`PendingDecision`
+  policy** (`Enrichment::FieldApplier`) is a real, generic, reusable gate,
+  not bespoke per-field logic — and re-flagging the same already-pending
+  conflict on a second run reuses the existing `PendingDecision` rather
+  than creating a duplicate, checked via `payload @>` containment.
+- **`Editions` are skipped, not retried, once already attempted** — the
+  job's scope is "has an ISBN identifier and no prior `isfdb`
+  `EnrichmentRecord` yet," so a clean re-run only picks up new editions,
+  same idempotency shape as `Goodreads::Importer`.
+
+Verified with WebMock against real response shapes (curled live from the
+adapter after the Ingress fix, not fabricated) — 72/72 tests pass,
+RuboCop/Brakeman clean. The full-library live run against isfdb-adapter
+itself is still pending an environment that's actually on the LAN.
 
 ### Addendum: real-data findings from building and running the importer
 

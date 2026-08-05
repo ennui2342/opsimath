@@ -69,4 +69,8 @@ group :test do
   # Use system testing [https://guides.rubyonrails.org/testing.html#system-testing]
   gem "capybara"
   gem "selenium-webdriver"
+
+  # Stubs HTTP requests to isfdb-adapter in tests rather than hitting the
+  # real network — see Isfdb::Client
+  gem "webmock"
 end
