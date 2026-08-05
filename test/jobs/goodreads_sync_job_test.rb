@@ -104,11 +104,20 @@ class GoodreadsSyncJobTest < ActiveSupport::TestCase
     assert_match(/reread_conflict/, pending.first.title)
   end
 
-  test "always sends exactly one sync_summary notification per run" do
+  test "sends one sync_summary notification when a run actually synced something" do
     GoodreadsSyncJob.perform_now(rss_client: FixtureRssClient.new)
 
     summaries = @recorder.events.select { |e| e.kind == :sync_summary }
     assert_equal 1, summaries.size
+  end
+
+  test "sends no sync_summary at all when nothing was synced — the routine hourly case shouldn't be noise" do
+    empty_client = Object.new
+    empty_client.define_singleton_method(:fetch) { |_shelf| [] }
+
+    GoodreadsSyncJob.perform_now(rss_client: empty_client)
+
+    assert_empty @recorder.events.select { |e| e.kind == :sync_summary }
   end
 
   test "notifies sync_error and re-raises when the sync itself blows up" do

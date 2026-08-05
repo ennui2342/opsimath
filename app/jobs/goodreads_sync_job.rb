@@ -100,7 +100,13 @@ class GoodreadsSyncJob < ApplicationJob
     end
   end
 
+  # A no-op run (nothing new on any shelf, the overwhelmingly common
+  # case once caught up) has already been silent on Discord for anything
+  # that matters — sending a summary anyway every single hour is pure
+  # noise, not a useful "yes it's alive" heartbeat.
   def notify_summary(counts)
+    return unless counts.synced.positive?
+
     Notifications.notify(Notifications::Event.new(
       kind: :sync_summary, level: :info, title: "Goodreads sync complete",
       fields: { "synced" => counts.synced, "unchanged" => counts.unchanged }
