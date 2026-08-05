@@ -99,7 +99,13 @@ jobs:
       - name: Run tests
         env:
           RAILS_ENV: test
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432
+          DATABASE_HOST: localhost
+          # config/database.yml reads DATABASE_HOST/USERNAME/PASSWORD, not
+          # DATABASE_URL (this app's own convention, see docker-compose.yml)
+          # — the Rails-generated default here assumed DATABASE_URL, which
+          # this database.yml never reads at all, so it always resolved
+          # "db" (the compose service name) instead of this runner's
+          # localhost Postgres service.
           # RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
           # REDIS_URL: redis://localhost:6379/0
         run: bin/rails db:test:prepare test
@@ -138,7 +144,13 @@ jobs:
       - name: Run System Tests
         env:
           RAILS_ENV: test
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432
+          DATABASE_HOST: localhost
+          # config/database.yml reads DATABASE_HOST/USERNAME/PASSWORD, not
+          # DATABASE_URL (this app's own convention, see docker-compose.yml)
+          # — the Rails-generated default here assumed DATABASE_URL, which
+          # this database.yml never reads at all, so it always resolved
+          # "db" (the compose service name) instead of this runner's
+          # localhost Postgres service.
           # RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
           # REDIS_URL: redis://localhost:6379/0
         run: bin/rails db:test:prepare test:system
