@@ -262,12 +262,16 @@ module Goodreads
     def create_edition(row, book_id)
       format, format_detail = RowParser.format_and_detail(row["Binding"])
 
+      # page_count deliberately not imported from Goodreads' "Number of
+      # Pages" — confirmed against real conflict data that it disagrees
+      # with ISFDB often enough, and carries little enough collector
+      # value, that it's not worth treating as a trusted baseline at all.
+      # Left for isfdb enrichment to fill in cleanly instead.
       edition = Edition.create!(
         format: format,
         format_detail: format_detail,
         publisher: row["Publisher"].presence,
-        publish_date: row["Year Published"].presence, # year only — an EDTF string, not a fabricated day/month
-        page_count: row["Number of Pages"].presence&.to_i
+        publish_date: row["Year Published"].presence # year only — an EDTF string, not a fabricated day/month
       )
 
       EditionIdentifier.create!(edition: edition, id_type: "goodreads", value: book_id)

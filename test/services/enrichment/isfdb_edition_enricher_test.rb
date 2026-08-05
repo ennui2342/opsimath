@@ -102,6 +102,42 @@ module Enrichment
       assert PendingDecision.exists?(kind: "enrichment_field_conflict")
     end
 
+    test "a generic-suffix publisher variant is merged toward the more complete form, real example" do
+      @edition.update!(publisher: "Tor")
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.merge(publisher: "Tor Books").to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal "Tor Books", @edition.reload.publisher
+      assert_equal "isfdb", @edition.field_sources["publisher"]
+      assert_equal 0, PendingDecision.count
+    end
+
+    test "the shorter side of a generic-suffix variant is left alone — already the more complete form" do
+      @edition.update!(publisher: "DAW Books")
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.merge(publisher: "DAW").to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal "DAW Books", @edition.reload.publisher
+      assert_equal 0, PendingDecision.count
+    end
+
+    test "a region-flavored publisher variant is NOT merged, even though it's a substring — real distinction" do
+      @edition.update!(publisher: "Orbit")
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.merge(publisher: "Orbit (US)").to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal "Orbit", @edition.reload.publisher # untouched
+      decision = PendingDecision.where(kind: "enrichment_field_conflict").where("payload ->> 'field' = ?", "publisher").sole
+      assert_equal "Orbit", decision.payload["current_value"]
+      assert_equal "Orbit (US)", decision.payload["proposed"].first["value"]
+    end
+
     test "a cover download failure doesn't block the other fields from applying" do
       stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 500)

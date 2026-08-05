@@ -21,11 +21,21 @@ module Enrichment
         return Result.new(status: :applied)
       end
 
-      return Result.new(status: :unchanged) if current.to_s == value.to_s
+      return Result.new(status: :unchanged) if normalize(current) == normalize(value)
 
       pending = find_or_create_conflict(record, field, current, value, source)
       Result.new(status: :pending, pending_decision: pending)
     end
+
+    # Case/whitespace/punctuation-insensitive — confirmed against real
+    # PendingDecision data that several "conflicts" were never real
+    # disagreements at all (e.g. "Newcon Press" vs "NewCon Press", "Pan/
+    # Ballantine" vs "Pan / Ballantine"), just two sources formatting the
+    # same fact differently.
+    def self.normalize(value)
+      value.to_s.downcase.gsub(/[^a-z0-9]/, "")
+    end
+    private_class_method :normalize
 
     def self.find_or_create_conflict(record, field, current, value, source)
       entity_type = record.class.name

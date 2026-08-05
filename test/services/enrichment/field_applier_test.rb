@@ -30,6 +30,16 @@ module Enrichment
       assert_equal 0, PendingDecision.count
     end
 
+    test "is a no-op when the values only differ by case/whitespace/punctuation — not a real conflict" do
+      @edition.update!(publisher: "Pan/Ballantine")
+
+      result = FieldApplier.apply(@edition, :publisher, "Pan / Ballantine", "isfdb")
+
+      assert_equal :unchanged, result.status
+      assert_equal "Pan/Ballantine", @edition.reload.publisher # untouched, but also not flagged
+      assert_equal 0, PendingDecision.count
+    end
+
     test "creates a PendingDecision rather than overwriting a genuinely conflicting non-empty field" do
       @edition.update!(publisher: "Berkley Windhover")
 

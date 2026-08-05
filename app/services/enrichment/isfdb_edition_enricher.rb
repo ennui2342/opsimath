@@ -88,11 +88,47 @@ module Enrichment
     end
 
     def apply_fields(data)
-      FieldApplier.apply(@edition, :publisher, data["publisher"], "isfdb")
+      apply_publisher(data["publisher"])
       FieldApplier.apply(@edition, :language, data["language"], "isfdb")
       FieldApplier.apply(@edition, :page_count, data["page_count"], "isfdb")
       apply_publish_date(data["publish_date"])
       apply_format(data["binding"])
+    end
+
+    # Confirmed against real PendingDecision data: of 521 publisher
+    # "conflicts" where one name is a substring of the other, 442 (85%)
+    # are plain generic-suffix noise ("Tor Books" vs "Tor", "DAW" vs "DAW
+    # Books") — genuinely the same publisher, safe to merge toward
+    # whichever form is more complete. But 79 (15%) carry a real
+    # territory qualifier ("Orbit" vs "Orbit (US)", "Roc" vs "Roc UK") —
+    # a real, collector-relevant distinction (PHILOSOPHY.md principle
+    # 11), not noise, and merging those would silently lose it. Only the
+    # generic-suffix case is auto-resolved; a region-flavored or
+    # genuinely unrelated pair still goes through FieldApplier's normal
+    # conflict gate.
+    REGION_MARKER = /\b(uk|us|usa)\b|\(uk\)|\(us\)/i
+
+    def apply_publisher(proposed)
+      return if proposed.blank?
+
+      current = @edition.publisher
+      if current.present? && substring_variant?(current, proposed) && !"#{current} #{proposed}".match?(REGION_MARKER)
+        longer = [ current, proposed ].max_by(&:length)
+        return if longer == current # already the more complete form — nothing to gain
+
+        @edition.update!(publisher: longer, field_sources: @edition.field_sources.merge("publisher" => "isfdb"))
+      else
+        FieldApplier.apply(@edition, :publisher, proposed, "isfdb")
+      end
+    end
+
+    def substring_variant?(a, b)
+      na, nb = normalize_name(a), normalize_name(b)
+      na != nb && (na.include?(nb) || nb.include?(na))
+    end
+
+    def normalize_name(value)
+      value.to_s.downcase.gsub(/[^a-z0-9]/, "")
     end
 
     # publish_date is an EDTF string (see Edition::PUBLISH_DATE_FORMAT),

@@ -29,6 +29,10 @@ module Goodreads
       assert_equal "published", review.status
       assert_equal 5.0, review.rating
       assert_equal [ { "channel" => "goodreads" } ], review.channels
+
+      edition = work.editions.sole
+      assert_equal "1978", edition.publish_date # year only, from Year Published — an EDTF string
+      assert_nil edition.page_count # no longer imported from Goodreads at all — left to isfdb enrichment
     end
 
     test "a wishlist row creates only a WishlistItem, no Work/Edition/Copy" do

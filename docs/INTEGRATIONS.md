@@ -32,7 +32,8 @@ section).
 | `Author`, `Author l-f`, `Additional Authors` | `WorkContributor` (role `author`) | |
 | `ISBN`, `ISBN13` | `EditionIdentifier` (`isbn10`/`isbn13`) | |
 | `My Rating` | `Reading.rating` | Goodreads is 0–5 whole stars; opsimath's scale is already 0–5 half-star (chosen against the scifipraxis pipeline, not for this) — maps on directly, no conversion needed, unlike librarium's 1–10 scale which needed doubling. `0` means unrated, not zero-star — leave `Reading.rating` blank, don't store `0`. |
-| `Publisher`, `Binding`, `Number of Pages`, `Year Published` | `Edition` fields (`publisher`, `format`/`format_detail` from `Binding` text, `page_count`, `publish_date`) | |
+| `Publisher`, `Binding`, `Year Published` | `Edition` fields (`publisher`, `format`/`format_detail` from `Binding` text, `publish_date`) | |
+| `Number of Pages` | **Not mapped** — deliberately not imported at all | Confirmed against real conflict data that it disagrees with ISFDB often enough (558 real `PendingDecision`s), and carries little enough collector value, that it's not worth treating as a trusted baseline — same shape of call as `Read Count`, just for a field low-stakes enough that the resolution is "don't import it," not "reconcile it." Left entirely to isfdb enrichment to fill in; see the enrichment addendum below. |
 | `Original Publication Year` | `Work.original_publication_year` | |
 | `Date Read` | `Reading.date_finished`, when `read_dates` (below) doesn't already cover it | Format `YYYY/MM/DD` — different from `read_dates`' `YYYY-MM-DD`, confirmed by direct inspection. Parse both, don't assume one format everywhere in this file. |
 | `Date Added` | *Not* `Copy.acquired_date` | This is when the row was added to Goodreads, not when the book was acquired — often logged well after actual purchase. Left unmapped; `Copy.acquired_date` stays blank on import, filled in by hand later if known. |
@@ -182,24 +183,56 @@ against the real data: `publish_date` `PendingDecision`s dropped from
 gained real month/day precision (up from 2), total pending conflicts
 1,291+1,414 -> 305+1,414 (2,705 -> 1,719).
 
-**The remaining 1,719 were also analyzed, not just left alone**:
+**Two more fixes followed from actually analyzing the field breakdown**,
+not just accepting the count:
+
+- **`publisher` (846) — split by substring-containment, then by whether
+  the extra text carries real information.** 31 were pure formatting
+  noise (`"Newcon Press"` vs `"NewCon Press"`, `"Pan/Ballantine"` vs
+  `"Pan / Ballantine"`) — a real `FieldApplier` comparison gap, fixed by
+  normalizing (case/whitespace/punctuation-insensitive) before deciding
+  something changed. Of the remaining 521 substring-containing pairs,
+  splitting by whether either side carries a territory qualifier
+  (`UK`/`US`/`USA`/`(UK)`/`(US)`) found 442 (85%) were plain generic-
+  suffix variants (`"Tor Books"` vs `"Tor"`, `"DAW"` vs `"DAW Books"`) —
+  genuinely the same publisher, safe to merge toward whichever form is
+  more complete — but 79 (15%) were real regional distinctions
+  (`"Orbit"` vs `"Orbit (US)"`, `"Roc"` vs `"Roc UK"`) that `PHILOSOPHY.md`
+  principle 11 says matter for vintage SF collecting. `"prefer the
+  longer string"` is *not* a safe blanket rule here the way it was for
+  dates — length alone doesn't reliably mean "more correct," only "more
+  complete when it's genuinely the same fact." `Enrichment::
+  IsfdbEditionEnricher#apply_publisher` merges the generic-suffix case
+  toward the more complete form directly; a region-flavored pair (or a
+  genuinely unrelated one) still goes through `FieldApplier`'s normal
+  conflict gate. Confirmed against the real backlog: `publisher`
+  `PendingDecision`s dropped from 846 to 373 (exactly 31 + 442 resolved),
+  leaving 79 region-flavored + 294 genuinely different.
+- **`page_count` (558) — dropped from the Goodreads import entirely**,
+  not reconciled. Mark's call: Goodreads' `Number of Pages` disagrees
+  with ISFDB often enough (558 real conflicts) and matters little enough
+  to a collector that it's not worth treating as a trusted baseline at
+  all — closer to `Read Count`'s situation than to `publish_date`'s.
+  `Goodreads::Importer#create_edition` no longer sets `page_count`;
+  `Enrichment::IsfdbEditionEnricher` still applies it normally (now
+  always via the ordinary empty-fill path, never a conflict, since
+  nothing else claims the field first). Retroactively cleared the 1,913
+  existing non-isfdb-sourced `page_count` values on real data (an honest
+  gap is better than an untrusted guess) and deleted the now-moot
+  `PendingDecision`s; a plain reprocess of the existing `EnrichmentRecord`
+  backlog then filled `page_count` cleanly for 1,420 editions with zero
+  new conflicts.
+
+**Final real numbers** after both fixes + the retroactive reprocess:
+total pending conflicts 2,705 -> 688 (`publish_date` 305, `publisher`
+373, `page_count` 0, `format` 10). The remaining 688 were also analyzed,
+not just left alone:
 - `publish_date` (305) — genuine year-level disagreements; worth a human
   look, possibly indicating ISFDB matched a different printing under a
   reused ISBN (a caveat its own README names directly).
-- `publisher` (846) — only 31 are pure formatting noise (identical once
-  case/punctuation is stripped — a real `FieldApplier` comparison gap,
-  not yet fixed); 521 are one name substring-containing the other
-  (`"Penguin Classics"` vs `"Penguin"`) — left alone deliberately, since
-  `PHILOSOPHY.md` principle 11 is explicit that imprint-level precision
-  matters for vintage SF collecting, and silently collapsing these risks
-  losing exactly the distinction this project cares about getting right.
-  The remaining 294 are genuinely different strings, real disagreements.
-- `page_count` (558) — no safe auto-resolution identified; smooth
-  distribution of gap sizes (187 off by 1-5, 205 by 6-20, 81 by 21-50, 85
-  by 50+) with no clean threshold separating a front-matter-counting
-  convention difference from a wrong-edition match. The 85 with 50+-page
-  gaps are worth reviewing first — a large gap is a plausible sign of a
-  reused-ISBN mismatch.
+- `publisher` (373) — 79 region-flavored + 294 genuinely different
+  strings; both are real disagreements worth a human's attention, not
+  noise.
 - `format` (10) — all substantive (paperback vs. hardcover, ebook vs.
   hardcover), no safe auto-resolution, genuinely need a human.
 
