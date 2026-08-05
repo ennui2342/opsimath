@@ -13,6 +13,7 @@ module Enrichment
   # rushed in alongside this.
   class IsfdbEditionEnricher
     Result = Struct.new(:status, :message, keyword_init: true)
+    Plan = FieldApplier::Plan
 
     # Only the pub_ptype values confirmed live against the real mirror
     # (2026-08-05, via a read-only query through the running adapter pod)
@@ -87,39 +88,76 @@ module Enrichment
       )
     end
 
+    # Plans every candidate field before committing any of them — this is
+    # what lets us tell "one field looks off" (a normal, isolated data
+    # improvement or dispute) apart from "several fields disagree at
+    # once" (isfdb-adapter's own documented caveat: one ISBN can be reused
+    # across distinct print runs, so a multi-field disagreement is real
+    # evidence the whole match describes a *different specific printing*,
+    # not several independent facts to adjudicate one at a time).
+    #
+    # Plain fills never get held back regardless — they can't overwrite
+    # or discard anything, whichever printing the data actually describes.
+    # Only :refine/:conflict plans (the ones requiring an actual judgment
+    # call) count toward that signal: with at most one, trust it as
+    # before (apply an isolated refinement, or raise one normal
+    # single-field PendingDecision for an isolated dispute); with two or
+    # more, don't commit any of them individually — bundle the whole set
+    # into one "review this edition" decision instead.
     def apply_fields(data)
-      apply_publisher(data["publisher"])
-      FieldApplier.apply(@edition, :language, data["language"], "isfdb")
-      FieldApplier.apply(@edition, :page_count, data["page_count"], "isfdb")
-      apply_publish_date(data["publish_date"])
-      apply_format(data["binding"])
+      plans = [
+        plan_publisher(data["publisher"]),
+        FieldApplier.plan(@edition, :language, data["language"], "isfdb"),
+        FieldApplier.plan(@edition, :page_count, data["page_count"], "isfdb"),
+        plan_publish_date(data["publish_date"]),
+        *plan_format(data["binding"])
+      ]
+
+      plans.select { |p| p.action == :fill }.each { |p| FieldApplier.commit(p) }
+
+      judgment_plans = plans.select { |p| %i[refine conflict].include?(p.action) }
+      conflicts = judgment_plans.select { |p| p.action == :conflict }
+
+      # A genuine conflict alongside *anything* else needing judgment
+      # (another conflict, or even an otherwise-safe refinement) is what
+      # bundles — two independent refinements with no real disagreement
+      # between them stay independent, since neither implies the other
+      # might be wrong.
+      if conflicts.any? && judgment_plans.size > 1
+        create_edition_mismatch(judgment_plans)
+      else
+        judgment_plans.each { |p| FieldApplier.commit(p) }
+      end
     end
 
     # Confirmed against real PendingDecision data: of 521 publisher
     # "conflicts" where one name is a substring of the other, 442 (85%)
     # are plain generic-suffix noise ("Tor Books" vs "Tor", "DAW" vs "DAW
-    # Books") — genuinely the same publisher, safe to merge toward
-    # whichever form is more complete. But 79 (15%) carry a real
-    # territory qualifier ("Orbit" vs "Orbit (US)", "Roc" vs "Roc UK") —
-    # a real, collector-relevant distinction (PHILOSOPHY.md principle
-    # 11), not noise, and merging those would silently lose it. Only the
-    # generic-suffix case is auto-resolved; a region-flavored or
-    # genuinely unrelated pair still goes through FieldApplier's normal
-    # conflict gate.
-    REGION_MARKER = /\b(uk|us|usa)\b|\(uk\)|\(us\)/i
-
-    def apply_publisher(proposed)
-      return if proposed.blank?
+    # Books") — genuinely the same publisher. The other 79 (15%) carry a
+    # real territory qualifier ("Orbit" vs "Orbit (US)", "Roc" vs "Roc
+    # UK") — but since this is an ISBN-keyed lookup, that qualifier
+    # describes the exact printing the ISBN identifies, same as every
+    # other field enrichment already trusts; it's not a competing guess
+    # about the collector's copy. What actually determines whether a
+    # substring match is safe is the multi-field check above, not
+    # whether the extra text happens to look like a region — a
+    # region-flavored refinement that co-occurs with another genuine
+    # conflict gets held back (and bundled) exactly like any other.
+    def plan_publisher(proposed)
+      return Plan.new(action: :skipped) if proposed.blank?
 
       current = @edition.publisher
-      if current.present? && substring_variant?(current, proposed) && !"#{current} #{proposed}".match?(REGION_MARKER)
-        longer = [ current, proposed ].max_by(&:length)
-        return if longer == current # already the more complete form — nothing to gain
+      return Plan.new(record: @edition, field: :publisher, action: :fill, value: proposed, source: "isfdb") if current.blank?
+      return Plan.new(action: :unchanged) if normalize_name(current) == normalize_name(proposed)
 
-        @edition.update!(publisher: longer, field_sources: @edition.field_sources.merge("publisher" => "isfdb"))
-      else
-        FieldApplier.apply(@edition, :publisher, proposed, "isfdb")
+      if substring_variant?(current, proposed)
+        longer = [ current, proposed ].max_by(&:length)
+        return Plan.new(action: :unchanged) if longer == current # already the more complete form
+
+        return Plan.new(record: @edition, field: :publisher, action: :refine, value: longer, source: "isfdb")
       end
+
+      Plan.new(record: @edition, field: :publisher, action: :conflict, value: proposed, source: "isfdb", current: current)
     end
 
     def substring_variant?(a, b)
@@ -137,30 +175,54 @@ module Enrichment
     # through). Because the string's own length *is* its precision, a
     # "conflict" here often isn't one: if the proposed value is current's
     # value with more digits appended (same year, or same year+month,
-    # just more precise), that's a refinement — apply it directly rather
-    # than raising a PendingDecision a human would just confirm every
-    # time. Only a genuine disagreement (neither string extends the
-    # other) goes through FieldApplier's normal conflict gate.
-    def apply_publish_date(raw)
-      return if raw.blank? || !raw.match?(Edition::PUBLISH_DATE_FORMAT)
+    # just more precise), that's a refinement.
+    def plan_publish_date(raw)
+      return Plan.new(action: :skipped) if raw.blank? || !raw.match?(Edition::PUBLISH_DATE_FORMAT)
 
       current = @edition.publish_date
+      return Plan.new(record: @edition, field: :publish_date, action: :fill, value: raw, source: "isfdb") if current.blank?
+      return Plan.new(action: :unchanged) if current == raw
 
-      if current.present? && raw.start_with?(current) && raw != current
-        @edition.update!(publish_date: raw, field_sources: @edition.field_sources.merge("publish_date" => "isfdb"))
-      elsif current.present? && current.start_with?(raw) && current != raw
-        nil # already at least as precise as isfdb's value — nothing to gain
+      if raw.start_with?(current)
+        Plan.new(record: @edition, field: :publish_date, action: :refine, value: raw, source: "isfdb")
+      elsif current.start_with?(raw)
+        Plan.new(action: :unchanged) # already at least as precise as isfdb's value
       else
-        FieldApplier.apply(@edition, :publish_date, raw, "isfdb")
+        Plan.new(record: @edition, field: :publish_date, action: :conflict, value: raw, source: "isfdb", current: current)
       end
     end
 
-    def apply_format(raw_ptype)
+    def plan_format(raw_ptype)
       format, format_detail = FORMAT_BY_PTYPE[raw_ptype.to_s.downcase]
-      return unless format
+      return [] unless format
 
-      FieldApplier.apply(@edition, :format, format, "isfdb")
-      FieldApplier.apply(@edition, :format_detail, format_detail, "isfdb") if format_detail
+      plans = [ FieldApplier.plan(@edition, :format, format, "isfdb") ]
+      plans << FieldApplier.plan(@edition, :format_detail, format_detail, "isfdb") if format_detail
+      plans
+    end
+
+    # The "review this edition" bundle — a different kind from
+    # enrichment_field_conflict on purpose (per DATA_MODEL.md's
+    # PendingDecision.kind being designed to extend without a new
+    # mechanism): reviewing "does this ISBN match the right printing at
+    # all" is a different question from "which value is correct for this
+    # one field," and deserves its own single decision rather than
+    # scattering across several field-level ones with no visible link
+    # between them.
+    def create_edition_mismatch(judgment_plans)
+      fields = judgment_plans.map do |p|
+        { "field" => p.field.to_s, "current_value" => p.current, "proposed" => p.value }
+      end
+
+      PendingDecision.create!(
+        kind: "enrichment_edition_mismatch",
+        payload: {
+          "entity_type" => @edition.class.name,
+          "entity_id" => @edition.id,
+          "source" => "isfdb",
+          "fields" => fields
+        }
+      )
     end
 
     def backfill_isfdb_identifier(data)

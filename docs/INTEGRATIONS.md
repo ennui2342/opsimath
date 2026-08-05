@@ -191,23 +191,30 @@ not just accepting the count:
   noise (`"Newcon Press"` vs `"NewCon Press"`, `"Pan/Ballantine"` vs
   `"Pan / Ballantine"`) — a real `FieldApplier` comparison gap, fixed by
   normalizing (case/whitespace/punctuation-insensitive) before deciding
-  something changed. Of the remaining 521 substring-containing pairs,
-  splitting by whether either side carries a territory qualifier
-  (`UK`/`US`/`USA`/`(UK)`/`(US)`) found 442 (85%) were plain generic-
-  suffix variants (`"Tor Books"` vs `"Tor"`, `"DAW"` vs `"DAW Books"`) —
-  genuinely the same publisher, safe to merge toward whichever form is
-  more complete — but 79 (15%) were real regional distinctions
+  something changed. Of the remaining 521 substring-containing pairs, 442
+  (85%) were plain generic-suffix variants (`"Tor Books"` vs `"Tor"`,
+  `"DAW"` vs `"DAW Books"`) and 79 (15%) carried a territory qualifier
   (`"Orbit"` vs `"Orbit (US)"`, `"Roc"` vs `"Roc UK"`) that `PHILOSOPHY.md`
-  principle 11 says matter for vintage SF collecting. `"prefer the
-  longer string"` is *not* a safe blanket rule here the way it was for
-  dates — length alone doesn't reliably mean "more correct," only "more
-  complete when it's genuinely the same fact." `Enrichment::
-  IsfdbEditionEnricher#apply_publisher` merges the generic-suffix case
-  toward the more complete form directly; a region-flavored pair (or a
-  genuinely unrelated one) still goes through `FieldApplier`'s normal
-  conflict gate. Confirmed against the real backlog: `publisher`
-  `PendingDecision`s dropped from 846 to 373 (exactly 31 + 442 resolved),
-  leaving 79 region-flavored + 294 genuinely different.
+  principle 11 says matters for vintage SF collecting.
+
+  First pass merged only the generic-suffix 442 and held the 79
+  region-flavored ones back as real disputes — **revisited directly at
+  Mark's prompt** ("is it reasonable to trust a more specific region
+  specific publisher entry to override the general?"). On reflection
+  that first pass conflated two different risks: since this is an
+  ISBN-keyed lookup, a region qualifier ISFDB adds describes the *exact
+  printing that ISBN identifies* — the same trust already extended to
+  every other enriched field — not a competing guess about the
+  collector's physical copy. The real risk was something else entirely:
+  isfdb-adapter matching a *different* printing via a reused ISBN (its
+  own documented caveat), which shows up as *multiple* fields disagreeing
+  at once, not as an isolated region qualifier. Confirmed directly: of
+  the 79 region-flavored pairs, 65 were isolated (nothing else disagreed
+  on that edition) and 14 co-occurred with another genuine conflict. So
+  region-flavored pairs are no longer special-cased — all substring
+  variants merge toward the more complete form — and what actually gates
+  the merge is the new multi-field check below, not whether the extra
+  text looks like a territory marker.
 - **`page_count` (558) — dropped from the Goodreads import entirely**,
   not reconciled. Mark's call: Goodreads' `Number of Pages` disagrees
   with ISFDB often enough (558 real conflicts) and matters little enough
@@ -223,21 +230,51 @@ not just accepting the count:
   backlog then filled `page_count` cleanly for 1,420 editions with zero
   new conflicts.
 
-**Final real numbers** after both fixes + the retroactive reprocess:
-total pending conflicts 2,705 -> 688 (`publish_date` 305, `publisher`
-373, `page_count` 0, `format` 10). The remaining 688 were also analyzed,
-not just left alone:
-- `publish_date` (305) — genuine year-level disagreements; worth a human
-  look, possibly indicating ISFDB matched a different printing under a
-  reused ISBN (a caveat its own README names directly).
-- `publisher` (373) — 79 region-flavored + 294 genuinely different
-  strings; both are real disagreements worth a human's attention, not
-  noise.
-- `format` (10) — all substantive (paperback vs. hardcover, ebook vs.
-  hardcover), no safe auto-resolution, genuinely need a human.
+**A new `PendingDecision` kind, `enrichment_edition_mismatch`, for when
+*multiple* fields disagree on the same edition at once.** Checking this
+directly (grouping the 688 conflicts by `entity_id`) found 97 editions
+with two simultaneous disagreements — sampled several, and every one
+showed a different publisher *and* a multi-year date gap together (e.g.
+"A Storm of Swords 2": `HarperVoyager ` vs `Harper Voyager (UK)`
+*and* `2011` vs `2016-12`). That's isfdb-adapter's reused-ISBN caveat
+made concrete: not two independent disputed facts, but one real
+question — "does this ISBN match the right printing at all" — which is
+categorically different from "which value is correct for this one
+field." Splitting it further by year-gap size also surfaced one genuine
+outlier: a book with `current_value: "1825"` vs proposed `"2013-09-12"`
+turned out to be a Goodreads data-entry typo, not an ISFDB mismatch —
+confirming that isolated single-field disputes and multi-field
+disagreements really are different phenomena with different likely
+causes, not just "more of the same."
 
-Reviewing what's left is real, separate follow-up work with no UI to do
-it through yet — not a defect in this job.
+`Enrichment::IsfdbEditionEnricher#apply_fields` now plans every
+candidate field before committing any of them (via
+`Enrichment::FieldApplier.plan`/`.commit`, split out for exactly this),
+rather than deciding field-by-field as it goes. Plain fills are always
+committed immediately — they can't discard anything regardless of which
+printing the data actually describes. Fields needing an actual judgment
+call (a refinement *or* a conflict) are counted together: with at most
+one, it's trusted exactly as before (an isolated refinement applies, an
+isolated dispute raises one normal `enrichment_field_conflict`); with a
+genuine conflict alongside anything else needing judgment — another
+conflict, or even an otherwise-safe-looking refinement — none of them
+are committed individually. They're bundled into one
+`enrichment_edition_mismatch` `PendingDecision` instead, since the
+co-occurrence itself is evidence the *refinement* might also be
+describing the wrong printing, not just the conflicting field. Two
+refinements with no real disagreement between them are *not* bundled —
+only a genuine conflict triggers holding the rest back too.
+
+**Final real numbers** after the EDTF fix, the publisher/page_count
+fixes, and the multi-field bundling, all via `IsfdbEditionEnricher
+.reprocess` against already-stored `raw_payload` — no new network calls
+for any of it: total pending decisions 2,705 -> 526 (432
+`enrichment_field_conflict`: 213 `publish_date`, 214 `publisher`, 5
+`format`; 94 `enrichment_edition_mismatch`, every one bundling exactly 2
+fields in this dataset). Reviewing what's left is real, separate
+follow-up work with no UI to do it through yet — not a defect in this
+job, and every remaining number has a specific, checked reason behind
+it rather than being an unexamined pile.
 
 ### Addendum: real-data findings from building and running the importer
 

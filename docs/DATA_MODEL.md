@@ -591,9 +591,9 @@ what this actually needs, per principle 16.
 | Field | Notes |
 |---|---|
 | `id` | |
-| `kind` | `enrichment_field_conflict` today; designed to extend to e.g. `possible_duplicate_work` or `series_match_candidate` later without a new mechanism |
+| `kind` | `enrichment_field_conflict` / `enrichment_edition_mismatch` today; designed to extend to e.g. `possible_duplicate_work` or `series_match_candidate` later without a new mechanism |
 | `run_id` | optional — set when produced by a batch run, null for a one-off interactive lookup |
-| `payload` | JSON — shape depends on `kind`; for `enrichment_field_conflict`: entity/field, current value, proposed value(s) with their source(s) |
+| `payload` | JSON — shape depends on `kind`. `enrichment_field_conflict`: entity/field, current value, proposed value(s) with their source(s) — one genuinely isolated field dispute. `enrichment_edition_mismatch`: entity plus an array of the several fields disagreeing at once — see `docs/INTEGRATIONS.md`'s enrichment addendum for why this is a different question ("does this ISBN match the right printing at all") from a single-field dispute, not just several of those bundled for convenience |
 | `status` | `pending` / `accepted` / `rejected` |
 | `created_at` / `resolved_at` | |
 

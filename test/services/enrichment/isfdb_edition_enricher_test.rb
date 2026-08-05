@@ -125,17 +125,70 @@ module Enrichment
       assert_equal 0, PendingDecision.count
     end
 
-    test "a region-flavored publisher variant is NOT merged, even though it's a substring — real distinction" do
+    test "an isolated region-flavored publisher variant IS merged — it's an ISBN-keyed fact about this exact printing, not a guess" do
       @edition.update!(publisher: "Orbit")
       stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.merge(publisher: "Orbit (US)").to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
 
       IsfdbEditionEnricher.enrich(@edition, client: @client)
 
-      assert_equal "Orbit", @edition.reload.publisher # untouched
-      decision = PendingDecision.where(kind: "enrichment_field_conflict").where("payload ->> 'field' = ?", "publisher").sole
-      assert_equal "Orbit", decision.payload["current_value"]
-      assert_equal "Orbit (US)", decision.payload["proposed"].first["value"]
+      assert_equal "Orbit (US)", @edition.reload.publisher
+      assert_equal 0, PendingDecision.count
+    end
+
+    test "two fields disagreeing at once bundles into one edition-mismatch review, neither applied nor split into separate field decisions" do
+      @edition.update!(publisher: "Berkley Windhover", publish_date: "1978")
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.merge(publisher: "Ace Books", publish_date: "1979-06").to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      IsfdbEditionEnricher.enrich(@edition, client: @client)
+      @edition.reload
+
+      assert_equal "Berkley Windhover", @edition.publisher # untouched
+      assert_equal "1978", @edition.publish_date # untouched
+      assert_equal 0, PendingDecision.where(kind: "enrichment_field_conflict").count
+
+      decision = PendingDecision.where(kind: "enrichment_edition_mismatch").sole
+      assert_equal "Edition", decision.payload["entity_type"]
+      assert_equal @edition.id, decision.payload["entity_id"]
+      fields = decision.payload["fields"].index_by { |f| f["field"] }
+      assert_equal "Berkley Windhover", fields["publisher"]["current_value"]
+      assert_equal "Ace Books", fields["publisher"]["proposed"]
+      assert_equal "1978", fields["publish_date"]["current_value"]
+      assert_equal "1979-06", fields["publish_date"]["proposed"]
+    end
+
+    test "a would-be-safe refinement is held back too when it co-occurs with a genuine conflict on the same edition" do
+      # publisher here would be a safe generic-suffix refinement in
+      # isolation ("Tor" -> "Tor Books"), but publish_date genuinely
+      # conflicts on the same edition — real data shows this co-occurrence
+      # pattern means the whole ISBN match likely describes a different
+      # specific printing, so the refinement isn't trusted either.
+      @edition.update!(publisher: "Tor", publish_date: "1978")
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.merge(publisher: "Tor Books", publish_date: "1985").to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      IsfdbEditionEnricher.enrich(@edition, client: @client)
+      @edition.reload
+
+      assert_equal "Tor", @edition.publisher # NOT merged, even though it looked safe in isolation
+      assert_equal "1978", @edition.publish_date
+      assert PendingDecision.exists?(kind: "enrichment_edition_mismatch")
+    end
+
+    test "one genuine conflict alongside an unrelated blank fill still applies the fill and flags only the conflict normally" do
+      @edition.update!(publisher: "Berkley Windhover") # language and publish_date left blank
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.merge(publisher: "Ace Books").to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      IsfdbEditionEnricher.enrich(@edition, client: @client)
+      @edition.reload
+
+      assert_equal "Berkley Windhover", @edition.publisher # the one real conflict, untouched
+      assert_equal "eng", @edition.language # unrelated fill still applies
+      assert_equal "2010", @edition.publish_date # unrelated fill still applies
+      assert_equal 0, PendingDecision.where(kind: "enrichment_edition_mismatch").count
+      assert PendingDecision.exists?(kind: "enrichment_field_conflict", status: "pending")
     end
 
     test "a cover download failure doesn't block the other fields from applying" do
