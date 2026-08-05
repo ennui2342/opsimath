@@ -44,11 +44,18 @@ module Notifications
       assert_equal [ event ], recorder.events
     end
 
-    test "LogNotifier is always in the default list; DiscordNotifier joins when a bot_token credential is present" do
+    test "LogNotifier is always in the default list; DiscordNotifier joins iff a bot_token credential is present" do
       classes = Notifications.default_notifiers.map(&:class)
 
       assert_includes classes, LogNotifier
-      assert_includes classes, DiscordNotifier # real credential is configured in this app
+      # Tests the conditional itself, not a specific environment's real
+      # credential state — CI has no RAILS_MASTER_KEY at all, so this
+      # must hold either way, not assume a bot_token is configured.
+      if Rails.application.credentials.dig(:discord, :bot_token).present?
+        assert_includes classes, DiscordNotifier
+      else
+        assert_not_includes classes, DiscordNotifier
+      end
     end
   end
 end
