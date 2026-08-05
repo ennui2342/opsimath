@@ -37,7 +37,7 @@ gem "bootsnap", require: false
 gem "thruster", require: false
 
 # Use Active Storage variants [https://guides.rubyonrails.org/active_storage_overview.html#transforming-images]
-gem "image_processing", "~> 1.2"
+gem "image_processing", "~> 2.0"
 
 # Model versioning/audit history [https://github.com/paper-trail-gem/paper_trail]
 # — see docs/PHILOSOPHY.md principle 15
