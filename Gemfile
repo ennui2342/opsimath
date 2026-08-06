@@ -16,6 +16,9 @@ gem "turbo-rails"
 gem "stimulus-rails"
 # Use Tailwind CSS [https://github.com/rails/tailwindcss-rails]
 gem "tailwindcss-rails"
+# Encapsulated, testable view components + a Storybook-like Preview
+# catalog — the design-system foundation, see docs/UI_PRINCIPLES.md
+gem "view_component"
 # Build JSON APIs with ease [https://github.com/rails/jbuilder]
 gem "jbuilder"
 
