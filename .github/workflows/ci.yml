@@ -113,7 +113,53 @@ jobs:
           # REDIS_URL: redis://localhost:6379/0
         run: bin/rails db:test:prepare test
 
-  # system-test deliberately removed for now — there's no UI yet at all
-  # (see docs/INTEGRATIONS.md's explicit out-of-scope list), so
-  # test/system/ doesn't exist and test:system has nothing to run. Add
-  # this job back once real system tests exist to run.
+  system-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: --health-cmd="pg_isready" --health-interval=10s --health-timeout=5s --health-retries=3
+
+      # redis:
+      #   image: valkey/valkey:8
+      #   ports:
+      #     - 6379:6379
+      #   options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+      - name: Install packages
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libpq-dev libvips
+
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - name: Run System Tests
+        env:
+          RAILS_ENV: test
+          DATABASE_HOST: localhost
+          # Same DATABASE_HOST/ISFDB_ADAPTER_URL fixes as the `test` job
+          # above — this job hits the same missing-env-var failures since
+          # it boots the same app.
+          ISFDB_ADAPTER_URL: http://isfdb-adapter.test
+          # RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+          # REDIS_URL: redis://localhost:6379/0
+        run: bin/rails db:test:prepare test:system
+
+      - name: Keep screenshots from failed system tests
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: screenshots
+          path: ${{ github.workspace }}/tmp/screenshots
+          if-no-files-found: ignore
