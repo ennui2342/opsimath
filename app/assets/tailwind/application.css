@@ -1,1 +1,13 @@
 @import "tailwindcss";
+
+/*
+ * Named design tokens, not raw utility values repeated across views —
+ * see docs/UI_PRINCIPLES.md principle 6. Only the shades actually used
+ * today; grown on demand, not pre-built as a full palette.
+ */
+@theme {
+  --color-conflict-100: oklch(95.5% 0.06 85);
+  --color-conflict-200: oklch(90% 0.09 80);
+  --color-conflict-800: oklch(40% 0.13 60);
+  --color-conflict-900: oklch(28% 0.1 55);
+}

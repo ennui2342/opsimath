@@ -1,0 +1,9 @@
+<div class="flex flex-col gap-1 border-b border-gray-200 py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between dark:border-gray-700">
+  <span class="font-medium text-gray-700 dark:text-gray-300"><%= @field.to_s.humanize %></span>
+  <div class="flex flex-wrap items-center gap-2 text-sm">
+    <span class="text-gray-500 line-through dark:text-gray-400"><%= @current.presence || "(blank)" %></span>
+    <span class="text-gray-400" aria-hidden="true">&rarr;</span>
+    <span class="font-semibold text-conflict-800 dark:text-conflict-200"><%= @proposed %></span>
+    <%= render(Ui::BadgeComponent.new(text: @source, variant: :default)) if @source.present? %>
+  </div>
+</div>
