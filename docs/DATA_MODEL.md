@@ -61,7 +61,7 @@ format or printing.
 | `id` | |
 | `title` | |
 | `subtitle` | optional |
-| `literary_form` | `novel` / `novella` / `short_story` / `collection` / `anthology` / `nonfiction` / `essay` — renamed from an initial `work_type`; see note below |
+| `literary_form` | `novel` / `novella` / `short_story` / `collection` / `anthology` / `nonfiction` / `essay` / `periodical` — renamed from an initial `work_type`; see note below |
 | `original_publication_year` | often known even when a specific edition's date isn't |
 | `original_language` | |
 | `description` | synopsis/blurb, freeform |
@@ -87,6 +87,13 @@ forms apply" bucket, mirroring MARC's own "Not fiction" value in the
 same fixed field) — never a subject/genre classification like
 `biography`, which belongs in `Genre`/`Tag` instead, exactly as MARC and
 Thema both keep it.
+
+**`periodical`, added during Phase 2** (`docs/INTEGRATIONS.md`) once a
+real magazine issue (auto-created from the live Goodreads feed, no CSV
+precedent) showed a standalone serial issue is a genuinely different
+structural type — MARC/ONIX both distinguish serial/continuing resources
+from monographs — not well served by defaulting to `novel` or
+overloading `anthology`.
 
 Authorship lives here via `WORK_CONTRIBUTOR` (role e.g. `author`,
 `original author`, `anthology editor`) — the credit that doesn't change
@@ -116,7 +123,7 @@ A specific printing/format, containing one or more works.
 | Field | Notes |
 |---|---|
 | `id` | |
-| `format` | `paperback` / `hardcover` / `ebook` / `audiobook` / `omnibus` — the coarse, ONIX-Codelist-150-aligned top category |
+| `format` | `paperback` / `hardcover` / `ebook` / `audiobook` / `omnibus`, or **blank** — the coarse, ONIX-Codelist-150-aligned top category. Nullable, not `presence: true`: Goodreads' RSS feed (the ongoing sync, `docs/INTEGRATIONS.md` Phase 2) gives no binding/format signal at all for a newly auto-created `Edition`, and forcing a value there would fabricate data the same way an unset `publish_date` once did — left blank until real ISFDB enrichment fills it in cleanly. Originally `presence: true`, since Phase 1's CSV import always had *some* `Binding` value (even "Unknown Binding"); relaxed once Phase 2 showed that assumption doesn't hold for every import source |
 | `format_detail` | optional, seeded from ONIX Codelist 175: `mass_market` (B101), `trade_us` (B102), `a_format` (B104, UK), `b_format` (B105, UK), `trade_uk` (B106), `tall_rack` (B107) — see `PHILOSOPHY.md` principle 9. Not enforced as a closed set; free text for anything the codelist doesn't cover |
 | `publisher` | |
 | `imprint` | e.g. Ace, DAW, Ballantine — often more meaningful than the parent publisher for vintage SF |
@@ -543,6 +550,28 @@ This mechanism only applies to single-valued fields. `EditionIdentifier`,
 they're one-to-many already, so ISFDB's and OpenLibrary's values for the
 same fact simply coexist as separate rows/entries.
 
+## GoodreadsSyncState
+
+New in Phase 2 (`docs/INTEGRATIONS.md`) — not present when this document
+was first written. Tracks the last-synced state of one `(goodreads_book_id,
+shelf)` pair, so the ongoing RSS sync can detect a genuine change on the
+next poll rather than re-processing every item every run.
+
+| Field | Notes |
+|---|---|
+| `id` | |
+| `goodreads_book_id` | Goodreads' own id — stable, always present in the feed |
+| `shelf` | which shelf this state applies to (`wishlist`/`to-read`/`currently-reading`/`read`/`did-not-finish`) |
+| `last_synced_payload` | JSONB — shape depends on shelf (e.g. `{user_rating, user_read_at, user_review}` for `read`; `{user_date_added}` for `currently-reading`; `{}` for `wishlist`/`to-read`, which have nothing dynamic to track once cataloged), same flexible-payload pattern as `EnrichmentRecord`/`PendingDecision` rather than a fixed column set |
+| `created_at` / `updated_at` | |
+
+Unique on `(goodreads_book_id, shelf)`. Comparison is always against
+**this latest snapshot**, never a permanent "have we ever seen this
+combination" set — a reverted value (an edited review reverted, a reread
+landing back on a previously-seen rating) must re-trigger a sync, not
+look already-handled. See `docs/INTEGRATIONS.md` for the full reasoning
+and the existing-pipeline precedent this replaces.
+
 ## Operational entities
 
 Cross-cutting concerns, not domain/bibliographic ones — but real enough to
@@ -591,7 +620,7 @@ what this actually needs, per principle 16.
 | Field | Notes |
 |---|---|
 | `id` | |
-| `kind` | `enrichment_field_conflict` / `enrichment_edition_mismatch` today; designed to extend to e.g. `possible_duplicate_work` or `series_match_candidate` later without a new mechanism |
+| `kind` | Real, shipped kinds as of Phase 2: `enrichment_field_conflict` / `enrichment_edition_mismatch` (ISFDB enrichment — see `docs/INTEGRATIONS.md`'s enrichment addendum), `possible_duplicate_work` (Goodreads sync — `Matcher` found more than one ambiguous title+author match), `reread_conflict` (Goodreads sync — a `currently-reading` event fires while a `Reading` for that work is already open). `unmatched_shelf_entry` is designed for but not currently triggered by any code path — the confirmed auto-create policy (`docs/INTEGRATIONS.md`) handles the plain "no match" case directly instead of routing it here. Extends to further kinds (e.g. `series_match_candidate`) the same way, without a new mechanism |
 | `run_id` | optional — set when produced by a batch run, null for a one-off interactive lookup |
 | `payload` | JSON — shape depends on `kind`. `enrichment_field_conflict`: entity/field, current value, proposed value(s) with their source(s) — one genuinely isolated field dispute. `enrichment_edition_mismatch`: entity plus an array of the several fields disagreeing at once — see `docs/INTEGRATIONS.md`'s enrichment addendum for why this is a different question ("does this ISBN match the right printing at all") from a single-field dispute, not just several of those bundled for convenience |
 | `status` | `pending` / `accepted` / `rejected` |
@@ -639,15 +668,14 @@ enough for now; add scoping later only if a real need for it shows up.
   actual concurrency needs would have forced the issue on their own).
 - ~~**Goodreads integration shape.**~~ **Resolved: see `docs/INTEGRATIONS.md`.**
   Bulk CSV import (one-time) plus an ongoing self-contained Solid Queue
-  sync (shelf RSS polling, diffed against a new `GoodreadsSyncState`
-  table) — the first real feature built, ahead of any UI, per
-  `PHILOSOPHY.md` principle 20. Also introduces `GoodreadsSyncState` (new,
-  not previously in this document) and confirms `Review.channels`' first
-  real shape (`channel: goodreads`, from `My Review`). ISFDB enrichment
-  specifically already has a running answer, not just a future one:
-  `~/projects/isfdb-adapter`'s JSON API (`/isbn/{isbn}`, `/search`,
-  `/series/*`, `/authors/*`) is deployed and reusable as-is; the
-  integration work is a client, not a new service.
+  sync (shelf RSS polling, diffed against `GoodreadsSyncState`, above) —
+  built, deployed to production, and running on an hourly recurring
+  schedule, ahead of any UI, per `PHILOSOPHY.md` principle 20. Confirms
+  `Review.channels`' first real shape (`channel: goodreads`, from `My
+  Review`). ISFDB enrichment specifically already has a running answer,
+  not just a future one: `~/projects/isfdb-adapter`'s JSON API
+  (`/isbn/{isbn}`, `/search`, `/series/*`, `/authors/*`) is deployed and
+  reusable as-is; the integration work is a client, not a new service.
 - ~~**Full-text search.**~~ **Resolved: Postgres native** (`tsvector`/
   `tsquery` + GIN indexes on `Work.title`/`description`, matching exactly
   what librarium's own schema already did with `idx_books_fulltext`). Its

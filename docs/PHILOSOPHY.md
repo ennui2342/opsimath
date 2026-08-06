@@ -688,10 +688,11 @@ than assumed:
   next point.
 - **A real JSON API stays narrow and earned**, scoped to what genuinely
   needs one: a future remote/offline client (principle 15, deferred not
-  foreclosed) or programmatic integration (an eventual Goodreads-sync
-  endpoint, same shape as the existing aswarm/librarium pattern). Within
-  it, the split follows principle 10/14's own logic rather than uniform
-  CRUD: plain CRUD-ish actions for genuine data management with no real
+  foreclosed) is the live example now, not the Goodreads sync this
+  document originally expected to need one — principle 20 confirms it
+  ended up needing zero HTTP surface at all, self-contained end to end.
+  Within it, the split follows principle 10/14's own logic rather than
+  uniform CRUD: plain CRUD-ish actions for genuine data management with no real
   rule to protect (edit a `Contributor`'s bio, add a `StorageLocation`),
   and explicit command/task-oriented actions wherever this document's own
   principles already decided a rule matters (`POST` a new `Reading` rather
@@ -712,9 +713,19 @@ questions"), **Minitest + fixtures + Capybara system tests** (Rails'
 own defaults, not RSpec/FactoryBot), and **Docker for local development**
 (a `docker-compose` of web/Postgres/a Solid Queue worker service,
 mirroring `~/projects/isfdb-adapter`'s own compose file structurally) to
-keep the host OS clean. Eventual deployment is the k8s homelab cluster,
-same as librarium and `isfdb-adapter` — deliberately not decided further
-than that yet.
+keep the host OS clean.
+
+**Deployment, resolved**: the k8s homelab cluster, same as librarium and
+`isfdb-adapter` — no longer just the plan, actually deployed and running
+(2026-08-05), with full push-to-deploy CI/CD matching the existing
+`taskmgt` project's pattern rather than a bespoke one: GitHub Actions
+builds and pushes a versioned image (`ghcr.io/ennui2342/opsimath:
+1.YYYYMMDD.RUNNUMBER`, per the container-versioning convention) on every
+push to `master`, and Flux's `ImageRepository`/`ImagePolicy`/
+`ImageUpdateAutomation` picks it up and redeploys automatically — no
+manual build/ticket step for ordinary changes. Verified end to end, not
+just wired up: a real fix was pushed and watched deploy itself with zero
+manual intervention.
 
 The asset pipeline follows the same self-containment value as principle
 13: **importmap-rails** and **tailwindcss-rails** (Tailwind v4) are both
@@ -815,6 +826,25 @@ rather than new ones:
   numbers, which the identifier bag already accommodates — but most
   mass-market SF paperbacks were never catalogued by libraries at that
   granularity, so this is low-value and not worth building toward.
+- **Z39.50/OPDS as a frontend shortcut** — a different question from the
+  one above, raised directly once Phase 2 was deployed: could exposing
+  the catalog via a standards-based protocol and browsing it with an
+  existing client substitute for building a real UI, at least for now?
+  Assessed and declined: Z39.50's real client ecosystem (YAZ/yaz-client,
+  MarcEdit, ILS search boxes) is entirely cataloger-facing — pulling a
+  MARC record to catalog a new acquisition, not a reader browsing their
+  own collection — so standing up a server would still leave no
+  pleasant client to point at it. OPDS ("Atom feeds for books") has a
+  genuine consumer client ecosystem (KyBook, Chunky, Panels, Calibre +
+  companions), but its whole model is *acquisition* — browse, tap,
+  download a file — a real semantic mismatch with opsimath's actual data
+  (reading state, ratings, `PendingDecision`s, owned-vs-wishlist on a
+  mostly-physical collection). Best case is a flat, read-only title
+  list, not a substitute for a frontend that shows what's actually
+  tracked. The existing stopgap (Rails console, or at most a minimal
+  read-only view — `docs/INTEGRATIONS.md`'s explicit scope) remains the
+  right near-term answer. A legitimate *later* idea if opsimath ever
+  needs to expose data to other tools, not a shortcut to a UI now.
 
 ## Non-goals (for now)
 

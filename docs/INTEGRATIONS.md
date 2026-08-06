@@ -307,16 +307,39 @@ describing the wrong printing, not just the conflicting field. Two
 refinements with no real disagreement between them are *not* bundled —
 only a genuine conflict triggers holding the rest back too.
 
-**Final real numbers** after the EDTF fix, the publisher/page_count
-fixes, and the multi-field bundling, all via `IsfdbEditionEnricher
+**Numbers from dev at the time** (post-EDTF-fix, post-publisher/
+page_count fixes, post-multi-field-bundling, all via `IsfdbEditionEnricher
 .reprocess` against already-stored `raw_payload` — no new network calls
-for any of it: total pending decisions 2,705 -> 526 (432
+for any of it): total pending decisions 2,705 -> 526 (432
 `enrichment_field_conflict`: 213 `publish_date`, 214 `publisher`, 5
 `format`; 94 `enrichment_edition_mismatch`, every one bundling exactly 2
-fields in this dataset). Reviewing what's left is real, separate
-follow-up work with no UI to do it through yet — not a defect in this
-job, and every remaining number has a specific, checked reason behind
-it rather than being an unexamined pile.
+fields in this dataset).
+
+**Correction, found deploying to production (2026-08-05): that 526/94/432
+split is a stale historical artifact, not the number the current code
+actually produces.** Dev's `Edition`s were enriched across three
+incremental rounds *while the bundling mechanism itself was still being
+built* — some editions had one field (e.g. `publish_date`) already fixed
+by an earlier round before the bundling logic existed, so a genuine
+original two-field disagreement now only shows one remaining dispute in
+dev, correctly isolated rather than bundled, simply because the other
+field isn't in dispute *anymore*. Confirmed directly: reprocessing every
+dev `Edition` against its own already-stored ISFDB payload (rolled back,
+no real change made) moved the bundled count from 94 to 188 — proof the
+92-bundle gap was staleness, not a real difference in the underlying
+data. Production ran the complete, final code once, from a blank
+database, in a single pass — every genuine multi-field disagreement got
+bundled correctly from the start, nothing masked by earlier partial
+fixes. **Production's split is the trustworthy one**: 530 total (340
+`enrichment_edition_mismatch`, 190 `enrichment_field_conflict`) — treat
+this, not dev's 526/94/432, as what the current code actually produces.
+The near-equal *totals* (526 vs. 530) are what made this easy to miss —
+the *kind* split is what actually diverged.
+
+Reviewing what's left is real, separate follow-up work with no UI to do
+it through yet — not a defect in this job, and every remaining number
+has a specific, checked reason behind it rather than being an
+unexamined pile.
 
 ### Addendum: real-data findings from building and running the importer
 
@@ -498,7 +521,13 @@ live pull). An earlier draft of this doc assumed both were available;
 matching against the feed must key off `EditionIdentifier(id_type:
 "isbn10")` only. **No binding/format field exists either** — Phase 2's
 auto-create path leaves `Edition.format` blank rather than guessing, see
-the Phase 0 fix note below.
+the Phase 0 fix note below. **`num_pages` *is* present in the feed, but
+`ShelfSync` deliberately never reads it into `Edition.page_count`** —
+consistent with Phase 1's own call above (dropping Goodreads'
+`Number of Pages` from the CSV import entirely, since it disagreed with
+ISFDB often enough and matters little enough to a collector to trust as
+a baseline), not an oversight specific to Phase 2. Left to ISFDB
+enrichment to fill in, same as the CSV path.
 
 **No field is a true "date started"** — `user_date_added` (the shelf's
 most recent transition date, not `user_date_created`, which is the
@@ -679,10 +708,27 @@ wraps, not a separate incoming webhook.
 not `Syncer`/`ShelfSync`, which stay pure/testable. Per event, one
 message each: `auto_created` (a new Work/Edition/WishlistItem), a
 `pending_decision` alert for each `reread_conflict`/
-`possible_duplicate_work` `ShelfSync` raises, one `sync_summary` at the
-end of every run, and `sync_error` if the run itself blows up (re-raised
-after notifying, so Solid Queue's own retry/failure tracking isn't
-short-circuited).
+`possible_duplicate_work` `ShelfSync` raises, one `sync_summary` per run,
+and `sync_error` if the run itself blows up (re-raised after notifying,
+so Solid Queue's own retry/failure tracking isn't short-circuited).
+
+**Two follow-up fixes, both from real usage in production, not
+speculative polish:**
+
+- **`sync_summary` only fires when something was actually synced.**
+  Originally sent every hour regardless — once the recurring job was
+  genuinely live, an all-zero "synced=0, unchanged=327" message every
+  single hour was pure noise (anything worth knowing already gets its
+  own `auto_created`/`pending_decision` alert). `notify_summary` now
+  returns early when `counts.synced` is zero.
+- **The ISFDB-conflict `pending_decision` alert originally had no real
+  content** — just the bare `kind` name plus an opaque `edition_id`/
+  `pending_decision_id`, nothing to judge from a phone notification
+  alone. Fixed to pull the book title (via `Edition.works`) and the
+  actual disputed field(s) with their current → proposed values
+  straight out of the `PendingDecision`'s own payload — see
+  `FieldApplier#find_or_create_conflict`/`IsfdbEditionEnricher
+  #create_edition_mismatch` for the two payload shapes this reads.
 
 **A newly auto-created `Edition` also gets ISFDB enrichment triggered
 immediately, scoped to just that one `Edition`** — a deliberate design
