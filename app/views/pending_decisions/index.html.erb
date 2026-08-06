@@ -1,0 +1,33 @@
+<% content_for :title, "Pending decisions" %>
+
+<div class="w-full max-w-3xl">
+  <h1 class="mb-4 text-2xl font-bold text-gray-900 dark:text-gray-100">Pending decisions</h1>
+
+  <div class="mb-6 flex flex-wrap gap-2">
+    <%= link_to "All (#{@kind_counts.values.sum})", pending_decisions_path,
+          class: "rounded-full px-3 py-1 text-sm #{@kind.nil? ? "bg-conflict-800 text-white dark:bg-conflict-200 dark:text-gray-900" : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300"}" %>
+    <% @kind_counts.each do |kind, count| %>
+      <%= link_to "#{kind} (#{count})", pending_decisions_path(kind: kind),
+            class: "rounded-full px-3 py-1 text-sm #{@kind == kind ? "bg-conflict-800 text-white dark:bg-conflict-200 dark:text-gray-900" : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300"}" %>
+    <% end %>
+  </div>
+
+  <% if @pending_decisions.any? %>
+    <ul class="divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
+      <% @pending_decisions.each do |pending_decision| %>
+        <% entity = pending_decision.entity %>
+        <li>
+          <%= link_to pending_decision_path(pending_decision, kind: @kind),
+                class: "flex items-center justify-between gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800" do %>
+            <span class="font-medium text-gray-900 dark:text-gray-100">
+              <%= entity.is_a?(Edition) ? entity.works.map(&:title).join(", ").presence || "Edition ##{entity.id}" : "Unknown entity" %>
+            </span>
+            <%= render(Ui::BadgeComponent.new(text: pending_decision.kind, variant: :conflict)) %>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <%= render "all_done", kind_filter: @kind %>
+  <% end %>
+</div>

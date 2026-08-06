@@ -1,0 +1,7 @@
+<div class="rounded-lg border border-dashed border-gray-300 p-8 text-center dark:border-gray-600">
+  <p class="text-lg font-medium text-gray-700 dark:text-gray-300">All caught up!</p>
+  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+    No pending decisions<%= " for '#{kind_filter}'" if kind_filter %> left to review.
+  </p>
+  <%= link_to "Back to queue", pending_decisions_path, class: "mt-4 inline-block text-sm text-conflict-800 hover:underline dark:text-conflict-200" %>
+</div>

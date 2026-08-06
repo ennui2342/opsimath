@@ -1,0 +1,3 @@
+<%= turbo_stream.replace "pending_decision" do %>
+  <%= render "decision", pending_decision: @next_decision, kind_filter: @kind %>
+<% end %>
