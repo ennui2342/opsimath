@@ -1,0 +1,82 @@
+<% content_for :title, @work.title %>
+
+<div class="w-full max-w-3xl">
+  <div class="mb-1 flex flex-wrap items-center gap-2">
+    <%= render(Ui::BadgeComponent.new(text: @work.literary_form)) %>
+  </div>
+  <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100"><%= @work.title %></h1>
+  <% if @work.subtitle.present? %>
+    <p class="text-lg text-gray-600 dark:text-gray-400"><%= @work.subtitle %></p>
+  <% end %>
+
+  <p class="mt-1 text-gray-700 dark:text-gray-300">
+    <%= @work.work_contributors.order(:display_order).map { |wc| "#{wc.contributor.name} (#{wc.role})" }.join(", ") %>
+  </p>
+
+  <% if @work.work_series.any? %>
+    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+      <% @work.work_series.each do |ws| %>
+        <%= ws.series.name %><%= " ##{ws.position}" if ws.position %><%= ", " unless ws == @work.work_series.last %>
+      <% end %>
+    </p>
+  <% end %>
+
+  <div class="mt-3 flex flex-wrap gap-2">
+    <% @work.genres.each { |g| %><%= render(Ui::BadgeComponent.new(text: g.name)) %><% } %>
+    <% @work.subjects.each { |s| %><%= render(Ui::BadgeComponent.new(text: s.name)) %><% } %>
+    <% @work.tags.each { |t| %><%= render(Ui::BadgeComponent.new(text: t.name)) %><% } %>
+  </div>
+
+  <% if @work.description.present? %>
+    <p class="mt-4 text-gray-700 dark:text-gray-300"><%= @work.description %></p>
+  <% end %>
+
+  <h2 class="mt-8 mb-3 text-xl font-semibold text-gray-900 dark:text-gray-100">Editions</h2>
+  <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <% @work.editions.each do |edition| %>
+      <div class="flex gap-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+        <% if edition.cover_image.attached? %>
+          <%= image_tag edition.cover_image, class: "h-32 w-auto rounded object-cover", alt: "" %>
+        <% end %>
+        <div class="text-sm text-gray-700 dark:text-gray-300">
+          <p class="font-medium text-gray-900 dark:text-gray-100">
+            <%= [ edition.format&.humanize, edition.format_detail&.humanize ].compact.join(" – ").presence || "Format unknown" %>
+          </p>
+          <p><%= edition.publisher.presence || "Publisher unknown" %></p>
+          <p><%= edition.publish_date.presence || "Date unknown" %></p>
+          <p><%= "#{edition.page_count} pages" if edition.page_count %></p>
+          <% edition.edition_identifiers.each do |id| %>
+            <p class="text-xs text-gray-400"><%= id.id_type %>: <%= id.value %></p>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+
+  <% if @work.readings.any? %>
+    <h2 class="mt-8 mb-3 text-xl font-semibold text-gray-900 dark:text-gray-100">Reading history</h2>
+    <ul class="divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
+      <% @work.readings.order(date_started: :desc).each do |reading| %>
+        <li class="flex items-center justify-between px-4 py-3 text-sm">
+          <span>
+            <%= render(Ui::BadgeComponent.new(text: reading.status, variant: reading.status == "completed" ? :success : :default)) %>
+            <%= reading.date_started %> &ndash; <%= reading.date_finished %>
+          </span>
+          <span class="text-gray-500 dark:text-gray-400"><%= reading.rating ? "#{reading.rating}★" : nil %></span>
+        </li>
+      <% end %>
+    </ul>
+  <% end %>
+
+  <% if @work.reviews.any? %>
+    <h2 class="mt-8 mb-3 text-xl font-semibold text-gray-900 dark:text-gray-100">Reviews</h2>
+    <% @work.reviews.each do |review| %>
+      <div class="mb-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+        <p class="text-sm text-gray-500 dark:text-gray-400"><%= review.published_at %> &middot; <%= review.rating %>★</p>
+        <p class="mt-2 text-gray-700 dark:text-gray-300"><%= review.text %></p>
+      </div>
+    <% end %>
+  <% end %>
+
+  <%= link_to "Back to books", works_path, class: "mt-8 inline-block text-sm text-gray-500 hover:underline dark:text-gray-400" %>
+</div>
