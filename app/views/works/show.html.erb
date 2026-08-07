@@ -46,7 +46,14 @@
           <p><%= edition.publish_date.presence || "Date unknown" %></p>
           <p><%= "#{edition.page_count} pages" if edition.page_count %></p>
           <% edition.edition_identifiers.each do |id| %>
-            <p class="text-xs text-gray-400"><%= id.id_type %>: <%= id.value %></p>
+            <p class="text-xs text-gray-400">
+              <%= id.id_type %>:
+              <% if id.external_url %>
+                <%= link_to id.value, id.external_url, target: "_blank", rel: "noopener", class: "hover:underline" %>
+              <% else %>
+                <%= id.value %>
+              <% end %>
+            </p>
           <% end %>
         </div>
       </div>
