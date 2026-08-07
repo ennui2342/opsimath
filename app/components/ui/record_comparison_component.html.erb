@@ -21,6 +21,11 @@
             <span class="block text-xs font-medium text-gray-500 dark:text-gray-400"><%= diff[:field].to_s.humanize %></span>
             <span class="block text-sm font-semibold text-conflict-800 dark:text-conflict-200"><%= diff[:proposed] %></span>
             <%= render(Ui::BadgeComponent.new(text: diff[:source], variant: :default)) if diff[:source].present? %>
+            <% if diff[:other_candidates].present? %>
+              <span class="block text-xs text-gray-400 dark:text-gray-500">
+                Also on file: <%= diff[:other_candidates].map { |c| "#{c[:provider]}: #{c[:value]}" }.join(", ") %>
+              </span>
+            <% end %>
           </span>
         </label>
       <% end %>

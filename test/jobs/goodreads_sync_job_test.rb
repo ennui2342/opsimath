@@ -54,7 +54,8 @@ class GoodreadsSyncJobTest < ActiveSupport::TestCase
     assert auto_created.any? { |e| e.title.include?("Children of Memory") }
 
     edition = Work.find_by!(title: "Children of Memory").editions.sole
-    assert_not EnrichmentRecord.exists?(entity_type: "Edition", entity_id: edition.id) # 404'd, not matched — no record created
+    assert_not EnrichmentRecord.exists?(entity_type: "Edition", entity_id: edition.id, provider: "isfdb") # 404'd, not matched — no isfdb record created
+    assert EnrichmentRecord.exists?(entity_type: "Edition", entity_id: edition.id, provider: "goodreads") # audit parity — the RSS-side record always exists
   end
 
   test "a freshly auto-created edition's first ISFDB pass is always a clean fill, never a spurious conflict" do

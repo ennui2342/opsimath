@@ -40,7 +40,7 @@ module Enrichment
         plan.record.update!(plan.field => plan.value, field_sources: plan.record.field_sources.merge(plan.field.to_s => plan.source))
         Result.new(status: :applied)
       when :conflict
-        pending = find_or_create_conflict(plan.record, plan.field, plan.current, plan.value, plan.source)
+        pending = find_or_create_conflict(plan.record, plan.field, plan.source)
         Result.new(status: :pending, pending_decision: pending)
       else
         Result.new(status: plan.action)
@@ -51,24 +51,27 @@ module Enrichment
       commit(plan(record, field, value, source))
     end
 
-    def self.find_or_create_conflict(record, field, current, value, source)
+    # Deliberately thin — no current/proposed value snapshot. Once
+    # EnrichmentRecord.fields exists (see Enrichment::SourceRecorder), a
+    # frozen current_value/proposed pair is a staleness hazard against a
+    # real review backlog: anything else touching the entity between
+    # raise and review would leave it showing a value that's no longer
+    # true. The payload just names *which* field on *which* entity has an
+    # open question, raised by *which* source — PendingDecision#field_diffs
+    # derives the actual comparison live, from the record's current column
+    # value and that source's latest EnrichmentRecord.
+    def self.find_or_create_conflict(record, field, source)
       entity_type = record.class.name
       entity_id = record.id
 
       existing = PendingDecision.where(kind: "enrichment_field_conflict", status: "pending")
-                                 .where("payload @> ?", { entity_type: entity_type, entity_id: entity_id, field: field.to_s }.to_json)
+                                 .where("payload @> ?", { entity_type: entity_type, entity_id: entity_id, fields: [ field.to_s ] }.to_json)
                                  .first
       return existing if existing
 
       PendingDecision.create!(
         kind: "enrichment_field_conflict",
-        payload: {
-          entity_type: entity_type,
-          entity_id: entity_id,
-          field: field.to_s,
-          current_value: current,
-          proposed: [ { "value" => value, "source" => source } ]
-        }
+        payload: { entity_type: entity_type, entity_id: entity_id, fields: [ field.to_s ], source: source }
       )
     end
 

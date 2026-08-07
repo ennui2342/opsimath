@@ -54,9 +54,8 @@ module Enrichment
       assert_equal "pending", decision.status
       assert_equal "Edition", decision.payload["entity_type"]
       assert_equal @edition.id, decision.payload["entity_id"]
-      assert_equal "publisher", decision.payload["field"]
-      assert_equal "Berkley Windhover", decision.payload["current_value"]
-      assert_equal [ { "value" => "Ace Books", "source" => "isfdb" } ], decision.payload["proposed"]
+      assert_equal [ "publisher" ], decision.payload["fields"]
+      assert_equal "isfdb", decision.payload["source"]
     end
 
     test "re-flagging the same conflict reuses the existing pending decision rather than duplicating it" do

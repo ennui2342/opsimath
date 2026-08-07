@@ -260,29 +260,36 @@ module Goodreads
     end
 
     def create_edition(row, book_id)
-      format, format_detail = RowParser.format_and_detail(row["Binding"])
+      ActiveRecord::Base.transaction do
+        edition = Edition.create!
 
-      # page_count deliberately not imported from Goodreads' "Number of
-      # Pages" — confirmed against real conflict data that it disagrees
-      # with ISFDB often enough, and carries little enough collector
-      # value, that it's not worth treating as a trusted baseline at all.
-      # Left for isfdb enrichment to fill in cleanly instead.
-      edition = Edition.create!(
-        format: format,
-        format_detail: format_detail,
-        publisher: row["Publisher"].presence,
-        publish_date: row["Year Published"].presence # year only — an EDTF string, not a fabricated day/month
-      )
+        EditionIdentifier.create!(edition: edition, id_type: "goodreads", value: book_id)
+        if (isbn10 = RowParser.clean_isbn(row["ISBN"]))
+          EditionIdentifier.create!(edition: edition, id_type: "isbn10", value: isbn10)
+        end
+        if (isbn13 = RowParser.clean_isbn(row["ISBN13"]))
+          EditionIdentifier.create!(edition: edition, id_type: "isbn13", value: isbn13)
+        end
 
-      EditionIdentifier.create!(edition: edition, id_type: "goodreads", value: book_id)
-      if (isbn10 = RowParser.clean_isbn(row["ISBN"]))
-        EditionIdentifier.create!(edition: edition, id_type: "isbn10", value: isbn10)
+        format, format_detail = RowParser.format_and_detail(row["Binding"])
+
+        # page_count deliberately not imported from Goodreads' "Number of
+        # Pages" — confirmed against real conflict data that it disagrees
+        # with ISFDB often enough, and carries little enough collector
+        # value, that it's not worth treating as a trusted baseline at all.
+        # Left for isfdb enrichment to fill in cleanly instead.
+        Enrichment::SourceRecorder.record(
+          entity: edition, provider: "goodreads", external_id: book_id, raw_payload: row.to_h,
+          fields: {
+            format: format,
+            format_detail: format_detail,
+            publisher: row["Publisher"].presence,
+            publish_date: row["Year Published"].presence # year only — an EDTF string, not a fabricated day/month
+          }
+        )
+
+        edition
       end
-      if (isbn13 = RowParser.clean_isbn(row["ISBN13"]))
-        EditionIdentifier.create!(edition: edition, id_type: "isbn13", value: isbn13)
-      end
-
-      edition
     end
 
     # "Owned Copies" is confirmed near-unused in the real export (0 for

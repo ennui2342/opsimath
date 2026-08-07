@@ -18,7 +18,8 @@
 <div class="mb-6 rounded-lg border border-gray-200 bg-white px-4 dark:border-gray-700 dark:bg-gray-900">
   <% if pending_decision.field_diffs.any? %>
     <% pending_decision.field_diffs.each do |diff| %>
-      <%= render(Ui::FieldDiffComponent.new(**diff)) %>
+      <% other_candidates = pending_decision.field_candidates(diff[:field]).reject { |c| c[:provider] == diff[:source] } %>
+      <%= render(Ui::FieldDiffComponent.new(**diff, other_candidates: other_candidates)) %>
     <% end %>
   <% else %>
     <p class="py-3 text-sm text-gray-500 dark:text-gray-400">

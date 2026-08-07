@@ -30,5 +30,19 @@ module Ui
       assert_selector "input[type=checkbox][name='fields[]'][value=publish_date][checked]"
       assert_selector "input[type=checkbox]", count: 2
     end
+
+    test "renders an 'also on file' line for a field with a known other-provider candidate" do
+      diffs = [ DIFFS.first.merge(other_candidates: [ { provider: "goodreads", value: "HarperVoyager UK" } ]) ]
+
+      render_inline(RecordComparisonComponent.new(diffs: diffs))
+
+      assert_text "Also on file: goodreads: HarperVoyager UK"
+    end
+
+    test "renders no 'also on file' line when there isn't one" do
+      render_inline(RecordComparisonComponent.new(diffs: DIFFS))
+
+      assert_no_text "Also on file"
+    end
   end
 end

@@ -191,9 +191,17 @@ module Goodreads
       # separate columns. Using it here would silently mislabel a
       # work-level fact as edition-specific, same false-precision shape
       # as the publish_date EDTF fix and the format fix before it.
-      edition = Edition.create!
-      EditionIdentifier.create!(edition: edition, id_type: "goodreads", value: @item.goodreads_book_id)
-      EditionIdentifier.create!(edition: edition, id_type: "isbn10", value: @item.isbn) if @item.isbn.present?
+      edition = ActiveRecord::Base.transaction do
+        edition = Edition.create!
+        EditionIdentifier.create!(edition: edition, id_type: "goodreads", value: @item.goodreads_book_id)
+        EditionIdentifier.create!(edition: edition, id_type: "isbn10", value: @item.isbn) if @item.isbn.present?
+        # fields: {} — audit parity with CSV import (a real
+        # EnrichmentRecord(provider: "goodreads") row exists for every
+        # auto-created edition, not just CSV-imported ones), even though
+        # the RSS feed has no field data worth applying here.
+        Enrichment::SourceRecorder.record(entity: edition, provider: "goodreads", external_id: @item.goodreads_book_id, raw_payload: @item.to_h)
+        edition
+      end
       EditionContent.create!(edition: edition, work: work)
       Copy.create!(edition: edition, disposition: "owned")
       attach_cover(edition, @item.book_image_url)

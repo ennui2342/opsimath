@@ -63,6 +63,16 @@ module Enrichment
       assert_equal "426303", record.external_id
       assert_equal "Dune", record.raw_payload["title"]
 
+      # Captures what isfdb's fetch literally proposed, independent of
+      # what apply_fields decided to do with each one.
+      assert_equal "Ace Books", record.fields["publisher"]
+      assert_equal "eng", record.fields["language"]
+      assert_equal 883, record.fields["page_count"]
+      assert_equal "2010", record.fields["publish_date"]
+      assert_equal "paperback", record.fields["format"]
+      assert_equal "mass_market", record.fields["format_detail"]
+      assert_equal "https://isfdb.org/covers/dune.jpg", record.fields["cover_image"]
+
       assert_equal "Ace Books", @edition.publisher
       assert_equal "eng", @edition.language
       assert_equal 883, @edition.page_count
@@ -152,11 +162,19 @@ module Enrichment
       decision = PendingDecision.where(kind: "enrichment_edition_mismatch").sole
       assert_equal "Edition", decision.payload["entity_type"]
       assert_equal @edition.id, decision.payload["entity_id"]
-      fields = decision.payload["fields"].index_by { |f| f["field"] }
-      assert_equal "Berkley Windhover", fields["publisher"]["current_value"]
-      assert_equal "Ace Books", fields["publisher"]["proposed"]
-      assert_equal "1978", fields["publish_date"]["current_value"]
-      assert_equal "1979-06", fields["publish_date"]["proposed"]
+      assert_equal %w[publisher publish_date], decision.payload["fields"]
+
+      diffs = decision.field_diffs.index_by { |d| d[:field] }
+      assert_equal "Berkley Windhover", diffs["publisher"][:current]
+      assert_equal "Ace Books", diffs["publisher"][:proposed]
+      assert_equal "1978", diffs["publish_date"][:current]
+      assert_equal "1979-06", diffs["publish_date"][:proposed]
+
+      # The EnrichmentRecord captures what isfdb literally proposed
+      # regardless of the bundle being held back from apply_fields.
+      record = EnrichmentRecord.sole
+      assert_equal "Ace Books", record.fields["publisher"]
+      assert_equal "1979-06", record.fields["publish_date"]
     end
 
     test "a would-be-safe refinement is held back too when it co-occurs with a genuine conflict on the same edition" do
@@ -217,7 +235,7 @@ module Enrichment
       assert_equal "new-cover-bytes-from-isfdb", @edition.candidate_cover_image.download
 
       decision = PendingDecision.where(kind: "enrichment_edition_mismatch").sole
-      assert_equal [ { "field" => "cover_image" } ], decision.payload["fields"]
+      assert_equal [ "cover_image" ], decision.payload["fields"]
     end
 
     test "a cover that's byte-identical to the one already attached is a no-op, not noise" do
@@ -270,8 +288,7 @@ module Enrichment
       assert @edition.candidate_cover_image.attached?
 
       decision = PendingDecision.where(kind: "enrichment_edition_mismatch").sole
-      field_names = decision.payload["fields"].map { |f| f["field"] }
-      assert_equal %w[publisher cover_image].sort, field_names.sort
+      assert_equal %w[publisher cover_image].sort, decision.payload["fields"].sort
     end
 
     test "re-enriching an edition with an already-unresolved edition mismatch reuses the decision instead of spawning a second one" do
@@ -294,7 +311,7 @@ module Enrichment
 
       assert_equal "2010-06", @edition.reload.publish_date
       assert_equal "isfdb", @edition.field_sources["publish_date"]
-      assert_equal 0, PendingDecision.where(kind: "enrichment_field_conflict").where("payload ->> 'field' = ?", "publish_date").count
+      assert_equal 0, PendingDecision.where(kind: "enrichment_field_conflict").where("payload @> ?", { fields: [ "publish_date" ] }.to_json).count
     end
 
     test "a less precise publish_date from isfdb is left alone — we already know more" do
@@ -327,9 +344,10 @@ module Enrichment
       IsfdbEditionEnricher.enrich(@edition, client: @client)
 
       assert_equal "2011", @edition.reload.publish_date # untouched
-      decision = PendingDecision.where(kind: "enrichment_field_conflict").where("payload ->> 'field' = ?", "publish_date").sole
-      assert_equal "2011", decision.payload["current_value"]
-      assert_equal "2010", decision.payload["proposed"].first["value"]
+      decision = PendingDecision.where(kind: "enrichment_field_conflict").where("payload @> ?", { fields: [ "publish_date" ] }.to_json).sole
+      diff = decision.field_diffs.sole
+      assert_equal "2011", diff[:current]
+      assert_equal "2010", diff[:proposed]
     end
 
     test "unmapped pub_ptype values are left alone rather than guessed at" do

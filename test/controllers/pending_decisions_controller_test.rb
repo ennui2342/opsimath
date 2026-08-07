@@ -5,12 +5,16 @@ class PendingDecisionsControllerTest < ActionDispatch::IntegrationTest
     @edition = Edition.create!(publisher: "St Martins Pr")
     work = Work.create!(title: "The Gold Coast", literary_form: "novel")
     EditionContent.create!(work: work, edition: @edition)
+    # field_diffs derives current/proposed live from the entity's column
+    # plus this EnrichmentRecord — one record covers every field any test
+    # below names, since they all share the same (entity, "isfdb") pair.
+    EnrichmentRecord.create!(
+      entity: @edition, provider: "isfdb", external_id: "1", fetched_at: Time.current, raw_payload: {},
+      fields: { "publisher" => "HarperVoyager", "format" => "hardcover" }
+    )
     @pending = PendingDecision.create!(
       kind: "enrichment_field_conflict",
-      payload: {
-        "entity_type" => "Edition", "entity_id" => @edition.id, "field" => "publisher",
-        "current_value" => "St Martins Pr", "proposed" => [ { "value" => "HarperVoyager", "source" => "isfdb" } ]
-      }
+      payload: { "entity_type" => "Edition", "entity_id" => @edition.id, "fields" => [ "publisher" ], "source" => "isfdb" }
     )
   end
 
@@ -42,7 +46,7 @@ class PendingDecisionsControllerTest < ActionDispatch::IntegrationTest
     sign_in_as users(:one)
     other = PendingDecision.create!(
       kind: "enrichment_field_conflict",
-      payload: { "entity_type" => "Edition", "entity_id" => @edition.id, "field" => "format", "current_value" => nil, "proposed" => [ { "value" => "hardcover", "source" => "isfdb" } ] }
+      payload: { "entity_type" => "Edition", "entity_id" => @edition.id, "fields" => [ "format" ], "source" => "isfdb" }
     )
 
     post accept_pending_decision_url(@pending), as: :turbo_stream
@@ -76,13 +80,7 @@ class PendingDecisionsControllerTest < ActionDispatch::IntegrationTest
     sign_in_as users(:one)
     @pending.update!(
       kind: "enrichment_edition_mismatch",
-      payload: {
-        "entity_type" => "Edition", "entity_id" => @edition.id, "source" => "isfdb",
-        "fields" => [
-          { "field" => "publisher", "current_value" => "St Martins Pr", "proposed" => "HarperVoyager" },
-          { "field" => "format", "current_value" => nil, "proposed" => "hardcover" }
-        ]
-      }
+      payload: { "entity_type" => "Edition", "entity_id" => @edition.id, "source" => "isfdb", "fields" => [ "publisher", "format" ] }
     )
 
     post accept_pending_decision_url(@pending), params: { fields: [ "publisher" ] }, as: :turbo_stream
@@ -98,7 +96,7 @@ class PendingDecisionsControllerTest < ActionDispatch::IntegrationTest
     @edition.candidate_cover_image.attach(io: StringIO.new("new-bytes"), filename: "new.jpg", content_type: "image/jpeg")
     @pending.update!(
       kind: "enrichment_edition_mismatch",
-      payload: { "entity_type" => "Edition", "entity_id" => @edition.id, "source" => "isfdb", "fields" => [ { "field" => "cover_image" } ] }
+      payload: { "entity_type" => "Edition", "entity_id" => @edition.id, "source" => "isfdb", "fields" => [ "cover_image" ] }
     )
 
     get pending_decision_url(@pending)

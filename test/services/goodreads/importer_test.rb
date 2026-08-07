@@ -33,6 +33,14 @@ module Goodreads
       edition = work.editions.sole
       assert_equal "1978", edition.publish_date # year only, from Year Published — an EDTF string
       assert_nil edition.page_count # no longer imported from Goodreads at all — left to isfdb enrichment
+      assert_equal "goodreads", edition.field_sources["publish_date"]
+      assert_equal "goodreads", edition.field_sources["publisher"]
+      assert_equal "goodreads", edition.field_sources["format"]
+
+      record = EnrichmentRecord.find_by!(entity: edition, provider: "goodreads", external_id: "411941")
+      assert_equal "Berkley Windhover", record.fields["publisher"]
+      assert_equal "1978", record.fields["publish_date"]
+      assert_equal "paperback", record.fields["format"]
     end
 
     test "a wishlist row creates only a WishlistItem, no Work/Edition/Copy" do
@@ -201,11 +209,11 @@ module Goodreads
 
     test "re-running the import against the same file is a no-op" do
       Importer.import(FIXTURE)
-      before = { works: Work.count, editions: Edition.count, readings: Reading.count, wishlist: WishlistItem.count }
+      before = { works: Work.count, editions: Edition.count, readings: Reading.count, wishlist: WishlistItem.count, enrichment_records: EnrichmentRecord.count }
 
       counts = Importer.import(FIXTURE)
 
-      assert_equal before, { works: Work.count, editions: Edition.count, readings: Reading.count, wishlist: WishlistItem.count }
+      assert_equal before, { works: Work.count, editions: Edition.count, readings: Reading.count, wishlist: WishlistItem.count, enrichment_records: EnrichmentRecord.count }
       assert_equal 0, counts.imported_rows
       assert_equal 0, counts.wishlisted
     end

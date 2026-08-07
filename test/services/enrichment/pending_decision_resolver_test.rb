@@ -2,14 +2,21 @@ require "test_helper"
 
 module Enrichment
   class PendingDecisionResolverTest < ActiveSupport::TestCase
+    # field_diffs now derives current/proposed live from the entity's
+    # column plus the named source's latest EnrichmentRecord — so every
+    # test naming a real (non-cover) field needs a backing
+    # EnrichmentRecord with that value in its fields column, not just a
+    # payload asserting the value directly.
+    def enrichment_record!(entity, provider: "isfdb", fields:)
+      EnrichmentRecord.create!(entity: entity, provider: provider, external_id: "1", fetched_at: Time.current, raw_payload: {}, fields: fields)
+    end
+
     test "accepting an isolated enrichment_field_conflict applies the proposed value and sets field_sources" do
       edition = Edition.create!(publisher: "St Martins Pr")
+      enrichment_record!(edition, fields: { "publisher" => "HarperVoyager" })
       pending = PendingDecision.create!(
         kind: "enrichment_field_conflict",
-        payload: {
-          "entity_type" => "Edition", "entity_id" => edition.id, "field" => "publisher",
-          "current_value" => "St Martins Pr", "proposed" => [ { "value" => "HarperVoyager", "source" => "isfdb" } ]
-        }
+        payload: { "entity_type" => "Edition", "entity_id" => edition.id, "fields" => [ "publisher" ], "source" => "isfdb" }
       )
 
       PendingDecisionResolver.accept(pending)
@@ -23,15 +30,10 @@ module Enrichment
 
     test "accepting a bundled enrichment_edition_mismatch applies every field in the bundle" do
       edition = Edition.create!(publisher: "St Martins Pr", publish_date: "2011")
+      enrichment_record!(edition, fields: { "publisher" => "HarperVoyager (UK)", "publish_date" => "2016-12" })
       pending = PendingDecision.create!(
         kind: "enrichment_edition_mismatch",
-        payload: {
-          "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb",
-          "fields" => [
-            { "field" => "publisher", "current_value" => "St Martins Pr", "proposed" => "HarperVoyager (UK)" },
-            { "field" => "publish_date", "current_value" => "2011", "proposed" => "2016-12" }
-          ]
-        }
+        payload: { "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "fields" => [ "publisher", "publish_date" ] }
       )
 
       PendingDecisionResolver.accept(pending)
@@ -46,15 +48,10 @@ module Enrichment
 
     test "partial accept only applies the selected fields and prunes the payload to match" do
       edition = Edition.create!(publisher: "St Martins Pr", publish_date: "2011")
+      enrichment_record!(edition, fields: { "publisher" => "HarperVoyager (UK)", "publish_date" => "2016-12" })
       pending = PendingDecision.create!(
         kind: "enrichment_edition_mismatch",
-        payload: {
-          "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb",
-          "fields" => [
-            { "field" => "publisher", "current_value" => "St Martins Pr", "proposed" => "HarperVoyager (UK)" },
-            { "field" => "publish_date", "current_value" => "2011", "proposed" => "2016-12" }
-          ]
-        }
+        payload: { "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "fields" => [ "publisher", "publish_date" ] }
       )
 
       PendingDecisionResolver.accept(pending, selected_fields: [ "publisher" ])
@@ -63,7 +60,20 @@ module Enrichment
       assert_equal "HarperVoyager (UK)", edition.publisher
       assert_equal "2011", edition.publish_date # not selected, untouched
       assert_equal "accepted", pending.reload.status
-      assert_equal [ "publisher" ], pending.payload["fields"].map { |f| f["field"] }
+      assert_equal [ "publisher" ], pending.payload["fields"]
+    end
+
+    test "raises rather than silently accepting when the named source has no backing EnrichmentRecord" do
+      edition = Edition.create!(publisher: "St Martins Pr")
+      pending = PendingDecision.create!(
+        kind: "enrichment_field_conflict",
+        payload: { "entity_type" => "Edition", "entity_id" => edition.id, "fields" => [ "publisher" ], "source" => "isfdb" }
+      )
+
+      assert_raises(RuntimeError) { PendingDecisionResolver.accept(pending) }
+
+      assert_equal "St Martins Pr", edition.reload.publisher # never touched
+      assert_equal "pending", pending.reload.status # never silently marked accepted
     end
 
     test "accepting a cover field attaches the candidate to cover_image and detaches (not purges) it" do
@@ -73,7 +83,7 @@ module Enrichment
       candidate_blob_id = edition.candidate_cover_image.blob.id
       pending = PendingDecision.create!(
         kind: "enrichment_edition_mismatch",
-        payload: { "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "fields" => [ { "field" => "cover_image" } ] }
+        payload: { "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "fields" => [ "cover_image" ] }
       )
 
       PendingDecisionResolver.accept(pending)
@@ -87,14 +97,12 @@ module Enrichment
 
     test "leaving the cover unchecked while accepting other fields purges the candidate and leaves cover_image untouched" do
       edition = Edition.create!(publisher: "St Martins Pr")
+      enrichment_record!(edition, fields: { "publisher" => "HarperVoyager" })
       edition.cover_image.attach(io: StringIO.new("old-bytes"), filename: "old.jpg", content_type: "image/jpeg")
       edition.candidate_cover_image.attach(io: StringIO.new("new-bytes"), filename: "new.jpg", content_type: "image/jpeg")
       pending = PendingDecision.create!(
         kind: "enrichment_edition_mismatch",
-        payload: {
-          "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb",
-          "fields" => [ { "field" => "publisher", "current_value" => "St Martins Pr", "proposed" => "HarperVoyager" }, { "field" => "cover_image" } ]
-        }
+        payload: { "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "fields" => [ "publisher", "cover_image" ] }
       )
 
       PendingDecisionResolver.accept(pending, selected_fields: [ "publisher" ])
@@ -110,7 +118,7 @@ module Enrichment
       edition.candidate_cover_image.attach(io: StringIO.new("new-bytes"), filename: "new.jpg", content_type: "image/jpeg")
       pending = PendingDecision.create!(
         kind: "enrichment_edition_mismatch",
-        payload: { "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "fields" => [ { "field" => "cover_image" } ] }
+        payload: { "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "fields" => [ "cover_image" ] }
       )
 
       PendingDecisionResolver.reject(pending)
@@ -121,14 +129,15 @@ module Enrichment
 
     test "rejecting an unrelated decision never touches a different pending decision's staged candidate cover" do
       edition = Edition.create!(publisher: "St Martins Pr")
+      enrichment_record!(edition, fields: { "publisher" => "HarperVoyager" })
       edition.candidate_cover_image.attach(io: StringIO.new("new-bytes"), filename: "new.jpg", content_type: "image/jpeg")
       cover_pending = PendingDecision.create!(
         kind: "enrichment_edition_mismatch",
-        payload: { "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "fields" => [ { "field" => "cover_image" } ] }
+        payload: { "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "fields" => [ "cover_image" ] }
       )
       unrelated_pending = PendingDecision.create!(
         kind: "enrichment_field_conflict",
-        payload: { "entity_type" => "Edition", "entity_id" => edition.id, "field" => "publisher", "current_value" => "St Martins Pr", "proposed" => [ { "value" => "HarperVoyager", "source" => "isfdb" } ] }
+        payload: { "entity_type" => "Edition", "entity_id" => edition.id, "fields" => [ "publisher" ], "source" => "isfdb" }
       )
 
       PendingDecisionResolver.reject(unrelated_pending)
@@ -139,12 +148,10 @@ module Enrichment
 
     test "rejecting leaves the entity untouched but resolves the decision" do
       edition = Edition.create!(publisher: "St Martins Pr")
+      enrichment_record!(edition, fields: { "publisher" => "HarperVoyager" })
       pending = PendingDecision.create!(
         kind: "enrichment_field_conflict",
-        payload: {
-          "entity_type" => "Edition", "entity_id" => edition.id, "field" => "publisher",
-          "current_value" => "St Martins Pr", "proposed" => [ { "value" => "HarperVoyager", "source" => "isfdb" } ]
-        }
+        payload: { "entity_type" => "Edition", "entity_id" => edition.id, "fields" => [ "publisher" ], "source" => "isfdb" }
       )
 
       PendingDecisionResolver.reject(pending)

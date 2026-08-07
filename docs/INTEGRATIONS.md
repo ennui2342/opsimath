@@ -692,6 +692,32 @@ to compare against yet on a just-created edition). A later ISFDB pass
 still runs its own checksum comparison against whatever's already
 attached, same as any other Goodreads-sourced field.
 
+**Goodreads is a peer enrichment source, not the library's source of
+truth — the root cause behind both fixes above.** Both the `book_published`
+mislabeling and the cover-comparison false-conflict regression traced
+back to the same thing: `Importer#create_edition`/`ShelfSync#create_
+work_and_edition` wrote straight onto `Edition` columns at creation time,
+with no comparison logic and no durable record of what Goodreads
+actually claimed — unlike ISFDB, which already went through a real
+fill/conflict pipeline (`Enrichment::FieldApplier`). Fixed by routing
+Goodreads through that same pipeline via a new `Enrichment::SourceRecorder`,
+which both import paths now call instead of writing columns directly.
+Observably identical today for a genuinely new edition (every field
+starts blank, so every proposal is a clean `:fill` regardless of
+source), but two real gaps close: a `goodreads`-provider `EnrichmentRecord`
+now exists for every imported/synced edition (previously only ISFDB
+created these), and Goodreads-derived text fields get `field_sources`
+tagged (previously only `cover_image` was tracked at all). `EnrichmentRecord`
+gained a `fields` jsonb column (populated by both providers, kept
+separate from `raw_payload`) so a real side-by-side comparison across
+sources is directly queryable from the database with no active
+`PendingDecision` required — not just derivable from a raw fetch blob.
+`PendingDecision.payload` was simplified to match: a thin pointer
+(`{entity_type, entity_id, fields: [...], source}`) rather than a frozen
+current/proposed snapshot, since freezing a value at raise time is a
+real staleness hazard against a review backlog that can sit for months —
+`PendingDecision#field_diffs` now derives the comparison live instead.
+
 **A standalone magazine issue is a real auto-create case, distinct from a
 novel or an anthology** — the same *Clarkesworld* example above. No
 magazine ever appeared in the Phase 1 CSV export, so this never came up

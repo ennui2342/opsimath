@@ -20,7 +20,8 @@
 <%= form_with url: accept_pending_decision_path(pending_decision, kind: kind_filter), method: :post,
       data: { turbo_stream: true, decision_shortcuts_target: "accept" } do %>
   <% if entity.is_a?(Edition) && entity.candidate_cover_image.attached? %>
-    <%= render(Ui::CoverComparisonComponent.new(current: entity.cover_image, candidate: entity.candidate_cover_image)) %>
+    <% cover_candidates = pending_decision.field_candidates(:cover_image).reject { |c| c[:provider] == pending_decision.payload["source"] } %>
+    <%= render(Ui::CoverComparisonComponent.new(current: entity.cover_image, candidate: entity.candidate_cover_image, other_candidates: cover_candidates)) %>
     <label class="mb-6 -mt-2 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
       <%= check_box_tag "fields[]", "cover_image", true, id: "field_cover_image", checked: true, class: "h-4 w-4 rounded border-gray-300" %>
       Apply this cover
@@ -28,6 +29,7 @@
   <% end %>
 
   <% if field_diffs.any? %>
+    <% field_diffs = field_diffs.map { |d| d.merge(other_candidates: pending_decision.field_candidates(d[:field]).reject { |c| c[:provider] == d[:source] }) } %>
     <%= render(Ui::RecordComparisonComponent.new(diffs: field_diffs)) %>
   <% elsif cover_diff.empty? %>
     <p class="mb-6 py-3 text-sm text-gray-500 dark:text-gray-400">

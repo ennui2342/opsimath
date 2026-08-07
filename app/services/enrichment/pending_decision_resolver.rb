@@ -92,11 +92,15 @@ module Enrichment
       record.update!(field_sources: record.field_sources.merge("cover_image" => "isfdb"))
     end
 
+    # Keeps only the field names actually applied — payload["fields"] is
+    # now a plain array of strings (Enrichment::FieldApplier.find_or_create_conflict),
+    # so this is a plain array intersection rather than filtering an array
+    # of hashes by a "field" key.
     def prune_payload(applied_diffs)
       return unless @pending_decision.payload["fields"]
 
       applied_field_names = applied_diffs.map { |d| d[:field] }
-      @pending_decision.payload["fields"] = @pending_decision.payload["fields"].select { |f| applied_field_names.include?(f["field"]) }
+      @pending_decision.payload["fields"] &= applied_field_names
     end
 
     # Only ever purges a candidate this exact decision staged — an

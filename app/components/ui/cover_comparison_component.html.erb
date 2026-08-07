@@ -14,3 +14,9 @@
     <%= image_tag @candidate.variant(resize_to_limit: [ 240, 360 ]), class: "mx-auto rounded shadow ring-2 ring-conflict-800 dark:ring-conflict-200", alt: "" %>
   </div>
 </div>
+<% if @other_candidates.any? %>
+  <p class="-mt-4 mb-6 text-center text-xs text-gray-400 dark:text-gray-500">
+    Also on file: <%= safe_join(@other_candidates.map { |c| link_to c[:provider], c[:value], class: "underline" }, ", ") %>
+  </p>
+<% end %>
+

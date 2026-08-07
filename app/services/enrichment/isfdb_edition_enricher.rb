@@ -86,13 +86,29 @@ module Enrichment
 
     private
 
+    # Independent of whatever apply_fields later decides to fill/conflict/
+    # hold back — this is "what ISFDB's fetch literally said," captured
+    # regardless of the eventual accept/reject outcome, so a standing
+    # side-by-side comparison against another source's EnrichmentRecord is
+    # always possible even with no active PendingDecision.
     def record_enrichment(data)
+      format, format_detail = FORMAT_BY_PTYPE[data["binding"].to_s.downcase]
+
       EnrichmentRecord.create!(
         entity: @edition,
         provider: "isfdb",
         external_id: data["_isfdb_pub_id"].to_s,
         fetched_at: Time.current,
-        raw_payload: data
+        raw_payload: data,
+        fields: {
+          publisher: data["publisher"],
+          language: data["language"],
+          page_count: data["page_count"],
+          publish_date: data["publish_date"],
+          format: format,
+          format_detail: format_detail,
+          cover_image: data["cover_url"]
+        }
       )
     end
 
@@ -246,11 +262,7 @@ module Enrichment
     # staged candidate cover (has_one_attached — a second stage would
     # just replace the first) and spawn a second decision alongside it.
     def create_edition_mismatch(judgment_plans)
-      fields = judgment_plans.map do |p|
-        next { "field" => "cover_image" } if p.field == :cover_image
-
-        { "field" => p.field.to_s, "current_value" => p.current, "proposed" => p.value }
-      end
+      fields = judgment_plans.map { |p| p.field.to_s }
 
       existing = PendingDecision.where(kind: "enrichment_edition_mismatch", status: "pending")
                                  .where("payload @> ?", { entity_type: @edition.class.name, entity_id: @edition.id }.to_json)

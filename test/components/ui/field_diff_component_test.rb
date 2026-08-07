@@ -22,5 +22,17 @@ module Ui
 
       assert_no_selector "span", text: "isfdb"
     end
+
+    test "renders an 'also on file' line when another provider has a known candidate value" do
+      render_inline(FieldDiffComponent.new(field: :publisher, current: "A", proposed: "B", source: "isfdb", other_candidates: [ { provider: "goodreads", value: "Ace Books" } ]))
+
+      assert_text "Also on file: goodreads: Ace Books"
+    end
+
+    test "renders no 'also on file' line when there are no other known candidates" do
+      render_inline(FieldDiffComponent.new(field: :publisher, current: "A", proposed: "B"))
+
+      assert_no_text "Also on file"
+    end
   end
 end

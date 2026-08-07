@@ -53,6 +53,9 @@ module Goodreads
       # to flag a conflict against (see
       # IsfdbEditionEnricher::FILL_ELIGIBLE_COVER_SOURCES).
       assert_equal "goodreads", edition.field_sources["cover_image"]
+      # Audit parity with CSV import — a real EnrichmentRecord exists even
+      # though the RSS feed carries no field data to apply here.
+      assert EnrichmentRecord.exists?(entity: edition, provider: "goodreads", external_id: "61030535")
     end
 
     test "a cover download failure doesn't block cataloging the rest of the item" do
