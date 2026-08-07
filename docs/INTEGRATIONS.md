@@ -805,6 +805,39 @@ run would otherwise generate hundreds of messages). Any conflict this
 per-item enrichment raises gets its own `pending_decision` notification,
 same as `ShelfSync`'s own.
 
+**Every touched shelf item now gets a book-level notification, not just
+genuinely new books.** Real gap Mark caught directly: an hourly run
+reported "synced=1" with no individual message — the sync had picked up
+a single new wishlist addition, which `auto_created` never covered
+(`ShelfSync#wishlist` never creates a `Work`/`Edition`, so the old
+`touched.created && touched.edition` gate silently excluded it, and
+every other "already-known-book" shelf event — a to-read mark on a book
+already in the catalog, a currently-reading start, a finished/DNF read —
+was equally silent). `GoodreadsSyncJob::SHELF_TITLES` gives every shelf
+its own verb (`"Marked to-read"`, `"Started reading"`, `"Finished
+reading"`, `"Did not finish"`, `"Added to wishlist"`); `"Added to
+catalog"` still wins over the shelf-specific wording whenever this is
+the item's genuine first appearance in the library (`touched.created`),
+since that's the more significant fact regardless of which shelf
+triggered it — wishlist is the one exception, since it never creates a
+`Work`/`Edition`/`Copy` even when `touched.created` happens to be true.
+
+**Found and fixed in the same pass: the `PendingDecision.payload`
+thin-pointer redesign (see `DATA_MODEL.md`'s `EnrichmentRecord`/
+`PendingDecision` sections) had silently broken `conflict_summary`.**
+It still parsed the old flat shape (`payload["current_value"]`/
+`["proposed"]`), which no longer exists — `payload["fields"]` is now a
+plain array of field-name strings, so every lookup silently returned
+`nil` instead of raising, producing a garbage Discord message body with
+no real field/value content. No test caught it, since nothing in the
+freshly-auto-created-edition path this method is reachable from can
+actually raise a text-field conflict (every field starts blank, and
+`FieldApplier.plan` only ever returns `:conflict`/`:refine` for an
+already-non-blank current value) — a real, if currently unreachable,
+landmine rather than an active bug. Fixed to read
+`PendingDecision#field_diffs` (the same live-deriving method the review
+UI itself uses) instead of hand-parsing the payload.
+
 ## Explicitly out of scope for this phase
 
 - Any UI. Verification happens via Rails console or, at most, a minimal

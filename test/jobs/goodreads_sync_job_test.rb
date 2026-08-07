@@ -112,6 +112,41 @@ class GoodreadsSyncJobTest < ActiveSupport::TestCase
     assert_match(/reread_conflict/, pending.first.title)
   end
 
+  test "notifies shelf_update for a wishlist addition — not just to-read auto-creates" do
+    GoodreadsSyncJob.perform_now(rss_client: FixtureRssClient.new)
+
+    wishlisted = @recorder.events.select { |e| e.kind == :shelf_update && e.title.start_with?("Added to wishlist") }
+    assert wishlisted.any? { |e| e.title.include?("A Greater Music") }
+    assert_equal "wishlist", wishlisted.first.fields["shelf"]
+  end
+
+  test "notifies a shelf-specific update, not auto_created, when a shelf event matches an already-catalogued edition" do
+    work = Work.create!(title: "Europe at Dawn", literary_form: "novel")
+    edition = Edition.create!
+    EditionContent.create!(work: work, edition: edition)
+    EditionIdentifier.create!(edition: edition, id_type: "goodreads", value: "39666185")
+
+    GoodreadsSyncJob.perform_now(rss_client: FixtureRssClient.new)
+
+    update = @recorder.events.find { |e| e.title.include?("Europe at Dawn") }
+    assert_equal :shelf_update, update.kind
+    assert_equal "Marked to-read: Europe at Dawn (The Fractured Europe Sequence #4)", update.title
+    assert_not @recorder.events.any? { |e| e.kind == :auto_created && e.title.include?("Europe at Dawn") }
+  end
+
+  test "conflict_summary derives field/value pairs from field_diffs, not the old flat payload shape" do
+    edition = Edition.create!(publisher: "St Martins Pr")
+    EnrichmentRecord.create!(entity: edition, provider: "isfdb", external_id: "1", fetched_at: Time.current, raw_payload: {}, fields: { "publisher" => "HarperVoyager" })
+    pending = PendingDecision.create!(
+      kind: "enrichment_field_conflict",
+      payload: { "entity_type" => "Edition", "entity_id" => edition.id, "fields" => [ "publisher" ], "source" => "isfdb" }
+    )
+
+    summary = GoodreadsSyncJob.new.send(:conflict_summary, pending)
+
+    assert_equal({ "publisher" => "St Martins Pr → HarperVoyager" }, summary)
+  end
+
   test "sends one sync_summary notification when a run actually synced something" do
     GoodreadsSyncJob.perform_now(rss_client: FixtureRssClient.new)
 
