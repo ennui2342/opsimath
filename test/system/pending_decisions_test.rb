@@ -37,4 +37,28 @@ class PendingDecisionsTest < ApplicationSystemTestCase
     assert_equal "HarperVoyager", @edition.reload.publisher
     assert_equal "accepted", @pending.reload.status
   end
+
+  test "unchecking a field on a bundled edition mismatch excludes it from what gets applied" do
+    @pending.update!(
+      kind: "enrichment_edition_mismatch",
+      payload: {
+        "entity_type" => "Edition", "entity_id" => @edition.id, "source" => "isfdb",
+        "fields" => [
+          { "field" => "publisher", "current_value" => "St Martins Pr", "proposed" => "HarperVoyager" },
+          { "field" => "format", "current_value" => nil, "proposed" => "hardcover" }
+        ]
+      }
+    )
+
+    visit pending_decision_path(@pending)
+    assert_text "St Martins Pr"
+
+    uncheck "field_format"
+    click_on "Accept (A)"
+
+    assert_text "All caught up"
+    @edition.reload
+    assert_equal "HarperVoyager", @edition.publisher # checked, applied
+    assert_nil @edition.format # unchecked, excluded
+  end
 end

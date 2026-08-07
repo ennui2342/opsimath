@@ -1,0 +1,16 @@
+<div class="mb-6 grid grid-cols-2 gap-4">
+  <div class="text-center">
+    <p class="mb-2 text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Current</p>
+    <% if @current.attached? %>
+      <%= image_tag @current.variant(resize_to_limit: [ 240, 360 ]), class: "mx-auto rounded shadow", alt: "" %>
+    <% else %>
+      <div class="mx-auto flex h-48 w-32 items-center justify-center rounded border border-dashed border-gray-300 text-xs text-gray-400 dark:border-gray-600">
+        No cover
+      </div>
+    <% end %>
+  </div>
+  <div class="text-center">
+    <p class="mb-2 text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Proposed</p>
+    <%= image_tag @candidate.variant(resize_to_limit: [ 240, 360 ]), class: "mx-auto rounded shadow ring-2 ring-conflict-800 dark:ring-conflict-200", alt: "" %>
+  </div>
+</div>

@@ -202,6 +202,62 @@ module Enrichment
       assert_equal "Ace Books", @edition.publisher
     end
 
+    test "a cover that differs from the one already attached, with no other field disagreeing, still bundles into an edition mismatch" do
+      @edition.cover_image.attach(io: StringIO.new("old-cover-bytes"), filename: "old.jpg", content_type: "image/jpeg")
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "new-cover-bytes-from-isfdb", headers: { "Content-Type" => "image/jpeg" })
+
+      IsfdbEditionEnricher.enrich(@edition, client: @client)
+      @edition.reload
+
+      assert_equal "old-cover-bytes", @edition.cover_image.download # untouched pending review
+      assert @edition.candidate_cover_image.attached?
+      assert_equal "new-cover-bytes-from-isfdb", @edition.candidate_cover_image.download
+
+      decision = PendingDecision.where(kind: "enrichment_edition_mismatch").sole
+      assert_equal [ { "field" => "cover_image" } ], decision.payload["fields"]
+    end
+
+    test "a cover that's byte-identical to the one already attached is a no-op, not noise" do
+      @edition.cover_image.attach(io: StringIO.new("same-bytes"), filename: "old.jpg", content_type: "image/jpeg")
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "same-bytes", headers: { "Content-Type" => "image/jpeg" })
+
+      IsfdbEditionEnricher.enrich(@edition, client: @client)
+      @edition.reload
+
+      assert_not @edition.candidate_cover_image.attached?
+      assert_equal 0, PendingDecision.count
+    end
+
+    test "a cover conflict co-occurring with a real field conflict bundles into one mismatch with both entries" do
+      @edition.update!(publisher: "Berkley Windhover")
+      @edition.cover_image.attach(io: StringIO.new("old-cover-bytes"), filename: "old.jpg", content_type: "image/jpeg")
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.merge(publisher: "Ace Books").to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "new-cover-bytes-from-isfdb", headers: { "Content-Type" => "image/jpeg" })
+
+      IsfdbEditionEnricher.enrich(@edition, client: @client)
+      @edition.reload
+
+      assert_equal "Berkley Windhover", @edition.publisher # untouched
+      assert @edition.candidate_cover_image.attached?
+
+      decision = PendingDecision.where(kind: "enrichment_edition_mismatch").sole
+      field_names = decision.payload["fields"].map { |f| f["field"] }
+      assert_equal %w[publisher cover_image].sort, field_names.sort
+    end
+
+    test "re-enriching an edition with an already-unresolved edition mismatch reuses the decision instead of spawning a second one" do
+      @edition.update!(publisher: "Berkley Windhover", publish_date: "1978")
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.merge(publisher: "Ace Books", publish_date: "1979-06").to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      IsfdbEditionEnricher.enrich(@edition, client: @client)
+      IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal 1, PendingDecision.where(kind: "enrichment_edition_mismatch").count
+    end
+
     test "a more precise publish_date from isfdb is applied as a refinement, not flagged as a conflict" do
       @edition.update!(publish_date: "2010")
       stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.merge(publish_date: "2010-06").to_json)

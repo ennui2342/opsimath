@@ -1,4 +1,5 @@
 require "net/http"
+require "digest"
 
 module Enrichment
   # Enriches one Edition from isfdb-adapter's /isbn/{isbn} endpoint —
@@ -73,7 +74,6 @@ module Enrichment
     def reprocess(data)
       apply_fields(data)
       backfill_isfdb_identifier(data)
-      attach_cover(data)
     end
 
     private
@@ -110,24 +110,47 @@ module Enrichment
         FieldApplier.plan(@edition, :language, data["language"], "isfdb"),
         FieldApplier.plan(@edition, :page_count, data["page_count"], "isfdb"),
         plan_publish_date(data["publish_date"]),
-        *plan_format(data["binding"])
+        *plan_format(data["binding"]),
+        plan_cover(data["cover_url"])
       ]
 
-      plans.select { |p| p.action == :fill }.each { |p| FieldApplier.commit(p) }
+      plans.select { |p| p.action == :fill }.each { |p| commit_plan(p) }
 
       judgment_plans = plans.select { |p| %i[refine conflict].include?(p.action) }
       conflicts = judgment_plans.select { |p| p.action == :conflict }
+      cover_conflict = judgment_plans.any? { |p| p.field == :cover_image && p.action == :conflict }
 
       # A genuine conflict alongside *anything* else needing judgment
       # (another conflict, or even an otherwise-safe refinement) is what
       # bundles — two independent refinements with no real disagreement
       # between them stay independent, since neither implies the other
-      # might be wrong.
-      if conflicts.any? && judgment_plans.size > 1
+      # might be wrong. A cover conflict always bundles on its own too,
+      # even alone: "does this look like the right edition" (judged
+      # primarily by the cover) is the common case this exists for, not
+      # a corner case allowed to fall through to the isolated
+      # enrichment_field_conflict path — which can't represent an
+      # attachment in a JSON payload at all.
+      if cover_conflict || (conflicts.any? && judgment_plans.size > 1)
         create_edition_mismatch(judgment_plans)
       else
-        judgment_plans.each { |p| FieldApplier.commit(p) }
+        judgment_plans.each { |p| commit_plan(p) }
       end
+    end
+
+    def commit_plan(plan)
+      plan.field == :cover_image ? commit_cover_plan(plan) : FieldApplier.commit(plan)
+    end
+
+    # :fill defers the actual attach to here, same as every other
+    # field's fill path. :conflict already staged the candidate during
+    # planning (see plan_cover) — a bundled conflict plan never reaches
+    # commit_plan at all (bundled fields go straight to
+    # create_edition_mismatch instead), so the candidate has to be
+    # staged at plan time, not here.
+    def commit_cover_plan(plan)
+      return unless plan.action == :fill
+
+      attach_bytes(@edition.cover_image, plan.value)
     end
 
     # Confirmed against real PendingDecision data: of 521 publisher
@@ -209,10 +232,21 @@ module Enrichment
     # one field," and deserves its own single decision rather than
     # scattering across several field-level ones with no visible link
     # between them.
+    # Find-or-create (not a plain create) so re-enriching an edition that
+    # already has an unresolved mismatch doesn't silently overwrite a
+    # staged candidate cover (has_one_attached — a second stage would
+    # just replace the first) and spawn a second decision alongside it.
     def create_edition_mismatch(judgment_plans)
       fields = judgment_plans.map do |p|
+        next { "field" => "cover_image" } if p.field == :cover_image
+
         { "field" => p.field.to_s, "current_value" => p.current, "proposed" => p.value }
       end
+
+      existing = PendingDecision.where(kind: "enrichment_edition_mismatch", status: "pending")
+                                 .where("payload @> ?", { entity_type: @edition.class.name, entity_id: @edition.id }.to_json)
+                                 .first
+      return existing if existing
 
       PendingDecision.create!(
         kind: "enrichment_edition_mismatch",
@@ -231,29 +265,50 @@ module Enrichment
       EditionIdentifier.find_or_create_by!(edition: @edition, id_type: "isfdb", value: data["_isfdb_pub_id"].to_s)
     end
 
-    # Downloaded and kept, not hotlinked (DATA_MODEL.md's Edition.cover_image
-    # note) — an ISFDB cover URL can and does go stale over time. Failure
-    # here is logged, not raised: a missing cover shouldn't block the
-    # fields above from being applied.
-    def attach_cover(data)
-      return if @edition.cover_image.attached?
-
-      url = data["cover_url"]
-      return if url.blank?
+    # Downloads once, unconditionally — unlike the old attach_cover,
+    # which returned before even reading cover_url once a cover already
+    # existed, silently discarding whatever ISFDB proposed. The whole
+    # point here is comparing against what's already attached, not just
+    # filling a blank. Downloaded and kept, not hotlinked or deferred to
+    # review time (DATA_MODEL.md's Edition.cover_image note — an ISFDB
+    # cover URL can and does go stale over time, and a PendingDecision
+    # can sit in the queue for a while before a human reviews it).
+    # Failure here is logged, not raised: a missing cover shouldn't block
+    # the fields above from being applied.
+    def plan_cover(url)
+      return Plan.new(action: :skipped) if url.blank?
 
       uri = URI.parse(url)
-      return unless %w[http https].include?(uri.scheme)
+      return Plan.new(action: :skipped) unless %w[http https].include?(uri.scheme)
 
-      response = Net::HTTP.get_response(uri)
-      return unless response.is_a?(Net::HTTPSuccess)
+      downloaded = download_cover(uri)
+      return Plan.new(action: :skipped) unless downloaded
 
-      @edition.cover_image.attach(
-        io: StringIO.new(response.body),
-        filename: File.basename(uri.path).presence || "cover.jpg",
-        content_type: response.content_type || "image/jpeg"
-      )
+      if !@edition.cover_image.attached?
+        Plan.new(record: @edition, field: :cover_image, action: :fill, value: downloaded, source: "isfdb")
+      elsif downloaded[:checksum] == @edition.cover_image.blob.checksum
+        Plan.new(action: :unchanged)
+      else
+        attach_bytes(@edition.candidate_cover_image, downloaded)
+        Plan.new(record: @edition, field: :cover_image, action: :conflict, source: "isfdb")
+      end
     rescue StandardError => e
       Rails.logger.warn("isfdb cover download failed for edition #{@edition.id}: #{e.message}")
+      Plan.new(action: :skipped)
+    end
+
+    def download_cover(uri)
+      response = Net::HTTP.get_response(uri)
+      return nil unless response.is_a?(Net::HTTPSuccess)
+
+      {
+        body: response.body, filename: File.basename(uri.path).presence || "cover.jpg",
+        content_type: response.content_type || "image/jpeg", checksum: Digest::MD5.base64digest(response.body)
+      }
+    end
+
+    def attach_bytes(attachment, downloaded)
+      attachment.attach(io: StringIO.new(downloaded[:body]), filename: downloaded[:filename], content_type: downloaded[:content_type])
     end
   end
 end

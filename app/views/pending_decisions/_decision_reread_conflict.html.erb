@@ -1,0 +1,27 @@
+<div class="mb-4">
+  <%= render(Ui::BadgeComponent.new(text: pending_decision.kind, variant: :conflict)) %>
+</div>
+
+<h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
+  <%= pending_decision.payload["title"] %>
+</h1>
+<p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
+  <%= pending_decision.payload["author_name"] %>
+</p>
+
+<div class="mb-6 rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900">
+  <p class="text-sm text-gray-700 dark:text-gray-300">
+    Already marked as read, with no reading currently open. Is this a new
+    reread, starting <%= pending_decision.payload["date_started"] %>?
+  </p>
+</div>
+
+<div class="flex gap-3">
+  <%= button_to "Accept (A)", accept_pending_decision_path(pending_decision, kind: kind_filter),
+        method: :post, form: { data: { turbo_stream: true, decision_shortcuts_target: "accept" } },
+        class: "rounded-md bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600" %>
+  <%= button_to "Reject (R)", reject_pending_decision_path(pending_decision, kind: kind_filter),
+        method: :post, form: { data: { turbo_stream: true, decision_shortcuts_target: "reject" } },
+        class: "rounded-md bg-gray-200 px-4 py-2 font-medium text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600" %>
+  <%= link_to "Back to queue", pending_decisions_path(kind: kind_filter), class: "ml-auto self-center text-sm text-gray-500 hover:underline dark:text-gray-400" %>
+</div>

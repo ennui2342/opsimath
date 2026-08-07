@@ -79,8 +79,10 @@ module Goodreads
       elsif work.readings.exists?(status: "completed")
         # Already read before, no open Reading, and currently-reading just
         # fired again — genuinely ambiguous (intentional reread vs a
-        # forgotten-to-close mixup), don't guess.
-        pd = flag_pending("reread_conflict", work: work, edition: edition)
+        # forgotten-to-close mixup), don't guess. date_started carried in
+        # `extra` so PendingDecisionResolver can open a real Reading if
+        # this does turn out to be a genuine reread.
+        pd = flag_pending("reread_conflict", work: work, edition: edition, extra: { "date_started" => @item.user_date_added })
         Outcome.new(entity: pd, payload: {}, edition: edition, created: cataloged.created)
       else
         reading = Reading.create!(work: work, edition: edition, status: "reading", date_started: @item.user_date_added)
@@ -95,6 +97,7 @@ module Goodreads
 
       reading = Reading.find_by(id: @prior_payload["reading_id"]) ||
                 work.readings.find_by(status: "reading") ||
+                matching_completed_reading(work) ||
                 Reading.new(work: work, edition: edition, status: status)
       reading.status = status
       reading.date_finished = @item.user_read_at
@@ -104,6 +107,22 @@ module Goodreads
       attach_review(reading) if @item.user_review.present?
 
       Outcome.new(entity: reading, payload: { "reading_id" => reading.id }, edition: edition, created: cataloged.created)
+    end
+
+    # Guards against the Phase-1/Phase-2 duplication bug: a completed/dnf
+    # Reading with no tracked GoodreadsSyncState (created by Importer, or
+    # any future non-ShelfSync write path) landing on the same (work,
+    # date_finished) is the same real read event, not a new one. work_id
+    # only, never edition_id — Matcher's tier-3 fallback can bind an
+    # arbitrary edition of the work, not reliably comparable across two
+    # separately-created Readings of the same book. Guarded on
+    # user_read_at.present? so two genuinely dateless reads (Importer's
+    # own deliberate "ordinary single-read, no dates" case) are never
+    # silently collapsed into one.
+    def matching_completed_reading(work)
+      return nil if @item.user_read_at.blank?
+
+      work.readings.where(status: %w[completed dnf]).find_by(date_finished: @item.user_read_at)
     end
 
     def attach_review(reading)
@@ -225,13 +244,13 @@ module Goodreads
       WorkSubject.find_or_create_by!(work: work, subject: fiction)
     end
 
-    def flag_pending(kind, work:, edition:)
-      payload = {
+    def flag_pending(kind, work:, edition:, extra: {})
+      core = {
         "goodreads_book_id" => @item.goodreads_book_id, "title" => @item.title,
         "author_name" => @item.author_name, "work_id" => work&.id, "edition_id" => edition&.id
       }
-      existing = PendingDecision.where(kind: kind, status: "pending").where("payload @> ?", payload.to_json).first
-      existing || PendingDecision.create!(kind: kind, payload: payload)
+      existing = PendingDecision.where(kind: kind, status: "pending").where("payload @> ?", core.to_json).first
+      existing || PendingDecision.create!(kind: kind, payload: core.merge(extra))
     end
   end
 end

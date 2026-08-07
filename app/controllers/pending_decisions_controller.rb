@@ -18,7 +18,7 @@ class PendingDecisionsController < ApplicationController
   end
 
   def accept
-    Enrichment::PendingDecisionResolver.accept(@pending_decision)
+    Enrichment::PendingDecisionResolver.accept(@pending_decision, selected_fields: params[:fields])
     advance
   end
 

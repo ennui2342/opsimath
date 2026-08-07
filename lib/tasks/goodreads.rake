@@ -21,4 +21,20 @@ namespace :goodreads do
     counts = GoodreadsSyncJob.perform_now
     puts counts
   end
+
+  desc "Wipe all book/reading/review/enrichment data and rebuild it from source (CSV import + Goodreads sync + ISFDB enrichment). Never run automatically — requires CONFIRM=yes."
+  task rebuild: :environment do
+    abort "Refusing to run without CONFIRM=yes" unless ENV["CONFIRM"] == "yes"
+
+    ActiveRecord::Base.connection.tables.each do |table|
+      next if %w[users sessions api_tokens schema_migrations ar_internal_metadata].include?(table)
+      next if table.start_with?("solid_queue_", "solid_cache_")
+
+      ActiveRecord::Base.connection.execute("TRUNCATE TABLE #{ActiveRecord::Base.connection.quote_table_name(table)} RESTART IDENTITY CASCADE")
+    end
+
+    Rake::Task["goodreads:import"].invoke # also reseeds Genre/Subject (db/seeds.rb) — same as every normal import run
+    Rake::Task["goodreads:sync"].invoke # GoodreadsSyncState is wiped too, so this is a genuine first-ever full backfill
+    Rake::Task["isfdb:enrich_editions"].invoke
+  end
 end

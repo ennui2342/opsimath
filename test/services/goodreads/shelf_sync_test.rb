@@ -98,6 +98,7 @@ module Goodreads
       assert_equal 1, work.readings.count # no new Reading opened
       pending = PendingDecision.where(kind: "reread_conflict").last
       assert_equal "953070", pending.payload["goodreads_book_id"]
+      assert_equal "2026-08-03", pending.payload["date_started"] # carried forward for PendingDecisionResolver to act on
     end
 
     test "read closes the real open Neuromancer Reading — the confirmed genuine reread" do
@@ -131,6 +132,26 @@ module Goodreads
 
       assert_equal 1, work.readings.count
       assert_equal first.entity, second.entity
+    end
+
+    test "read reuses an existing completed Reading with no prior GoodreadsSyncState (Phase-1-style) instead of duplicating it" do
+      work = Work.create!(title: "Neuromancer", literary_form: "novel")
+      edition = Edition.create!
+      EditionContent.create!(work: work, edition: edition)
+      EditionIdentifier.create!(edition: edition, id_type: "goodreads", value: "953070")
+      # No date_started, no rating, no review — Importer's dateless-start
+      # shape for a row that only ever had a Date Read, plus no
+      # GoodreadsSyncState row (Importer never writes one) — exactly the
+      # Phase-1-then-Phase-2 scenario that caused the real duplication bug.
+      phase1_reading = Reading.create!(work: work, edition: edition, status: "completed", date_finished: Date.new(2026, 7, 28))
+
+      item = fixture_item("read", "953070")
+      outcome = ShelfSync.sync(item, "read", {})
+
+      assert_equal 1, work.readings.count # no duplicate created
+      assert_equal phase1_reading, outcome.entity
+      assert_equal 5.0, phase1_reading.reload.rating
+      assert Review.exists?(reading: phase1_reading)
     end
 
     test "did-not-finish sets status dnf" do

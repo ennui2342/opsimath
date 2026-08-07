@@ -11,5 +11,9 @@ module Ui
     def no_source
       render(FieldDiffComponent.new(field: :publish_date, current: "2011", proposed: "2016-12"))
     end
+
+    def with_checkbox
+      render(FieldDiffComponent.new(field: :publisher, current: "St Martins Pr", proposed: "HarperVoyager (UK)", source: "isfdb", checkbox: true))
+    end
   end
 end

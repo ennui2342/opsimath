@@ -22,5 +22,17 @@ module Ui
 
       assert_no_selector "span", text: "isfdb"
     end
+
+    test "renders no checkbox by default" do
+      render_inline(FieldDiffComponent.new(field: :publisher, current: "A", proposed: "B"))
+
+      assert_no_selector "input[type=checkbox]"
+    end
+
+    test "checkbox: true renders a checked-by-default fields[] checkbox" do
+      render_inline(FieldDiffComponent.new(field: :publisher, current: "A", proposed: "B", checkbox: true))
+
+      assert_selector "input[type=checkbox][name='fields[]'][value=publisher][checked]"
+    end
   end
 end
