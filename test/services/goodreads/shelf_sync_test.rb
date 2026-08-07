@@ -41,8 +41,9 @@ module Goodreads
 
       work = Work.find_by!(title: "Children of Memory") # series suffix stripped by RowParser.series_info
       assert_equal "Adrian Tchaikovsky", work.contributors.sole.name
+      assert_equal 2022, work.original_publication_year # book_published is work-level, not edition-level
       edition = work.editions.sole
-      assert_equal "2022", edition.publish_date
+      assert_nil edition.publish_date # left for isfdb enrichment — book_published isn't this edition's date
       assert_nil edition.format # no signal from the feed — left for isfdb enrichment, not fabricated
       assert_equal "0316466409", edition.edition_identifiers.find_by(id_type: "isbn10").value
       assert_equal 1, edition.copies.count

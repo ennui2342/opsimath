@@ -175,13 +175,21 @@ module Goodreads
       link_shelves(work)
       ensure_fiction_subject(work)
 
-      edition = Edition.create!(
-        publish_date: @item.book_published.presence # year only — an EDTF string, not a fabricated day/month
-        # format/publisher/page_count deliberately left blank — the RSS
-        # feed gives no signal for any of them; ISFDB enrichment fills
-        # them in cleanly rather than a fabricated guess (see the Phase 0
-        # format fix).
-      )
+      # format/publisher deliberately left blank — the RSS feed gives no
+      # signal for either; ISFDB enrichment fills them in cleanly rather
+      # than a fabricated guess (see the Phase 0 format fix). page_count
+      # is technically available (book/num_pages) but left unused
+      # regardless — Mark's own call (docs/INTEGRATIONS.md) is to treat
+      # Goodreads' page count as unreliable no matter the source.
+      # publish_date is deliberately left blank too: confirmed
+      # empirically (a live RSS fetch cross-referenced against the CSV's
+      # two distinct columns for the same books) that book_published is
+      # the WORK's original publication year, not this specific
+      # edition's — unlike the CSV export, which genuinely has both as
+      # separate columns. Using it here would silently mislabel a
+      # work-level fact as edition-specific, same false-precision shape
+      # as the publish_date EDTF fix and the format fix before it.
+      edition = Edition.create!
       EditionIdentifier.create!(edition: edition, id_type: "goodreads", value: @item.goodreads_book_id)
       EditionIdentifier.create!(edition: edition, id_type: "isbn10", value: @item.isbn) if @item.isbn.present?
       EditionContent.create!(edition: edition, work: work)

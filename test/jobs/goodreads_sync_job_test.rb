@@ -57,25 +57,31 @@ class GoodreadsSyncJobTest < ActiveSupport::TestCase
     assert_not EnrichmentRecord.exists?(entity_type: "Edition", entity_id: edition.id) # 404'd, not matched — no record created
   end
 
-  test "an ISFDB conflict on a freshly auto-created edition notifies with the book title and the actual field values in dispute" do
-    # Children of Memory's real fixture item sets publish_date "2022" at
-    # creation (from the feed's own book_published) — stub ISFDB to
-    # disagree, the realistic way a brand-new Edition can still hit a
-    # genuine :conflict on its very first enrichment pass.
+  test "a freshly auto-created edition's first ISFDB pass is always a clean fill, never a spurious conflict" do
+    # A freshly RSS-auto-created edition starts with every enrichable
+    # field blank (create_work_and_edition deliberately sets none of
+    # them — see its own comment on why, including publish_date, which
+    # book_published can't be trusted for at edition scope). Since
+    # apply_fields only ever raises a :conflict when the *current* value
+    # is already non-blank, a truly fresh edition's very first pass can
+    # only ever be fills, no matter what ISFDB proposes — confirmed here
+    # even with ISFDB actively disagreeing with the RSS feed's own
+    # (work-level) book_published value, which used to be exactly the
+    # kind of case that produced a spurious conflict before this was
+    # fixed.
     WebMock.reset!
     stub_request(:get, "#{ENV.fetch("ISFDB_ADAPTER_URL")}/isbn/0316466409").to_return(
       status: 200,
-      body: { provider: "isfdb", publisher: nil, publish_date: "2019", binding: nil, page_count: nil, language: nil, cover_url: "", _isfdb_pub_id: 999999 }.to_json
+      body: { provider: "isfdb", publisher: "Orbit", publish_date: "2019", binding: nil, page_count: nil, language: nil, cover_url: "", _isfdb_pub_id: 999999 }.to_json
     )
     stub_request(:get, /#{Regexp.escape(ENV.fetch("ISFDB_ADAPTER_URL"))}\/isbn\/(?!0316466409).*/).to_return(status: 404)
 
     GoodreadsSyncJob.perform_now(rss_client: FixtureRssClient.new)
 
-    conflict = @recorder.events.find { |e| e.kind == :pending_decision && e.title.include?("Children of Memory") }
-    assert conflict, "expected an ISFDB pending_decision notification for Children of Memory"
-    assert_match(/enrichment_field_conflict/, conflict.title)
-    assert_equal "Children of Memory", conflict.fields["title"]
-    assert_equal "2022 → 2019", conflict.fields["publish_date"]
+    edition = Work.find_by!(title: "Children of Memory").editions.sole
+    assert_equal "2019", edition.publish_date
+    assert_equal "Orbit", edition.publisher
+    assert_not @recorder.events.any? { |e| e.kind == :pending_decision && e.title.include?("Children of Memory") }
   end
 
   test "notifies pending_decision for a reread_conflict raised during the run" do
