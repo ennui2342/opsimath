@@ -15,30 +15,25 @@
   <h1 class="mb-4 text-2xl font-bold text-gray-900 dark:text-gray-100">Unknown entity</h1>
 <% end %>
 
-<% if entity.is_a?(Edition) && entity.candidate_cover_image.attached? %>
-  <%= render(Ui::CoverComparisonComponent.new(current: entity.cover_image, candidate: entity.candidate_cover_image)) %>
-<% end %>
+<% cover_diff, field_diffs = pending_decision.field_diffs.partition { |d| d[:field] == "cover_image" } %>
 
 <%= form_with url: accept_pending_decision_path(pending_decision, kind: kind_filter), method: :post,
       data: { turbo_stream: true, decision_shortcuts_target: "accept" } do %>
-  <div class="mb-6 rounded-lg border border-gray-200 bg-white px-4 dark:border-gray-700 dark:bg-gray-900">
-    <% if pending_decision.field_diffs.any? %>
-      <% pending_decision.field_diffs.each do |diff| %>
-        <% if diff[:field] == "cover_image" %>
-          <label class="flex items-center gap-2 border-b border-gray-200 py-3 last:border-b-0 dark:border-gray-700">
-            <%= check_box_tag "fields[]", "cover_image", true, id: "field_cover_image", checked: true, class: "h-4 w-4 rounded border-gray-300" %>
-            Apply this cover
-          </label>
-        <% else %>
-          <%= render(Ui::FieldDiffComponent.new(**diff, checkbox: true)) %>
-        <% end %>
-      <% end %>
-    <% else %>
-      <p class="py-3 text-sm text-gray-500 dark:text-gray-400">
-        No automatic action known for this kind yet — accept/reject only marks it reviewed.
-      </p>
-    <% end %>
-  </div>
+  <% if entity.is_a?(Edition) && entity.candidate_cover_image.attached? %>
+    <%= render(Ui::CoverComparisonComponent.new(current: entity.cover_image, candidate: entity.candidate_cover_image)) %>
+    <label class="mb-6 -mt-2 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+      <%= check_box_tag "fields[]", "cover_image", true, id: "field_cover_image", checked: true, class: "h-4 w-4 rounded border-gray-300" %>
+      Apply this cover
+    </label>
+  <% end %>
+
+  <% if field_diffs.any? %>
+    <%= render(Ui::RecordComparisonComponent.new(diffs: field_diffs)) %>
+  <% elsif cover_diff.empty? %>
+    <p class="mb-6 py-3 text-sm text-gray-500 dark:text-gray-400">
+      No automatic action known for this kind yet — accept/reject only marks it reviewed.
+    </p>
+  <% end %>
 
   <button type="submit" class="rounded-md bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600">
     Accept (A)
