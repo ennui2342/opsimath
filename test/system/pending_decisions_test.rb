@@ -5,12 +5,16 @@ class PendingDecisionsTest < ApplicationSystemTestCase
     @edition = Edition.create!(publisher: "St Martins Pr")
     work = Work.create!(title: "The Gold Coast", literary_form: "novel")
     EditionContent.create!(work: work, edition: @edition)
+    # field_diffs derives current/proposed live from the entity's column
+    # plus this EnrichmentRecord — one record covers both tests below,
+    # since they share the same (entity, "isfdb") pair.
+    EnrichmentRecord.create!(
+      entity: @edition, provider: "isfdb", external_id: "1", fetched_at: Time.current, raw_payload: {},
+      fields: { "publisher" => "HarperVoyager", "format" => "hardcover" }
+    )
     @pending = PendingDecision.create!(
       kind: "enrichment_field_conflict",
-      payload: {
-        "entity_type" => "Edition", "entity_id" => @edition.id, "field" => "publisher",
-        "current_value" => "St Martins Pr", "proposed" => [ { "value" => "HarperVoyager", "source" => "isfdb" } ]
-      }
+      payload: { "entity_type" => "Edition", "entity_id" => @edition.id, "fields" => [ "publisher" ], "source" => "isfdb" }
     )
 
     visit new_session_path
@@ -41,13 +45,7 @@ class PendingDecisionsTest < ApplicationSystemTestCase
   test "unchecking a field on a bundled edition mismatch excludes it from what gets applied" do
     @pending.update!(
       kind: "enrichment_edition_mismatch",
-      payload: {
-        "entity_type" => "Edition", "entity_id" => @edition.id, "source" => "isfdb",
-        "fields" => [
-          { "field" => "publisher", "current_value" => "St Martins Pr", "proposed" => "HarperVoyager" },
-          { "field" => "format", "current_value" => nil, "proposed" => "hardcover" }
-        ]
-      }
+      payload: { "entity_type" => "Edition", "entity_id" => @edition.id, "source" => "isfdb", "fields" => [ "publisher", "format" ] }
     )
 
     visit pending_decision_path(@pending)
