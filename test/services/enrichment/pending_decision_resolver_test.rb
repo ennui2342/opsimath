@@ -81,6 +81,7 @@ module Enrichment
       edition.reload
       assert_equal "new-bytes", edition.cover_image.download
       assert_not edition.candidate_cover_image.attached?
+      assert_equal "isfdb", edition.field_sources["cover_image"] # now protected on a future re-enrichment pass
       assert ActiveStorage::Blob.exists?(candidate_blob_id) # the blob itself survives — cover_image now shares it
     end
 

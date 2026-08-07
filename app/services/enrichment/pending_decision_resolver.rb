@@ -89,6 +89,7 @@ module Enrichment
     def apply_cover(record)
       record.cover_image.attach(record.candidate_cover_image.blob)
       record.candidate_cover_image.detach
+      record.update!(field_sources: record.field_sources.merge("cover_image" => "isfdb"))
     end
 
     def prune_payload(applied_diffs)

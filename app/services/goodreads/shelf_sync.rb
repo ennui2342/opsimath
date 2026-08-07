@@ -221,6 +221,11 @@ module Goodreads
         filename: File.basename(uri.path).presence || "cover.jpg",
         content_type: response.content_type || "image/jpeg"
       )
+      # Recorded as "goodreads", not left untracked — so a later ISFDB
+      # pass knows this cover is its own unreviewed automated fill, not
+      # something to protect with a conflict check (see
+      # IsfdbEditionEnricher::FILL_ELIGIBLE_COVER_SOURCES).
+      edition.update!(field_sources: edition.field_sources.merge("cover_image" => "goodreads"))
     rescue StandardError => e
       Rails.logger.warn("goodreads cover download failed for edition #{edition.id}: #{e.message}")
     end

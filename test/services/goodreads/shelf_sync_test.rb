@@ -48,6 +48,11 @@ module Goodreads
       assert_equal "0316466409", edition.edition_identifiers.find_by(id_type: "isbn10").value
       assert_equal 1, edition.copies.count
       assert edition.cover_image.attached?
+      # Recorded as "goodreads", not left untracked — so a later ISFDB
+      # pass knows this cover is its own unreviewed fill, not something
+      # to flag a conflict against (see
+      # IsfdbEditionEnricher::FILL_ELIGIBLE_COVER_SOURCES).
+      assert_equal "goodreads", edition.field_sources["cover_image"]
     end
 
     test "a cover download failure doesn't block cataloging the rest of the item" do

@@ -36,6 +36,14 @@ module Enrichment
       "audio mp3 cd" => [ "audiobook", nil ]
     }.freeze
 
+    # field_sources["cover_image"] values that mean "not yet reviewed" —
+    # nil (never touched) or "goodreads" (ShelfSync's own opportunistic
+    # fill, itself unreviewed) — so a freshly-proposed ISFDB cover is a
+    # plain fill rather than a conflict. Only a cover already backed by
+    # "isfdb" (a prior confirmed ISFDB match) is worth protecting with a
+    # comparison — see plan_cover.
+    FILL_ELIGIBLE_COVER_SOURCES = [ nil, "goodreads" ].freeze
+
     def self.enrich(edition, client: Isfdb::Client.new)
       new(edition, client: client).enrich
     end
@@ -151,6 +159,7 @@ module Enrichment
       return unless plan.action == :fill
 
       attach_bytes(@edition.cover_image, plan.value)
+      @edition.update!(field_sources: @edition.field_sources.merge("cover_image" => "isfdb"))
     end
 
     # Confirmed against real PendingDecision data: of 521 publisher
@@ -284,13 +293,29 @@ module Enrichment
       downloaded = download_cover(uri)
       return Plan.new(action: :skipped) unless downloaded
 
-      if !@edition.cover_image.attached?
-        Plan.new(record: @edition, field: :cover_image, action: :fill, value: downloaded, source: "isfdb")
-      elsif downloaded[:checksum] == @edition.cover_image.blob.checksum
-        Plan.new(action: :unchanged)
+      # Only an already ISFDB-confirmed cover is worth protecting with a
+      # comparison. Anything else attached (nil field_sources — never
+      # touched; or "goodreads" — ShelfSync's own opportunistic fill from
+      # the RSS feed's book_image_url) is unreviewed and automated, same
+      # as a genuinely blank cover: comparing two independently-sourced
+      # cover PHOTOS byte-for-byte and treating a mismatch as a real
+      # edition dispute doesn't work the way it does for text fields —
+      # two different providers' scans of the same physical cover differ
+      # trivially and near-universally, carrying no signal about whether
+      # the ISBN match itself is right. Caught live: every freshly
+      # RSS-auto-created edition with both a Goodreads cover and a
+      # successful ISFDB match was spuriously flagged as a mismatch
+      # before this fix, purely because the two photos didn't match
+      # byte-for-byte.
+      if !FILL_ELIGIBLE_COVER_SOURCES.include?(@edition.field_sources["cover_image"])
+        if downloaded[:checksum] == @edition.cover_image.blob.checksum
+          Plan.new(action: :unchanged)
+        else
+          attach_bytes(@edition.candidate_cover_image, downloaded)
+          Plan.new(record: @edition, field: :cover_image, action: :conflict, source: "isfdb")
+        end
       else
-        attach_bytes(@edition.candidate_cover_image, downloaded)
-        Plan.new(record: @edition, field: :cover_image, action: :conflict, source: "isfdb")
+        Plan.new(record: @edition, field: :cover_image, action: :fill, value: downloaded, source: "isfdb")
       end
     rescue StandardError => e
       Rails.logger.warn("isfdb cover download failed for edition #{@edition.id}: #{e.message}")

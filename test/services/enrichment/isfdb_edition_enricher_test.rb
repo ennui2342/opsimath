@@ -76,6 +76,7 @@ module Enrichment
 
       assert @edition.edition_identifiers.exists?(id_type: "isfdb", value: "426303")
       assert @edition.cover_image.attached?
+      assert_equal "isfdb", @edition.field_sources["cover_image"]
     end
 
     test "reprocess re-applies an already-fetched payload without a new EnrichmentRecord or network call" do
@@ -204,6 +205,7 @@ module Enrichment
 
     test "a cover that differs from the one already attached, with no other field disagreeing, still bundles into an edition mismatch" do
       @edition.cover_image.attach(io: StringIO.new("old-cover-bytes"), filename: "old.jpg", content_type: "image/jpeg")
+      @edition.update!(field_sources: { "cover_image" => "isfdb" }) # already ISFDB-confirmed — worth protecting
       stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "new-cover-bytes-from-isfdb", headers: { "Content-Type" => "image/jpeg" })
 
@@ -220,6 +222,7 @@ module Enrichment
 
     test "a cover that's byte-identical to the one already attached is a no-op, not noise" do
       @edition.cover_image.attach(io: StringIO.new("same-bytes"), filename: "old.jpg", content_type: "image/jpeg")
+      @edition.update!(field_sources: { "cover_image" => "isfdb" })
       stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "same-bytes", headers: { "Content-Type" => "image/jpeg" })
 
@@ -230,9 +233,33 @@ module Enrichment
       assert_equal 0, PendingDecision.count
     end
 
+    test "a Goodreads-sourced cover is silently replaced, not flagged as a conflict — caught live in production" do
+      # Real regression: ShelfSync's own opportunistic cover fill from
+      # the RSS feed made every freshly auto-created edition with both a
+      # Goodreads cover and a successful ISFDB match spuriously flag as
+      # an enrichment_edition_mismatch, purely because two independently
+      # sourced cover photos don't match byte-for-byte. A Goodreads
+      # cover is itself unreviewed and automated — same trust level as
+      # blank, not something ISFDB's own cover needs to be checked
+      # against.
+      @edition.cover_image.attach(io: StringIO.new("goodreads-cover-bytes"), filename: "gr.jpg", content_type: "image/jpeg")
+      @edition.update!(field_sources: { "cover_image" => "goodreads" })
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "new-cover-bytes-from-isfdb", headers: { "Content-Type" => "image/jpeg" })
+
+      IsfdbEditionEnricher.enrich(@edition, client: @client)
+      @edition.reload
+
+      assert_equal "new-cover-bytes-from-isfdb", @edition.cover_image.download
+      assert_not @edition.candidate_cover_image.attached?
+      assert_equal "isfdb", @edition.field_sources["cover_image"]
+      assert_equal 0, PendingDecision.count
+    end
+
     test "a cover conflict co-occurring with a real field conflict bundles into one mismatch with both entries" do
       @edition.update!(publisher: "Berkley Windhover")
       @edition.cover_image.attach(io: StringIO.new("old-cover-bytes"), filename: "old.jpg", content_type: "image/jpeg")
+      @edition.update!(field_sources: { "cover_image" => "isfdb" })
       stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.merge(publisher: "Ace Books").to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "new-cover-bytes-from-isfdb", headers: { "Content-Type" => "image/jpeg" })
 
