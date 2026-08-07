@@ -69,7 +69,8 @@ class GoodreadsSyncJobTest < ActiveSupport::TestCase
     # (work-level) book_published value, which used to be exactly the
     # kind of case that produced a spurious conflict before this was
     # fixed.
-    WebMock.reset!
+    WebMock.reset! # also clears the global cover-image stub from test_helper.rb — re-registered below
+    stub_request(:get, /i\.gr-assets\.com/).to_return(status: 200, body: "fake-cover-bytes", headers: { "Content-Type" => "image/jpeg" })
     stub_request(:get, "#{ENV.fetch("ISFDB_ADAPTER_URL")}/isbn/0316466409").to_return(
       status: 200,
       body: { provider: "isfdb", publisher: "Orbit", publish_date: "2019", binding: nil, page_count: nil, language: nil, cover_url: "", _isfdb_pub_id: 999999 }.to_json

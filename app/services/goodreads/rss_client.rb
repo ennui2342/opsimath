@@ -20,8 +20,8 @@ module Goodreads
 
     FeedItem = Struct.new(
       :goodreads_book_id, :title, :author_name, :isbn, :num_pages,
-      :book_published, :user_rating, :user_read_at, :user_date_added,
-      :user_shelves, :user_review, :book_description,
+      :book_published, :book_image_url, :user_rating, :user_read_at,
+      :user_date_added, :user_shelves, :user_review, :book_description,
       keyword_init: true
     )
 
@@ -63,6 +63,11 @@ module Goodreads
         isbn: text(item, "isbn").presence,
         num_pages: text(item, "book/num_pages").presence&.to_i,
         book_published: text(item, "book_published").presence,
+        # The largest of the four size variants the feed provides
+        # (book_image_url/_small_/_medium_ are all the same ~75px
+        # thumbnail; book_large_image_url is the only genuinely full-size
+        # one, confirmed against a real fetched item).
+        book_image_url: text(item, "book_large_image_url").presence,
         user_rating: RowParser.rating(text(item, "user_rating")),
         user_read_at: parse_rfc2822_date(text(item, "user_read_at")),
         user_date_added: parse_rfc2822_date(text(item, "user_date_added")),

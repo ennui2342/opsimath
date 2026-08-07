@@ -14,6 +14,17 @@ module ActiveSupport
     # Setup all fixtures in test/fixtures/*.yml for all tests in alphabetical order.
     fixtures :all
 
+    # Global, low-priority stub for cover-image downloads
+    # (Goodreads::ShelfSync#attach_cover) — most tests that happen to
+    # auto-create an Edition via a real fixture item aren't testing cover
+    # behavior at all and shouldn't need to know or care that one exists.
+    # A test that specifically wants to exercise cover attachment can
+    # register its own more specific stub_request for the same URL,
+    # which WebMock matches in preference to this one.
+    setup do
+      stub_request(:get, /i\.gr-assets\.com/).to_return(status: 200, body: "fake-cover-bytes", headers: { "Content-Type" => "image/jpeg" })
+    end
+
     # Add more helper methods to be used by all tests here...
   end
 end

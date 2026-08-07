@@ -653,6 +653,45 @@ that don't disambiguate, or an already-open `Reading` when
 `currently-reading` fires again) still route to `PendingDecision` rather
 than guessing.
 
+**`book_published` is the work's original publication year, not this
+edition's — confirmed empirically, not assumed.** A live RSS fetch (226
+real items across `read`/`currently-reading`/`to-read`) cross-referenced
+against the local CSV export by `book_id` found `book_published` matches
+CSV's `Original Publication Year` in 209/209 (100%) of cases and CSV's
+edition-specific `Year Published` in only 58/207 (28%) — e.g. real
+Neuromancer, book_id 953070: CSV `Year Published` 1993 (the actual
+edition Mark shelved), CSV `Original Publication Year` 1984, RSS
+`book_published` 1984. The CSV importer already reads two genuinely
+separate Goodreads columns for this; the RSS feed only ever exposes the
+work-level one. `create_work_and_edition` used to apply it to both
+`Work.original_publication_year` (correct) and `Edition.publish_date`
+(wrong) — the same false-precision shape `PHILOSOPHY.md` already flags
+elsewhere (the `publish_date` EDTF fix, the `format` fabrication fix).
+Fixed: `Edition.publish_date` is left blank for an RSS-auto-created
+edition now, same as `format`/`publisher` already were, for ISFDB
+enrichment to fill in properly. Real consequence worth knowing: since
+this was the *only* Edition field `create_work_and_edition` ever
+pre-populated, a freshly auto-created edition now starts with every
+enrichable field genuinely blank — its first ISFDB pass can only ever be
+a clean fill, never a spurious conflict.
+
+**`num_pages`** is available in the RSS feed (`book/num_pages`) and
+confirmed edition-reliable (100% match against CSV's own `Number of
+Pages` for the same book, 213/213) — but deliberately still not used,
+per the existing `page_count` policy above: Mark's call is that
+Goodreads' page count is untrustworthy against ISFDB regardless of
+source, not worth the conflicts it would generate.
+
+**Cover images**: the RSS feed carries `book_image_url` (and 3 smaller
+variants — `book_image_url`/`book_small_image_url` are both the same
+~75px thumbnail; `book_large_image_url` is the only genuinely full-size
+one) — previously unused entirely. `create_work_and_edition` now
+downloads and attaches it the same way `IsfdbEditionEnricher` does for
+its own cover fills — a plain fill, not staged as a candidate (nothing
+to compare against yet on a just-created edition). A later ISFDB pass
+still runs its own checksum comparison against whatever's already
+attached, same as any other Goodreads-sourced field.
+
 **A standalone magazine issue is a real auto-create case, distinct from a
 novel or an anthology** — the same *Clarkesworld* example above. No
 magazine ever appeared in the Phase 1 CSV export, so this never came up

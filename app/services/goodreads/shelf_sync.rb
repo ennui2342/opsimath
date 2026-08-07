@@ -1,3 +1,5 @@
+require "net/http"
+
 module Goodreads
   # Per-shelf sync behavior for one Goodreads::RssClient::FeedItem — the
   # ongoing-sync counterpart to Phase 1's Importer. See
@@ -194,8 +196,33 @@ module Goodreads
       EditionIdentifier.create!(edition: edition, id_type: "isbn10", value: @item.isbn) if @item.isbn.present?
       EditionContent.create!(edition: edition, work: work)
       Copy.create!(edition: edition, disposition: "owned")
+      attach_cover(edition, @item.book_image_url)
 
       [ work, edition ]
+    end
+
+    # Same download-and-attach shape as
+    # Enrichment::IsfdbEditionEnricher#plan_cover's :fill path — no
+    # existing cover to compare against yet on a just-created Edition, so
+    # nothing to stage as a candidate, just a plain fill. Failure is
+    # logged, not raised: a missing/unreachable cover shouldn't block
+    # cataloging the rest of the item.
+    def attach_cover(edition, url)
+      return if url.blank?
+
+      uri = URI.parse(url)
+      return unless %w[http https].include?(uri.scheme)
+
+      response = Net::HTTP.get_response(uri)
+      return unless response.is_a?(Net::HTTPSuccess)
+
+      edition.cover_image.attach(
+        io: StringIO.new(response.body),
+        filename: File.basename(uri.path).presence || "cover.jpg",
+        content_type: response.content_type || "image/jpeg"
+      )
+    rescue StandardError => e
+      Rails.logger.warn("goodreads cover download failed for edition #{edition.id}: #{e.message}")
     end
 
     def literary_form

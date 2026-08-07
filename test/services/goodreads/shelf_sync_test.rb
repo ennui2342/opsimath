@@ -47,6 +47,19 @@ module Goodreads
       assert_nil edition.format # no signal from the feed — left for isfdb enrichment, not fabricated
       assert_equal "0316466409", edition.edition_identifiers.find_by(id_type: "isbn10").value
       assert_equal 1, edition.copies.count
+      assert edition.cover_image.attached?
+    end
+
+    test "a cover download failure doesn't block cataloging the rest of the item" do
+      WebMock.reset!
+      stub_request(:get, /i\.gr-assets\.com/).to_return(status: 500)
+      item = fixture_item("to_read", "61030535")
+
+      ShelfSync.sync(item, "to-read", {})
+
+      edition = Work.find_by!(title: "Children of Memory").editions.sole
+      assert_not edition.cover_image.attached?
+      assert_equal "0316466409", edition.edition_identifiers.find_by(id_type: "isbn10").value
     end
 
     test "to-read deletes the matching WishlistItem — the real wishlist-to-catalog transition" do
