@@ -157,6 +157,25 @@ class GoodreadsSyncJobTest < ActiveSupport::TestCase
     assert_not @recorder.events.any? { |e| e.title.include?("Europe at Dawn") }
   end
 
+  test "sync_summary's changed count is lower than synced when some touches are pure re-matches" do
+    # The exact discrepancy Mark caught live (2026-08-08): "synced=327,
+    # unchanged=0" read as "327 real changes," when most were re-touches
+    # of already-known items with zero real writes. One pure re-match
+    # (Europe at Dawn, same setup as the no-notify test above) mixed in
+    # with the rest of the fixture's otherwise-genuinely-new items.
+    work = Work.create!(title: "Europe at Dawn", literary_form: "novel")
+    edition = Edition.create!
+    EditionContent.create!(work: work, edition: edition)
+    EditionIdentifier.create!(edition: edition, id_type: "goodreads", value: "39666185")
+
+    counts = GoodreadsSyncJob.perform_now(rss_client: FixtureRssClient.new)
+
+    summary = @recorder.events.find { |e| e.kind == :sync_summary }
+    assert_equal counts.synced, summary.fields["synced"]
+    assert_equal counts.synced - 1, summary.fields["changed"] # one real no-op mixed in
+    assert_operator summary.fields["changed"], :<, summary.fields["synced"]
+  end
+
   test "conflict_summary derives field/value pairs from field_diffs, not the old flat payload shape" do
     edition = Edition.create!(publisher: "St Martins Pr")
     EnrichmentRecord.create!(entity: edition, provider: "isfdb", external_id: "1", fetched_at: Time.current, raw_payload: {}, fields: { "publisher" => "HarperVoyager" })
@@ -171,10 +190,18 @@ class GoodreadsSyncJobTest < ActiveSupport::TestCase
   end
 
   test "sends one sync_summary notification when a run actually synced something" do
-    GoodreadsSyncJob.perform_now(rss_client: FixtureRssClient.new)
+    counts = GoodreadsSyncJob.perform_now(rss_client: FixtureRssClient.new)
 
     summaries = @recorder.events.select { |e| e.kind == :sync_summary }
     assert_equal 1, summaries.size
+    # Real gap Mark caught live (2026-08-08): "synced" alone reads as "N
+    # real changes happened," which isn't true once touched != changed
+    # (see process_touched) — every item here is genuinely new against
+    # a fresh test DB, so changed == synced in this specific case, but
+    # the field needs to exist and be accurate regardless.
+    assert_equal counts.synced, summaries.first.fields["changed"]
+    assert_equal counts.synced, summaries.first.fields["synced"]
+    assert_equal counts.unchanged, summaries.first.fields["unchanged"]
   end
 
   test "sends no sync_summary at all when nothing was synced — the routine hourly case shouldn't be noise" do

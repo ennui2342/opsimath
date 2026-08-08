@@ -41,7 +41,7 @@ class GoodreadsSyncJob < ApplicationJob
   def perform(rss_client: Goodreads::RssClient.new)
     result = run_sync(rss_client)
     result[:touched].each { |t| process_touched(t) }
-    notify_summary(result[:counts])
+    notify_summary(result[:counts], result[:touched])
     result[:counts]
   end
 
@@ -135,12 +135,23 @@ class GoodreadsSyncJob < ApplicationJob
   # case once caught up) has already been silent on Discord for anything
   # that matters — sending a summary anyway every single hour is pure
   # noise, not a useful "yes it's alive" heartbeat.
-  def notify_summary(counts)
+  #
+  # synced (Syncer's own count — how many items had no matching
+  # GoodreadsSyncState and so got processed at all) is not the same
+  # thing as changed (how many of those actually wrote something real —
+  # see process_touched). Real gap Mark caught live (2026-08-08): right
+  # after a GoodreadsSyncState reset, this said "synced=327, unchanged=0"
+  # — technically accurate for Syncer's own bookkeeping, but read as "327
+  # real changes happened" when only 20 genuinely did. Reporting changed
+  # alongside synced/unchanged tells the true story instead of just the
+  # state-diffing bookkeeping.
+  def notify_summary(counts, touched)
     return unless counts.synced.positive?
 
+    changed = touched.count(&:changed)
     Notifications.notify(Notifications::Event.new(
       kind: :sync_summary, level: :info, title: "Goodreads sync complete",
-      fields: { "synced" => counts.synced, "unchanged" => counts.unchanged }
+      fields: { "synced" => counts.synced, "changed" => changed, "unchanged" => counts.unchanged }
     ))
   end
 end
