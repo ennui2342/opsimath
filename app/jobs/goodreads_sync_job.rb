@@ -65,6 +65,16 @@ class GoodreadsSyncJob < ApplicationJob
       return
     end
 
+    # touched (Syncer's "no matching GoodreadsSyncState, so this needs
+    # processing" signal) is not the same thing as changed (ShelfSync's
+    # "a real database write happened as a result" signal) — a re-touch
+    # of an already-fully-known item (the common case right after a
+    # GoodreadsSyncState reset) is touched but not changed. Real bug
+    # found live in production (2026-08-08): notifying on touched alone
+    # reported "Added to wishlist"/"Started reading" for books that had
+    # been there for ages, with zero actual writes behind them.
+    return unless touched.changed
+
     notify_shelf_update(touched)
     enrich_new_edition(touched.edition) if touched.created && touched.edition
   end

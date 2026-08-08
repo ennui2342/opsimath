@@ -18,8 +18,24 @@ module Goodreads
   # caller (`GoodreadsSyncJob`) can trigger ISFDB enrichment and
   # notifications for a genuinely new `Edition` without re-deriving it).
   class ShelfSync
-    Outcome = Struct.new(:entity, :payload, :edition, :created, keyword_init: true)
-    Cataloged = Struct.new(:work, :edition, :pending, :created, keyword_init: true)
+    # `changed` — deliberately distinct from `created`: `created` means
+    # "a brand-new Work/Edition was just catalogued"; `changed` means "a
+    # real database write happened as a result of this specific touch,"
+    # true for every `created: true` case but also true for e.g. a
+    # genuinely new Reading against an *already*-catalogued edition.
+    # Real bug found live in production (2026-08-08): a cold-start resync
+    # (every GoodreadsSyncState wiped, so `Syncer` calls `ShelfSync` for
+    # every item in every RSS page regardless of whether anything about
+    # it is actually new) exposed that several branches below correctly
+    # detected "already known, nothing to do" and made zero writes, but
+    # the caller had no way to tell that apart from a genuine change —
+    # so it notified "Added to wishlist"/"Started reading" for books
+    # that had been on the wishlist/currently-reading for ages. `changed`
+    # is exactly the signal `GoodreadsSyncJob` needs to only notify on
+    # real changes, matching Mark's own framing: only what's actually
+    # different since the CSV export should be acted on and reported.
+    Outcome = Struct.new(:entity, :payload, :edition, :created, :changed, keyword_init: true)
+    Cataloged = Struct.new(:work, :edition, :pending, :created, :wishlist_removed, keyword_init: true)
 
     READ_LIKE_STATUS = { "read" => "completed", "did-not-finish" => "dnf" }.freeze
 
@@ -48,7 +64,7 @@ module Goodreads
     # explicit "only a WishlistItem" policy.
     def wishlist
       existing = WishlistItem.where("external_ids ->> 'goodreads' = ?", @item.goodreads_book_id).first
-      return Outcome.new(entity: existing, payload: {}, created: false) if existing
+      return Outcome.new(entity: existing, payload: {}, created: false, changed: false) if existing
 
       info = RowParser.series_info(@item.title)
       series = info.series_name && Series.where("lower(name) = ?", info.series_name.downcase).first
@@ -58,12 +74,19 @@ module Goodreads
         series: series,
         external_ids: { "goodreads" => @item.goodreads_book_id }
       )
-      Outcome.new(entity: wishlist_item, payload: {}, created: true)
+      Outcome.new(entity: wishlist_item, payload: {}, created: true, changed: true)
     end
 
+    # changed: either a brand-new Edition was catalogued, or an existing
+    # WishlistItem was actually removed (the real wishlist -> to-read
+    # transition) — a plain re-match of an already-to-read book with
+    # nothing left to remove is a genuine no-op.
     def to_read
       cataloged = ensure_cataloged
-      Outcome.new(entity: cataloged.edition || cataloged.pending, payload: {}, edition: cataloged.edition, created: cataloged.created)
+      Outcome.new(
+        entity: cataloged.edition || cataloged.pending, payload: {}, edition: cataloged.edition,
+        created: cataloged.created, changed: cataloged.created || cataloged.wishlist_removed
+      )
     end
 
     # Real finding (Mark caught this): a book can enter the library for
@@ -74,10 +97,13 @@ module Goodreads
     def currently_reading
       cataloged = ensure_cataloged
       work, edition = cataloged.work, cataloged.edition
-      return Outcome.new(entity: cataloged.pending, payload: {}, created: false) unless work
+      return Outcome.new(entity: cataloged.pending, payload: {}, created: false, changed: false) unless work
 
       if work.readings.exists?(status: "reading")
-        Outcome.new(entity: edition, payload: {}, edition: edition, created: cataloged.created) # already open — no-op, not a new event
+        # Already open — no-op, not a new event. Can only be reached when
+        # cataloged.created is false (a just-created Work can't already
+        # have an open Reading), so changed is always false here.
+        Outcome.new(entity: edition, payload: {}, edition: edition, created: cataloged.created, changed: false)
       elsif work.readings.exists?(status: "completed")
         # Already read before, no open Reading, and currently-reading just
         # fired again — genuinely ambiguous (intentional reread vs a
@@ -85,30 +111,36 @@ module Goodreads
         # `extra` so PendingDecisionResolver can open a real Reading if
         # this does turn out to be a genuine reread.
         pd = flag_pending("reread_conflict", work: work, edition: edition, extra: { "date_started" => @item.user_date_added })
-        Outcome.new(entity: pd, payload: {}, edition: edition, created: cataloged.created)
+        Outcome.new(entity: pd, payload: {}, edition: edition, created: cataloged.created, changed: cataloged.created)
       else
         reading = Reading.create!(work: work, edition: edition, status: "reading", date_started: @item.user_date_added)
-        Outcome.new(entity: reading, payload: { "reading_id" => reading.id }, edition: edition, created: cataloged.created)
+        Outcome.new(entity: reading, payload: { "reading_id" => reading.id }, edition: edition, created: cataloged.created, changed: true)
       end
     end
 
     def read_like(status)
       cataloged = ensure_cataloged
       work, edition = cataloged.work, cataloged.edition
-      return Outcome.new(entity: cataloged.pending, payload: {}, created: false) unless work
+      return Outcome.new(entity: cataloged.pending, payload: {}, created: false, changed: false) unless work
 
       reading = Reading.find_by(id: @prior_payload["reading_id"]) ||
                 work.readings.find_by(status: "reading") ||
-                matching_completed_reading(work) ||
+                matching_completed_reading(work, edition) ||
                 Reading.new(work: work, edition: edition, status: status)
       reading.status = status
       reading.date_finished = @item.user_read_at
       reading.rating = @item.user_rating if @item.user_rating.present?
+      # Captured before save! — an existing Reading matched via
+      # prior_payload/matching_completed_reading and re-set to the exact
+      # same real values (the overwhelmingly common re-touch case on a
+      # cold-start resync) makes no real change; reading.changed? only
+      # answers that question pre-save, since save! clears dirty state.
+      reading_changed = reading.new_record? || reading.changed?
       reading.save!
 
-      attach_review(reading) if @item.user_review.present?
+      review_added = @item.user_review.present? && attach_review(reading)
 
-      Outcome.new(entity: reading, payload: { "reading_id" => reading.id }, edition: edition, created: cataloged.created)
+      Outcome.new(entity: reading, payload: { "reading_id" => reading.id }, edition: edition, created: cataloged.created, changed: reading_changed || review_added)
     end
 
     # Guards against the Phase-1/Phase-2 duplication bug: a completed/dnf
@@ -117,23 +149,37 @@ module Goodreads
     # date_finished) is the same real read event, not a new one. work_id
     # only, never edition_id — Matcher's tier-3 fallback can bind an
     # arbitrary edition of the work, not reliably comparable across two
-    # separately-created Readings of the same book. Guarded on
-    # user_read_at.present? so two genuinely dateless reads (Importer's
-    # own deliberate "ordinary single-read, no dates" case) are never
-    # silently collapsed into one.
-    def matching_completed_reading(work)
-      return nil if @item.user_read_at.blank?
+    # separately-created Readings of the same book.
+    #
+    # A dateless RSS read event is handled separately, edition-scoped —
+    # found live in production (2026-08-08): a cold-start resync (every
+    # GoodreadsSyncState wiped) re-touched books whose CSV import had
+    # created a dateless completed Reading (Importer's deliberate
+    # "ordinary single-read, no dates" case — see docs/INTEGRATIONS.md).
+    # Since the RSS item was *also* dateless for these, the date-based
+    # match above never even runs, and every one landed as a genuine
+    # duplicate Reading on the exact same edition. Two genuinely separate
+    # dateless reads of the *same* edition, with nothing else to tell
+    # them apart, are overwhelmingly more likely to be one real event
+    # re-surfacing than two independent reads — so this branch collapses
+    # them. Deliberately narrower than the dated branch: two dateless
+    # reads of two *different* editions of the same work stay legitimately
+    # ambiguous and uncollapsed, same reasoning the dated branch already
+    # applies by staying work-scoped rather than edition-scoped.
+    def matching_completed_reading(work, edition)
+      return work.readings.where(status: %w[completed dnf]).find_by(date_finished: @item.user_read_at) if @item.user_read_at.present?
 
-      work.readings.where(status: %w[completed dnf]).find_by(date_finished: @item.user_read_at)
+      work.readings.where(status: %w[completed dnf], edition: edition, date_finished: nil).first
     end
 
     def attach_review(reading)
-      return if reading.reviews.exists?
+      return false if reading.reviews.exists?
 
       Review.create!(
         work: reading.work, reading: reading, text: @item.user_review,
         rating: @item.user_rating, status: "published", channels: [ { "channel" => "goodreads" } ]
       )
+      true
     end
 
     # Auto-create policy (confirmed in docs/INTEGRATIONS.md): a minimal
@@ -145,7 +191,7 @@ module Goodreads
       match = Matcher.match(@item)
       if match&.ambiguous
         pd = flag_pending("possible_duplicate_work", work: nil, edition: nil)
-        return Cataloged.new(work: nil, edition: nil, pending: pd, created: false)
+        return Cataloged.new(work: nil, edition: nil, pending: pd, created: false, wishlist_removed: false)
       end
 
       work, edition, created =
@@ -155,12 +201,16 @@ module Goodreads
           create_work_and_edition + [ true ]
         end
 
-      delete_wishlist_item
-      Cataloged.new(work: work, edition: edition, pending: nil, created: created)
+      wishlist_removed = delete_wishlist_item
+      Cataloged.new(work: work, edition: edition, pending: nil, created: created, wishlist_removed: wishlist_removed)
     end
 
+    # .any? — destroy_all returns the (possibly empty) array of destroyed
+    # records, which is exactly the "did this touch actually change
+    # anything" signal to_read/currently_reading need for a matched
+    # (not newly-catalogued) book.
     def delete_wishlist_item
-      WishlistItem.where("external_ids ->> 'goodreads' = ?", @item.goodreads_book_id).destroy_all
+      WishlistItem.where("external_ids ->> 'goodreads' = ?", @item.goodreads_book_id).destroy_all.any?
     end
 
     def create_work_and_edition

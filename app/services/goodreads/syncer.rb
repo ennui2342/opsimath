@@ -7,7 +7,7 @@ module Goodreads
   class Syncer
     SHELVES = %w[wishlist to-read currently-reading read did-not-finish].freeze
 
-    Touched = Struct.new(:shelf, :goodreads_book_id, :title, :entity, :edition, :created, keyword_init: true)
+    Touched = Struct.new(:shelf, :goodreads_book_id, :title, :entity, :edition, :created, :changed, keyword_init: true)
     Counts = Struct.new(:synced, :unchanged, keyword_init: true) do
       def to_s
         "synced=#{synced} unchanged=#{unchanged}"
@@ -54,7 +54,7 @@ module Goodreads
         counts.synced += 1
         touched << Touched.new(
           shelf: shelf, goodreads_book_id: item.goodreads_book_id, title: item.title,
-          entity: outcome.entity, edition: outcome.edition, created: outcome.created
+          entity: outcome.entity, edition: outcome.edition, created: outcome.created, changed: outcome.changed
         )
       end
     end

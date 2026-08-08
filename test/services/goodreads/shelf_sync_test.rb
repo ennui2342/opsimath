@@ -24,6 +24,8 @@ module Goodreads
       assert_equal "Bae Suah", wishlist_item.author_name
       assert_equal wishlist_item, outcome.entity
       assert_not Work.exists?(title: "A Greater Music")
+      assert outcome.created
+      assert outcome.changed
     end
 
     test "wishlist is idempotent — syncing the same item twice doesn't duplicate" do
@@ -34,10 +36,30 @@ module Goodreads
       assert_equal 1, WishlistItem.where(external_ids: { "goodreads" => "29363290" }).count
     end
 
+    test "wishlist is a no-op (changed: false) when the item is already on the wishlist — the real notification bug" do
+      # Real bug, found live in production (2026-08-08): a cold-start
+      # resync (every GoodreadsSyncState wiped) re-touched every wishlist
+      # item regardless of whether it was already there from the CSV
+      # import. ShelfSync#wishlist itself always correctly made zero
+      # writes for an already-present item — but GoodreadsSyncJob had no
+      # way to tell that apart from a genuine addition, and notified
+      # "Added to wishlist" for ~100 books that had been there for ages.
+      WishlistItem.create!(title: "A Greater Music", author_name: "Bae Suah", external_ids: { "goodreads" => "29363290" })
+      item = fixture_item("wishlist", "29363290")
+
+      outcome = ShelfSync.sync(item, "wishlist", {})
+
+      assert_not outcome.created
+      assert_not outcome.changed
+      assert_equal 1, WishlistItem.where(external_ids: { "goodreads" => "29363290" }).count
+    end
+
     test "to-read auto-creates Work/Edition/Copy for a genuinely new book" do
       item = fixture_item("to_read", "61030535") # Children of Memory — never in the CSV export
 
-      ShelfSync.sync(item, "to-read", {})
+      outcome = ShelfSync.sync(item, "to-read", {})
+      assert outcome.created
+      assert outcome.changed
 
       work = Work.find_by!(title: "Children of Memory") # series suffix stripped by RowParser.series_info
       assert_equal "Adrian Tchaikovsky", work.contributors.sole.name
@@ -74,10 +96,24 @@ module Goodreads
       WishlistItem.create!(title: "Europe at Dawn", author_name: "Dave Hutchinson", external_ids: { "goodreads" => "39666185" })
       item = fixture_item("to_read", "39666185")
 
-      ShelfSync.sync(item, "to-read", {})
+      outcome = ShelfSync.sync(item, "to-read", {})
 
       assert_not WishlistItem.exists?(external_ids: { "goodreads" => "39666185" })
       assert Work.exists?(title: "Europe at Dawn") # series suffix stripped by RowParser.series_info
+      assert outcome.changed # a real transition happened, even though the edition itself already existed
+    end
+
+    test "to-read is a no-op (changed: false) when matching an already-catalogued edition with no wishlist entry to remove" do
+      work = Work.create!(title: "Europe at Dawn", literary_form: "novel")
+      edition = Edition.create!
+      EditionContent.create!(work: work, edition: edition)
+      EditionIdentifier.create!(edition: edition, id_type: "goodreads", value: "39666185")
+      item = fixture_item("to_read", "39666185")
+
+      outcome = ShelfSync.sync(item, "to-read", {})
+
+      assert_not outcome.created
+      assert_not outcome.changed
     end
 
     test "currently-reading auto-creates and opens a Reading for a book with no prior history at all" do
@@ -91,9 +127,15 @@ module Goodreads
       assert_equal "reading", reading.status
       assert_equal Date.new(2026, 8, 4), reading.date_started
       assert_equal reading, outcome.entity
+      assert outcome.changed
     end
 
-    test "currently-reading is a no-op when a Reading is already open for the matched work" do
+    test "currently-reading is a no-op (changed: false) when a Reading is already open for the matched work" do
+      # Real bug, found live in production (2026-08-08): a cold-start
+      # resync re-touched books already marked "reading," with zero real
+      # writes behind the touch (the comment right above this branch in
+      # ShelfSync already called it a no-op) — but it still notified
+      # "Started reading" for books started ages ago.
       work = Work.create!(title: "The Solaris Book of New Science Fiction", literary_form: "anthology")
       edition = Edition.create!
       EditionContent.create!(work: work, edition: edition)
@@ -101,10 +143,11 @@ module Goodreads
       existing_reading = Reading.create!(work: work, edition: edition, status: "reading", date_started: Date.new(2026, 1, 30))
 
       item = fixture_item("currently_reading", "95562")
-      ShelfSync.sync(item, "currently-reading", {})
+      outcome = ShelfSync.sync(item, "currently-reading", {})
 
       assert_equal 1, work.readings.count
       assert_equal Date.new(2026, 1, 30), existing_reading.reload.date_started # untouched, not overwritten
+      assert_not outcome.changed
     end
 
     test "currently-reading flags reread_conflict instead of guessing when the work was already read" do
@@ -139,6 +182,28 @@ module Goodreads
       assert_equal 5.0, open_reading.rating
       assert_equal open_reading, outcome.entity
       assert Review.exists?(reading: open_reading)
+      assert outcome.changed
+    end
+
+    test "read is a no-op (changed: false) when re-touched with identical values already on file" do
+      # Real bug, found live in production (2026-08-08): a cold-start
+      # resync re-touched every read-shelf item regardless of whether
+      # its rating/date/review already matched what was on file (from
+      # the CSV import) — reading.save! always ran and always looked
+      # like a real event to the old, unconditional notification code.
+      work = Work.create!(title: "Neuromancer", literary_form: "novel")
+      edition = Edition.create!
+      EditionContent.create!(work: work, edition: edition)
+      EditionIdentifier.create!(edition: edition, id_type: "goodreads", value: "953070")
+      existing_reading = Reading.create!(work: work, edition: edition, status: "completed", date_finished: Date.new(2026, 7, 28), rating: 5.0)
+      Review.create!(work: work, reading: existing_reading, text: "great book", status: "published", channels: [ { "channel" => "goodreads" } ])
+
+      item = fixture_item("read", "953070") # same date, same 5.0 rating, has a review
+      outcome = ShelfSync.sync(item, "read", {})
+
+      assert_equal existing_reading, outcome.entity
+      assert_equal 1, work.readings.count
+      assert_not outcome.changed
     end
 
     test "read doesn't duplicate the Reading when re-synced after only the rating changed" do
@@ -174,6 +239,52 @@ module Goodreads
       assert_equal phase1_reading, outcome.entity
       assert_equal 5.0, phase1_reading.reload.rating
       assert Review.exists?(reading: phase1_reading)
+      assert outcome.changed # real new information: rating and review filled in
+    end
+
+    test "read reuses an existing dateless completed Reading on the same edition instead of duplicating it" do
+      # Real bug, found live in production (2026-08-08): a cold-start
+      # resync (every GoodreadsSyncState wiped) re-touched books whose
+      # CSV import had created a dateless completed Reading (Importer's
+      # own deliberate "ordinary single-read, no dates" case). Since the
+      # RSS item was *also* dateless, matching_completed_reading's old
+      # date-based lookup never even ran (guarded on user_read_at.present?),
+      # so every one of these landed as a genuine duplicate Reading on
+      # the exact same edition — 12 real titles in the actual library.
+      work = Work.create!(title: "Neuromancer", literary_form: "novel")
+      edition = Edition.create!
+      EditionContent.create!(work: work, edition: edition)
+      EditionIdentifier.create!(edition: edition, id_type: "goodreads", value: "953070")
+      phase1_reading = Reading.create!(work: work, edition: edition, status: "completed") # no date_finished at all
+
+      item = RssClient::FeedItem.new(**fixture_item("read", "953070").to_h.merge(user_read_at: nil, user_rating: nil, user_review: nil))
+      outcome = ShelfSync.sync(item, "read", {})
+
+      assert_equal 1, work.readings.count # no duplicate created
+      assert_equal phase1_reading, outcome.entity
+    end
+
+    test "read does NOT collapse two dateless completed Readings on different editions of the same work" do
+      # The narrower, deliberate boundary of the fix above: two genuinely
+      # separate dateless reads of two *different* editions stay
+      # legitimately ambiguous — same reasoning the dated branch already
+      # applies by staying work-scoped, not edition-scoped, for its own
+      # match. Edition-scoping the dateless branch must not accidentally
+      # widen to work-scoping and merge these.
+      work = Work.create!(title: "Neuromancer", literary_form: "novel")
+      other_edition = Edition.create!
+      matched_edition = Edition.create!
+      EditionContent.create!(work: work, edition: other_edition)
+      EditionContent.create!(work: work, edition: matched_edition)
+      EditionIdentifier.create!(edition: matched_edition, id_type: "goodreads", value: "953070")
+      existing_reading = Reading.create!(work: work, edition: other_edition, status: "completed")
+
+      item = RssClient::FeedItem.new(**fixture_item("read", "953070").to_h.merge(user_read_at: nil, user_rating: nil, user_review: nil))
+      outcome = ShelfSync.sync(item, "read", {})
+
+      assert_equal 2, work.readings.count # a new Reading, not merged into the other edition's
+      assert_not_equal existing_reading, outcome.entity
+      assert_equal matched_edition, outcome.entity.edition
     end
 
     test "did-not-finish sets status dnf" do

@@ -120,11 +120,16 @@ class GoodreadsSyncJobTest < ActiveSupport::TestCase
     assert_equal "wishlist", wishlisted.first.fields["shelf"]
   end
 
-  test "notifies a shelf-specific update, not auto_created, when a shelf event matches an already-catalogued edition" do
+  test "notifies a shelf-specific update, not auto_created, when a shelf event matches an already-catalogued edition and genuinely changes something" do
     work = Work.create!(title: "Europe at Dawn", literary_form: "novel")
     edition = Edition.create!
     EditionContent.create!(work: work, edition: edition)
     EditionIdentifier.create!(edition: edition, id_type: "goodreads", value: "39666185")
+    # A real change for this touch to report: the wishlist -> to-read
+    # transition itself. Without this, matching an already-catalogued
+    # edition with nothing left to remove is a genuine no-op — see the
+    # "does not notify" test below.
+    WishlistItem.create!(title: "Europe at Dawn", author_name: "Dave Hutchinson", external_ids: { "goodreads" => "39666185" })
 
     GoodreadsSyncJob.perform_now(rss_client: FixtureRssClient.new)
 
@@ -132,6 +137,24 @@ class GoodreadsSyncJobTest < ActiveSupport::TestCase
     assert_equal :shelf_update, update.kind
     assert_equal "Marked to-read: Europe at Dawn (The Fractured Europe Sequence #4)", update.title
     assert_not @recorder.events.any? { |e| e.kind == :auto_created && e.title.include?("Europe at Dawn") }
+  end
+
+  test "does not notify at all when a shelf event matches an already-catalogued edition and nothing actually changes" do
+    # Real bug, found live in production (2026-08-08): a cold-start
+    # resync (every GoodreadsSyncState wiped) re-touched books already
+    # fully represented in the catalog, with zero real writes behind the
+    # touch — but the old code notified anyway, since it only checked
+    # "was this item touched" (no GoodreadsSyncState row), not "did this
+    # touch actually change anything." No WishlistItem exists to remove
+    # here, so this is a pure re-match — genuinely nothing to report.
+    work = Work.create!(title: "Europe at Dawn", literary_form: "novel")
+    edition = Edition.create!
+    EditionContent.create!(work: work, edition: edition)
+    EditionIdentifier.create!(edition: edition, id_type: "goodreads", value: "39666185")
+
+    GoodreadsSyncJob.perform_now(rss_client: FixtureRssClient.new)
+
+    assert_not @recorder.events.any? { |e| e.title.include?("Europe at Dawn") }
   end
 
   test "conflict_summary derives field/value pairs from field_diffs, not the old flat payload shape" do
