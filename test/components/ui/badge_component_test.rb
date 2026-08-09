@@ -15,7 +15,7 @@ module Ui
     end
 
     test "conflict variant uses the conflict theme tokens" do
-      render_inline(BadgeComponent.new(text: "enrichment_field_conflict", variant: :conflict))
+      render_inline(BadgeComponent.new(text: "enrichment_conflict", variant: :conflict))
 
       assert_selector "span.bg-conflict-100.text-conflict-800"
     end

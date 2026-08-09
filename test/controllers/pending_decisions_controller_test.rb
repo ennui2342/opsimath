@@ -13,7 +13,7 @@ class PendingDecisionsControllerTest < ActionDispatch::IntegrationTest
       fields: { "publisher" => "HarperVoyager", "format" => "hardcover" }
     )
     @pending = PendingDecision.create!(
-      kind: "enrichment_field_conflict",
+      kind: "enrichment_conflict",
       payload: { "entity_type" => "Edition", "entity_id" => @edition.id, "fields" => [ "publisher" ], "source" => "isfdb" }
     )
   end
@@ -45,7 +45,7 @@ class PendingDecisionsControllerTest < ActionDispatch::IntegrationTest
   test "accept applies the field, resolves the decision, and responds with the next pending decision" do
     sign_in_as users(:one)
     other = PendingDecision.create!(
-      kind: "enrichment_field_conflict",
+      kind: "enrichment_conflict",
       payload: { "entity_type" => "Edition", "entity_id" => @edition.id, "fields" => [ "format" ], "source" => "isfdb" }
     )
 
@@ -79,7 +79,7 @@ class PendingDecisionsControllerTest < ActionDispatch::IntegrationTest
   test "accept with a fields param only applies the selected fields" do
     sign_in_as users(:one)
     @pending.update!(
-      kind: "enrichment_edition_mismatch",
+      kind: "enrichment_conflict",
       payload: { "entity_type" => "Edition", "entity_id" => @edition.id, "source" => "isfdb", "fields" => [ "publisher", "format" ] }
     )
 
@@ -90,12 +90,13 @@ class PendingDecisionsControllerTest < ActionDispatch::IntegrationTest
     assert_nil @edition.format
   end
 
-  test "an edition_mismatch cover conflict end to end: show renders the comparison, accept attaches, reject purges" do
+  test "an edition_mismatch cover conflict end to end: show renders the comparison, accept attaches the source's cover" do
     sign_in_as users(:one)
     @edition.cover_image.attach(io: StringIO.new("old-bytes"), filename: "old.jpg", content_type: "image/jpeg")
-    @edition.candidate_cover_image.attach(io: StringIO.new("new-bytes"), filename: "new.jpg", content_type: "image/jpeg")
+    source_record = EnrichmentRecord.latest(entity: @edition, provider: "isfdb")
+    source_record.cover_image.attach(io: StringIO.new("new-bytes"), filename: "new.jpg", content_type: "image/jpeg")
     @pending.update!(
-      kind: "enrichment_edition_mismatch",
+      kind: "enrichment_conflict",
       payload: { "entity_type" => "Edition", "entity_id" => @edition.id, "source" => "isfdb", "fields" => [ "cover_image" ] }
     )
 
@@ -107,7 +108,6 @@ class PendingDecisionsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal "new-bytes", @edition.reload.cover_image.download
-    assert_not @edition.candidate_cover_image.attached?
   end
 
   test "reread_conflict shows the payload's title/author and accept opens a new Reading" do

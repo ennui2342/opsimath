@@ -1,11 +1,9 @@
-<div id="pending_decision" class="w-full max-w-2xl" data-controller="decision-shortcuts">
+<div id="pending_decision" class="w-full max-w-5xl" data-controller="decision-shortcuts">
   <% if pending_decision %>
-    <% if pending_decision.kind == "enrichment_edition_mismatch" %>
-      <%= render "decision_edition_mismatch", pending_decision: pending_decision, kind_filter: kind_filter %>
-    <% elsif pending_decision.kind == "reread_conflict" %>
+    <% if pending_decision.kind == "reread_conflict" %>
       <%= render "decision_reread_conflict", pending_decision: pending_decision, kind_filter: kind_filter %>
     <% else %>
-      <%= render "decision_field_conflict", pending_decision: pending_decision, kind_filter: kind_filter %>
+      <%= render "decision_comparison", pending_decision: pending_decision, kind_filter: kind_filter %>
     <% end %>
   <% else %>
     <%= render "pending_decisions/all_done", kind_filter: kind_filter %>

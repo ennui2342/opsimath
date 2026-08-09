@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_07_201711) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_08_230144) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -150,7 +150,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_07_201711) do
     t.string "provider", null: false
     t.jsonb "raw_payload", default: {}, null: false
     t.datetime "updated_at", null: false
-    t.index ["entity_type", "entity_id"], name: "index_enrichment_records_on_entity"
+    t.index ["entity_type", "entity_id", "provider"], name: "index_enrichment_records_on_entity_and_provider", unique: true
   end
 
   create_table "genres", force: :cascade do |t|

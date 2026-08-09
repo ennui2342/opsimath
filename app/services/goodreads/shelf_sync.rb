@@ -1,5 +1,3 @@
-require "net/http"
-
 module Goodreads
   # Per-shelf sync behavior for one Goodreads::RssClient::FeedItem — the
   # ongoing-sync counterpart to Phase 1's Importer. See
@@ -196,6 +194,7 @@ module Goodreads
 
       work, edition, created =
         if match
+          record_goodreads_cover(match.edition) if match.edition
           [ match.work, match.edition, false ]
         else
           create_work_and_edition + [ true ]
@@ -211,6 +210,28 @@ module Goodreads
     # (not newly-catalogued) book.
     def delete_wishlist_item
       WishlistItem.where("external_ids ->> 'goodreads' = ?", @item.goodreads_book_id).destroy_all.any?
+    end
+
+    # cover_image is the only field the RSS feed actually carries — a
+    # matched (already-cataloged) edition is overwhelmingly a CSV import
+    # row, whose goodreads EnrichmentRecord (if any) has no cover on it
+    # yet (the CSV export carries no image URL column). Every sync touch
+    # records what this fetch says onto that same per-(edition,
+    # "goodreads") EnrichmentRecord — creating it on a genuinely new
+    # edition, updating it in place otherwise (see
+    # Enrichment::SourceRecorder.record) — and runs it through
+    # SourceRecorder's own standard fill/conflict policy, the same one
+    # ISFDB uses — a blank Edition.cover_image fills, a populated one
+    # that genuinely differs raises a real conflict rather than being
+    # silently dropped. Mark, 2026-08-08: deliberately no special-casing
+    # for "this is Goodreads, so trust it less" — a populated destination
+    # always goes to review, full stop, and no separate integration step
+    # needed here beyond the one SourceRecorder.record already does.
+    def record_goodreads_cover(edition)
+      Enrichment::SourceRecorder.record(
+        entity: edition, provider: "goodreads", external_id: @item.goodreads_book_id,
+        raw_payload: @item.to_h, fields: { cover_image: @item.book_image_url }
+      )
     end
 
     def create_work_and_edition
@@ -245,47 +266,17 @@ module Goodreads
         edition = Edition.create!
         EditionIdentifier.create!(edition: edition, id_type: "goodreads", value: @item.goodreads_book_id)
         EditionIdentifier.create!(edition: edition, id_type: "isbn10", value: @item.isbn) if @item.isbn.present?
-        # fields: {} — audit parity with CSV import (a real
-        # EnrichmentRecord(provider: "goodreads") row exists for every
-        # auto-created edition, not just CSV-imported ones), even though
-        # the RSS feed has no field data worth applying here.
-        Enrichment::SourceRecorder.record(entity: edition, provider: "goodreads", external_id: @item.goodreads_book_id, raw_payload: @item.to_h)
+        # No existing cover to compare against yet on a just-created
+        # Edition, so this is always a plain fill in practice — but goes
+        # through the same shared record_goodreads_cover path as a
+        # matched edition anyway, for one policy in one place.
+        record_goodreads_cover(edition)
         edition
       end
       EditionContent.create!(edition: edition, work: work)
       Copy.create!(edition: edition, disposition: "owned")
-      attach_cover(edition, @item.book_image_url)
 
       [ work, edition ]
-    end
-
-    # Same download-and-attach shape as
-    # Enrichment::IsfdbEditionEnricher#plan_cover's :fill path — no
-    # existing cover to compare against yet on a just-created Edition, so
-    # nothing to stage as a candidate, just a plain fill. Failure is
-    # logged, not raised: a missing/unreachable cover shouldn't block
-    # cataloging the rest of the item.
-    def attach_cover(edition, url)
-      return if url.blank?
-
-      uri = URI.parse(url)
-      return unless %w[http https].include?(uri.scheme)
-
-      response = Net::HTTP.get_response(uri)
-      return unless response.is_a?(Net::HTTPSuccess)
-
-      edition.cover_image.attach(
-        io: StringIO.new(response.body),
-        filename: File.basename(uri.path).presence || "cover.jpg",
-        content_type: response.content_type || "image/jpeg"
-      )
-      # Recorded as "goodreads", not left untracked — so a later ISFDB
-      # pass knows this cover is its own unreviewed automated fill, not
-      # something to protect with a conflict check (see
-      # IsfdbEditionEnricher::FILL_ELIGIBLE_COVER_SOURCES).
-      edition.update!(field_sources: edition.field_sources.merge("cover_image" => "goodreads"))
-    rescue StandardError => e
-      Rails.logger.warn("goodreads cover download failed for edition #{edition.id}: #{e.message}")
     end
 
     def literary_form

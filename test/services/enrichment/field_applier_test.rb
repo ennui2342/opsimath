@@ -6,66 +6,45 @@ module Enrichment
       @edition = Edition.create!(format: "paperback")
     end
 
-    test "applies a value to a genuinely blank field and records field_sources" do
-      result = FieldApplier.apply(@edition, :publisher, "Ace Books", "isfdb")
+    test "plans a fill for a genuinely blank field" do
+      plan = FieldApplier.plan(@edition, :publisher, "Ace Books", "isfdb")
 
-      assert_equal :applied, result.status
-      assert_equal "Ace Books", @edition.reload.publisher
-      assert_equal "isfdb", @edition.field_sources["publisher"]
+      assert_equal :fill, plan.action
+      assert_equal "Ace Books", plan.value
+      assert_equal "isfdb", plan.source
     end
 
-    test "does nothing when the proposed value is blank" do
-      result = FieldApplier.apply(@edition, :publisher, "", "isfdb")
+    test "plans skipped when the proposed value is blank" do
+      plan = FieldApplier.plan(@edition, :publisher, "", "isfdb")
 
-      assert_equal :skipped, result.status
-      assert_nil @edition.reload.publisher
+      assert_equal :skipped, plan.action
     end
 
-    test "is a no-op when the field already holds the same value" do
+    test "plans unchanged when the field already holds the same value" do
       @edition.update!(publisher: "Ace Books")
 
-      result = FieldApplier.apply(@edition, :publisher, "Ace Books", "isfdb")
+      plan = FieldApplier.plan(@edition, :publisher, "Ace Books", "isfdb")
 
-      assert_equal :unchanged, result.status
-      assert_equal 0, PendingDecision.count
+      assert_equal :unchanged, plan.action
     end
 
-    test "is a no-op when the values only differ by case/whitespace/punctuation — not a real conflict" do
+    test "plans unchanged when the values only differ by case/whitespace/punctuation — not a real conflict" do
       @edition.update!(publisher: "Pan/Ballantine")
 
-      result = FieldApplier.apply(@edition, :publisher, "Pan / Ballantine", "isfdb")
+      plan = FieldApplier.plan(@edition, :publisher, "Pan / Ballantine", "isfdb")
 
-      assert_equal :unchanged, result.status
-      assert_equal "Pan/Ballantine", @edition.reload.publisher # untouched, but also not flagged
-      assert_equal 0, PendingDecision.count
+      assert_equal :unchanged, plan.action
     end
 
-    test "creates a PendingDecision rather than overwriting a genuinely conflicting non-empty field" do
+    test "plans a conflict for a genuinely conflicting non-empty field" do
       @edition.update!(publisher: "Berkley Windhover")
 
-      result = FieldApplier.apply(@edition, :publisher, "Ace Books", "isfdb")
+      plan = FieldApplier.plan(@edition, :publisher, "Ace Books", "isfdb")
 
-      assert_equal :pending, result.status
-      assert_equal "Berkley Windhover", @edition.reload.publisher # untouched
-      assert_nil @edition.field_sources["publisher"] # never set — no value was ever applied
-
-      decision = result.pending_decision
-      assert_equal "enrichment_field_conflict", decision.kind
-      assert_equal "pending", decision.status
-      assert_equal "Edition", decision.payload["entity_type"]
-      assert_equal @edition.id, decision.payload["entity_id"]
-      assert_equal [ "publisher" ], decision.payload["fields"]
-      assert_equal "isfdb", decision.payload["source"]
-    end
-
-    test "re-flagging the same conflict reuses the existing pending decision rather than duplicating it" do
-      @edition.update!(publisher: "Berkley Windhover")
-
-      first = FieldApplier.apply(@edition, :publisher, "Ace Books", "isfdb")
-      second = FieldApplier.apply(@edition, :publisher, "Ace Books", "isfdb")
-
-      assert_equal 1, PendingDecision.count
-      assert_equal first.pending_decision.id, second.pending_decision.id
+      assert_equal :conflict, plan.action
+      assert_equal "Berkley Windhover", plan.current
+      assert_equal "Ace Books", plan.value
+      assert_equal "isfdb", plan.source
     end
   end
 end

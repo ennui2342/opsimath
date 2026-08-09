@@ -50,3 +50,14 @@
 # Real personal reading-history data used as local import/test fixtures —
 # not tracked, even though this repo is private. See docs/INTEGRATIONS.md.
 /import/
+
+# Local dev database dumps (pg_dump snapshots) — real personal library
+# data, same reasoning as /import/ above. Restore points for the dev DB,
+# not part of the project itself.
+/db/dumps/
+
+# Python build/test artifacts (services/cover_compare/ — see its own
+# README-equivalent, docs/INTEGRATIONS.md's Phase 3 addendum).
+__pycache__/
+*.pyc
+.pytest_cache/

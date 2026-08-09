@@ -47,5 +47,30 @@ module Goodreads
       assert_equal 1, result[:counts].synced
       assert_equal 5.0, state.reload.last_synced_payload["user_rating"] # back to the feed's real value
     end
+
+    # Mark, 2026-08-08: "a cover image appearing in the rss feed where
+    # there wasn't one before means an update to the enrichment record
+    # which then triggers an attempted sync to the edition. Any update
+    # to the enrichment should then flow into the standard match/conflict
+    # workflow." Without book_image_url in relevant_fields, this item
+    # would look "already handled" forever once its rating/review/dates
+    # stop changing, and Goodreads::ShelfSync#record_goodreads_cover would
+    # never get a chance to run again.
+    test "a cover appearing where the feed previously had none re-triggers a sync and backfills it" do
+      Syncer.sync(rss_client: FixtureRssClient.new)
+      state = GoodreadsSyncState.find_by!(goodreads_book_id: "39666185", shelf: "to-read")
+      edition = EditionIdentifier.find_by!(id_type: "goodreads", value: "39666185").edition
+      assert edition.cover_image.attached? # the real fixture cover, already filled on the first sync
+      # Simulate the feed having no cover the *first* time this was synced
+      state.update!(last_synced_payload: state.last_synced_payload.merge("book_image_url" => nil))
+      edition.cover_image.purge
+      edition.update!(field_sources: edition.field_sources.except("cover_image"))
+
+      result = Syncer.sync(rss_client: FixtureRssClient.new)
+
+      assert_equal 1, result[:counts].synced
+      assert edition.reload.cover_image.attached? # backfilled via the standard fill/conflict workflow
+      assert_equal "goodreads", edition.field_sources["cover_image"]
+    end
   end
 end

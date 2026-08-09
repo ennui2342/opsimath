@@ -282,6 +282,34 @@ small enough that reviewing every non-empty-field change costs nothing.
 Only empty fields auto-fill without a prompt. See `DATA_MODEL.md`'s
 `EnrichmentRecord` and `field_sources`.
 
+**Correction, made explicit after a real live bug (2026-08-08/09):
+`EnrichmentRecord` is one row per `(entity, provider)`, updated in place,
+not one row per fetch.** The original design above (and principle 15's
+"already append-only" framing, corrected there too) assumed the natural
+history-keeping side effect of "a new row every fetch" was free. In
+practice it caused a real, live-caught bug: a CSV-imported Goodreads
+fetch (publisher/format/publish_date, no cover) and a later RSS-synced
+Goodreads fetch (cover only, no text fields) landed as two separate rows
+for the same edition/provider, so any view reading "the latest" saw only
+the most recent fetch's fields and silently lost the other's — Mark
+caught this directly on the review screen ("why are there two enrichment
+records for Goodreads? ... there should never be two"). Fixed at the
+model level (DB unique index + validation on `entity_type`/`entity_id`/
+`provider`): a later fetch from the same provider merges its fields into
+the existing row (overwriting a field it repeats — one provider updating
+its own belief isn't a conflict at this layer — leaving alone a field it
+doesn't mention) rather than creating a second row. The real trade-off
+knowingly accepted: `raw_payload`/superseded per-fetch field values from
+an earlier fetch are no longer kept once a later fetch from the same
+provider overwrites them — "keep what was fetched" now means "keep the
+provider's current fetch," not a full fetch-by-fetch history. Re-diffing
+an old fetch's mapping (this principle's original motivating use case)
+still works for whatever the *current* fetch is; it doesn't extend
+further back than that anymore. Acceptable here the same way principle 15
+accepts whole-database backups over per-row history for anything beyond
+attribute-level correction — this isn't the mechanism a real fetch-history
+audit trail would need, and nothing today needs one.
+
 Plural fields need none of this apparatus — `EditionIdentifier` and
 `WorkAlternateTitle` already let ISFDB's OCLC number and OpenLibrary's
 OCLC number coexist without conflict, since they're one-to-many by
@@ -447,7 +475,7 @@ Principle 10 says any provider update to an already-populated field
 doesn't survive contact with principle 13's batch runs: a nightly
 enrichment refresh over the whole collection can't block on two hundred
 synchronous confirmations. The fix is a queue, not a rule change: a
-`PendingDecision` (kind-tagged — `enrichment_field_conflict` today,
+`PendingDecision` (kind-tagged — `enrichment_conflict` today,
 extendable later to a possible-duplicate-books suggestion or a
 series-match candidate without inventing a new mechanism each time —
 JSON payload, `pending`/`accepted`/`rejected`, optional `run_id`
@@ -531,10 +559,19 @@ independent meaning (`WorkContributor`, `EditionContent`,
 `EditionIdentifier`, `WorkGenre`, `WorkTag`) still cascade-delete
 (`dependent: :destroy`) — there's nothing to protect there.
 
-`EnrichmentRecord` still doesn't need this — it's already append-only (a
-new row per fetch, never overwritten), which is most of "what did the
-data used to say" for anything automatically sourced, for free, per
-principle 10.
+`EnrichmentRecord` still doesn't need this, but for a different reason
+than originally stated here: it's no longer append-only (one row per
+`(entity, provider)`, merged in place on each fetch — see principle 10's
+correction), so it no longer gives fetch-history "for free" the way this
+principle first assumed. What it still doesn't need PaperTrail-style
+versioning for is the same reason `field_sources`/`PendingDecision` exist
+at all: a provider's value never overwrites an already-*applied*,
+human-visible `Edition`/`Work` field silently (principle 10's confirm
+step), so the thing principle 15 actually protects — a trusted, hand-
+verified fact getting clobbered without a trace — was never something
+`EnrichmentRecord` itself could do in the first place. What's genuinely
+lost now is superseded raw-fetch history for its own sake, which nothing
+today reads or needs.
 
 Everything beyond what the versioning library covers — including
 recovering from an accidental cascading delete of a whole `Work`/`Edition`
@@ -772,12 +809,24 @@ rather than new ones:
   external cron for enrichment: opsimath shouldn't depend on
   infrastructure outside its own control for something core to how it
   stays useful day to day.
-- **Goodreads is the source of truth for now, deliberately, not
-  permanently.** Goodreads' community/network value means it needs to
-  stay in sync; the easiest way to guarantee that right now is one-way
-  sync in. Inverting this (opsimath as source of truth, syncing back to
-  Goodreads) is a real future direction, explicitly not this phase — see
-  `docs/INTEGRATIONS.md`'s "out of scope."
+- **Goodreads is a one-way sync source, but — corrected 2026-08-08/09,
+  see below — never was and isn't now treated as *the* source of truth
+  for catalog data.** Sync direction (Goodreads → opsimath only, not
+  reverse) and data trust (whose value wins when two sources disagree)
+  turned out to be two separate questions this principle originally
+  conflated. Sync stays one-way for the reason originally given —
+  Goodreads' community/network value needs to stay current, and reversing
+  that is a real future direction, not this phase (`docs/INTEGRATIONS.md`'s
+  "out of scope"). But trust doesn't: Goodreads writing straight onto
+  `Edition` columns at creation time, with no comparison logic and no
+  durable record of what it claimed, caused two real bugs (a work-level
+  field mislabeled as edition-level, a cover-comparison false-conflict
+  regression) that both traced back to exactly that special status. Fixed
+  by routing Goodreads through the same `Enrichment::SourceRecorder`
+  fill/conflict pipeline ISFDB already used — Goodreads is a peer
+  enrichment source like any other now, no special trust, full stop. See
+  `docs/INTEGRATIONS.md`'s enrichment addendum for the fix and
+  `DATA_MODEL.md`'s `EnrichmentRecord.provider` note.
 
 ### 21. Development practices, pinned down before writing the first line
 

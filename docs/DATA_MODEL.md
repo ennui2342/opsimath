@@ -510,11 +510,24 @@ path, then delete the `WishlistItem` outright. No merge, no conversion.
 
 ## EnrichmentRecord
 
-The raw snapshot behind a metadata-provider fetch (ISFDB, OpenLibrary,
-Wikidata, ...) — per `PHILOSOPHY.md` principle 10. Kept in full, not
-reduced to an Open-Library-style bare identifier, since a personal
-collection's scale can afford it: this is what lets a source be re-diffed
-later or fields re-derived without re-fetching if mapping logic improves.
+The current snapshot of what one metadata provider (ISFDB, OpenLibrary,
+Wikidata, Goodreads, ...) says about one entity — per `PHILOSOPHY.md`
+principle 10. **One row per `(entity_type, entity_id, provider)`, not one
+row per fetch** — enforced by a DB unique index plus a model validation.
+A later fetch from the same provider updates this same row in place
+rather than creating another one: `raw_payload` is replaced with the new
+fetch's response, and `fields` merges the new fetch's values in,
+overwriting a field it repeats (one provider updating its own earlier
+belief isn't a conflict at this layer, it's just newer information from
+the same source) and leaving alone any field the new fetch doesn't
+mention. Corrected from an earlier "new row every fetch" design — see
+`PHILOSOPHY.md` principle 10's correction for the real bug that surfaced
+this (two Goodreads rows for one edition, each holding only part of what
+Goodreads actually knew) and the trade-off knowingly accepted (superseded
+per-fetch history from the *same* provider is no longer kept; `raw_payload`
+still lets a source be re-diffed or fields re-derived from its current
+fetch without re-fetching, just not from an earlier one it's since
+overwritten).
 
 | Field | Notes |
 |---|---|
@@ -523,9 +536,9 @@ later or fields re-derived without re-fetching if mapping logic improves.
 | `entity_id` | |
 | `provider` | `isfdb` / `openlibrary` / `wikidata` / `goodreads` / ... — Goodreads is a peer source here like any other, not the library's source of truth (see `docs/INTEGRATIONS.md`'s enrichment addendum) |
 | `external_id` | the provider's own identifier for this record |
-| `fetched_at` | |
-| `raw_payload` | the fetched record, verbatim (JSON) |
-| `fields` | a straightforward, unmapped snapshot of what this fetch said, in our own field names (JSON) — kept separate from `raw_payload`, which stays the untouched original response. What lets a real side-by-side comparison across providers be queried directly, with no active `PendingDecision` required: e.g. `EnrichmentRecord.where(entity: edition, provider: "goodreads").order(fetched_at: :desc).first.fields["publisher"]` next to the same for `"isfdb"` |
+| `fetched_at` | when the current `raw_payload`/`fields` were fetched — updated on every fetch, including one that only merges new fields into an existing row |
+| `raw_payload` | the fetched record, verbatim (JSON) — the current fetch only, not a history of every fetch this provider has ever made for this entity |
+| `fields` | a straightforward, unmapped snapshot of what this provider currently says, in our own field names (JSON) — kept separate from `raw_payload`, which stays the untouched original response. What lets a real side-by-side comparison across providers be queried directly, with no active `PendingDecision` required: e.g. `EnrichmentRecord.find_by(entity: edition, provider: "goodreads").fields["publisher"]` next to the same for `"isfdb"` — a plain lookup, not "latest of several," since there's exactly one row per provider |
 
 `entity_type`/`entity_id` (rather than separate nullable `work_id`/
 `edition_id`/... columns) matches librarium's own `cover_images` table
@@ -621,9 +634,9 @@ what this actually needs, per principle 16.
 | Field | Notes |
 |---|---|
 | `id` | |
-| `kind` | Real, shipped kinds as of Phase 2: `enrichment_field_conflict` / `enrichment_edition_mismatch` (ISFDB enrichment — see `docs/INTEGRATIONS.md`'s enrichment addendum), `possible_duplicate_work` (Goodreads sync — `Matcher` found more than one ambiguous title+author match), `reread_conflict` (Goodreads sync — a `currently-reading` event fires while a `Reading` for that work is already open). `unmatched_shelf_entry` is designed for but not currently triggered by any code path — the confirmed auto-create policy (`docs/INTEGRATIONS.md`) handles the plain "no match" case directly instead of routing it here. Extends to further kinds (e.g. `series_match_candidate`) the same way, without a new mechanism |
+| `kind` | Real, shipped kinds as of Phase 2: `enrichment_conflict` (ISFDB or Goodreads enrichment — see `docs/INTEGRATIONS.md`'s enrichment addendum; one unified kind regardless of source or whether it's an isolated single-field dispute or several fields bundled together, replacing the earlier `enrichment_field_conflict`/`enrichment_edition_mismatch` split — see `docs/INTEGRATIONS.md`'s Phase 3 addendum), `possible_duplicate_work` (Goodreads sync — `Matcher` found more than one ambiguous title+author match), `reread_conflict` (Goodreads sync — a `currently-reading` event fires while a `Reading` for that work is already open). `unmatched_shelf_entry` is designed for but not currently triggered by any code path — the confirmed auto-create policy (`docs/INTEGRATIONS.md`) handles the plain "no match" case directly instead of routing it here. Extends to further kinds (e.g. `series_match_candidate`) the same way, without a new mechanism |
 | `run_id` | optional — set when produced by a batch run, null for a one-off interactive lookup |
-| `payload` | JSON — shape depends on `kind`. `enrichment_field_conflict`/`enrichment_edition_mismatch` are a thin pointer, not a frozen value snapshot: `{entity_type, entity_id, fields: [field_name, ...], source}` — the entity plus which field name(s) are in dispute (one for an isolated conflict, several for a bundled edition mismatch — see `docs/INTEGRATIONS.md`'s enrichment addendum for why that's a different question from a single-field dispute) and which source raised it. No `current_value`/`proposed` stored: once `EnrichmentRecord.fields` exists, freezing a value at raise time is a staleness hazard against a real review backlog — `PendingDecision#field_diffs` derives the actual current-vs-proposed comparison live, from the entity's column plus that source's latest `EnrichmentRecord` |
+| `payload` | JSON — shape depends on `kind`. `enrichment_conflict` is a thin pointer, not a frozen value snapshot: `{entity_type, entity_id, fields: [field_name, ...], source}` — the entity plus which field name(s) are in dispute (one for an isolated conflict, several when a whole fetch is bundled — see `docs/INTEGRATIONS.md`'s enrichment addendum for why that's a different question from a single-field dispute, and why source no longer matters to which shape this takes) and which source raised it. No `current_value`/`proposed` stored: once `EnrichmentRecord.fields` exists, freezing a value at raise time is a staleness hazard against a real review backlog — `PendingDecision#field_diffs` derives the actual current-vs-proposed comparison live, from the entity's column plus that source's own `EnrichmentRecord` |
 | `status` | `pending` / `accepted` / `rejected` |
 | `created_at` / `resolved_at` | |
 

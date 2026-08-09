@@ -70,10 +70,6 @@ module Goodreads
       assert_equal "0316466409", edition.edition_identifiers.find_by(id_type: "isbn10").value
       assert_equal 1, edition.copies.count
       assert edition.cover_image.attached?
-      # Recorded as "goodreads", not left untracked — so a later ISFDB
-      # pass knows this cover is its own unreviewed fill, not something
-      # to flag a conflict against (see
-      # IsfdbEditionEnricher::FILL_ELIGIBLE_COVER_SOURCES).
       assert_equal "goodreads", edition.field_sources["cover_image"]
       # Audit parity with CSV import — a real EnrichmentRecord exists even
       # though the RSS feed carries no field data to apply here.
@@ -114,6 +110,67 @@ module Goodreads
 
       assert_not outcome.created
       assert_not outcome.changed
+    end
+
+    test "to-read backfills a goodreads cover onto an already-matched edition with none — the CSV import gap" do
+      # A CSV-imported edition has a goodreads EditionIdentifier but no
+      # cover at all — the CSV export carries no image URL column, only
+      # the RSS feed does. The first ongoing sync pass is the first real
+      # chance to backfill it.
+      work = Work.create!(title: "Children of Memory", literary_form: "novel")
+      edition = Edition.create!
+      EditionContent.create!(work: work, edition: edition)
+      EditionIdentifier.create!(edition: edition, id_type: "goodreads", value: "61030535")
+      item = fixture_item("to_read", "61030535")
+
+      ShelfSync.sync(item, "to-read", {})
+
+      edition.reload
+      assert edition.cover_image.attached?
+      assert_equal "fake-cover-bytes", edition.cover_image.download
+      assert_equal "goodreads", edition.field_sources["cover_image"]
+      record = EnrichmentRecord.find_by!(entity: edition, provider: "goodreads", external_id: "61030535")
+      assert record.cover_image.attached?
+    end
+
+    test "to-read never silently overwrites an edition's existing cover — a genuine difference flags a conflict instead" do
+      # Policy simplified deliberately (Mark, 2026-08-08): no per-source
+      # trust hierarchy — a populated destination always goes to review
+      # on any byte difference, regardless of source. Not "isfdb wins,"
+      # not "silently keep the old one" — a real conflict either way.
+      work = Work.create!(title: "Children of Memory", literary_form: "novel")
+      edition = Edition.create!
+      EditionContent.create!(work: work, edition: edition)
+      EditionIdentifier.create!(edition: edition, id_type: "goodreads", value: "61030535")
+      edition.cover_image.attach(io: StringIO.new("isfdb-bytes"), filename: "isfdb.jpg", content_type: "image/jpeg")
+      edition.update!(field_sources: { "cover_image" => "isfdb" })
+      item = fixture_item("to_read", "61030535")
+
+      ShelfSync.sync(item, "to-read", {})
+
+      edition.reload
+      assert_equal "isfdb-bytes", edition.cover_image.download # untouched pending review
+      assert_equal "isfdb", edition.field_sources["cover_image"]
+      decision = PendingDecision.where(kind: "enrichment_conflict", status: "pending").sole
+      assert_equal "goodreads", decision.payload["source"]
+      assert_includes decision.payload["fields"], "cover_image"
+    end
+
+    test "to-read is a no-op on cover when the RSS-proposed cover is byte-identical to what's already attached" do
+      work = Work.create!(title: "Children of Memory", literary_form: "novel")
+      edition = Edition.create!
+      EditionContent.create!(work: work, edition: edition)
+      EditionIdentifier.create!(edition: edition, id_type: "goodreads", value: "61030535")
+      edition.cover_image.attach(io: StringIO.new("fake-cover-bytes"), filename: "same.jpg", content_type: "image/jpeg")
+      edition.update!(field_sources: { "cover_image" => "isfdb" })
+      item = fixture_item("to_read", "61030535")
+
+      ShelfSync.sync(item, "to-read", {})
+
+      edition.reload
+      assert_equal "fake-cover-bytes", edition.cover_image.download
+      assert_equal "isfdb", edition.field_sources["cover_image"] # untouched — no reason to relabel a non-conflict
+      assert_equal 0, PendingDecision.count
     end
 
     test "currently-reading auto-creates and opens a Reading for a book with no prior history at all" do

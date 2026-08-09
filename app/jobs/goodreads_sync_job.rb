@@ -108,13 +108,13 @@ class GoodreadsSyncJob < ApplicationJob
                    .find_each { |pending_decision| notify_enrichment_conflict(pending_decision, edition) }
   end
 
-  # The bare kind ("enrichment_field_conflict"/"enrichment_edition_mismatch")
-  # told you nothing actionable on its own — no title, no idea what's
-  # actually in dispute. PendingDecision#field_diffs derives the real
-  # current-vs-proposed comparison live (payload itself is just a thin
-  # pointer — see Enrichment::FieldApplier.find_or_create_conflict) so
-  # the Discord message alone is enough to judge whether it's worth
-  # opening the console for.
+  # The bare kind ("enrichment_conflict") told you nothing actionable on
+  # its own — no title, no idea what's actually in dispute.
+  # PendingDecision#field_diffs derives the real current-vs-proposed
+  # comparison live (payload itself is just a thin pointer — see
+  # Enrichment::SourceRecorder.create_bundled_decision) so the Discord
+  # message alone is enough to judge whether it's worth opening the
+  # console for.
   def notify_enrichment_conflict(pending_decision, edition)
     title = edition.works.map(&:title).join(", ").presence || "Edition #{edition.id}"
 

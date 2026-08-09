@@ -11,11 +11,11 @@ module Enrichment
       EnrichmentRecord.create!(entity: entity, provider: provider, external_id: "1", fetched_at: Time.current, raw_payload: {}, fields: fields)
     end
 
-    test "accepting an isolated enrichment_field_conflict applies the proposed value and sets field_sources" do
+    test "accepting a single-field enrichment_conflict applies the proposed value and sets field_sources" do
       edition = Edition.create!(publisher: "St Martins Pr")
       enrichment_record!(edition, fields: { "publisher" => "HarperVoyager" })
       pending = PendingDecision.create!(
-        kind: "enrichment_field_conflict",
+        kind: "enrichment_conflict",
         payload: { "entity_type" => "Edition", "entity_id" => edition.id, "fields" => [ "publisher" ], "source" => "isfdb" }
       )
 
@@ -28,11 +28,11 @@ module Enrichment
       assert pending.resolved_at.present?
     end
 
-    test "accepting a bundled enrichment_edition_mismatch applies every field in the bundle" do
+    test "accepting a bundled enrichment_conflict applies every field in the bundle" do
       edition = Edition.create!(publisher: "St Martins Pr", publish_date: "2011")
       enrichment_record!(edition, fields: { "publisher" => "HarperVoyager (UK)", "publish_date" => "2016-12" })
       pending = PendingDecision.create!(
-        kind: "enrichment_edition_mismatch",
+        kind: "enrichment_conflict",
         payload: { "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "fields" => [ "publisher", "publish_date" ] }
       )
 
@@ -50,7 +50,7 @@ module Enrichment
       edition = Edition.create!(publisher: "St Martins Pr", publish_date: "2011")
       enrichment_record!(edition, fields: { "publisher" => "HarperVoyager (UK)", "publish_date" => "2016-12" })
       pending = PendingDecision.create!(
-        kind: "enrichment_edition_mismatch",
+        kind: "enrichment_conflict",
         payload: { "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "fields" => [ "publisher", "publish_date" ] }
       )
 
@@ -66,7 +66,7 @@ module Enrichment
     test "raises rather than silently accepting when the named source has no backing EnrichmentRecord" do
       edition = Edition.create!(publisher: "St Martins Pr")
       pending = PendingDecision.create!(
-        kind: "enrichment_field_conflict",
+        kind: "enrichment_conflict",
         payload: { "entity_type" => "Edition", "entity_id" => edition.id, "fields" => [ "publisher" ], "source" => "isfdb" }
       )
 
@@ -76,13 +76,13 @@ module Enrichment
       assert_equal "pending", pending.reload.status # never silently marked accepted
     end
 
-    test "accepting a cover field attaches the candidate to cover_image and detaches (not purges) it" do
+    test "accepting a cover field attaches the source's EnrichmentRecord cover onto the edition" do
       edition = Edition.create!
       edition.cover_image.attach(io: StringIO.new("old-bytes"), filename: "old.jpg", content_type: "image/jpeg")
-      edition.candidate_cover_image.attach(io: StringIO.new("new-bytes"), filename: "new.jpg", content_type: "image/jpeg")
-      candidate_blob_id = edition.candidate_cover_image.blob.id
+      record = enrichment_record!(edition, fields: {})
+      record.cover_image.attach(io: StringIO.new("new-bytes"), filename: "new.jpg", content_type: "image/jpeg")
       pending = PendingDecision.create!(
-        kind: "enrichment_edition_mismatch",
+        kind: "enrichment_conflict",
         payload: { "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "fields" => [ "cover_image" ] }
       )
 
@@ -90,18 +90,17 @@ module Enrichment
 
       edition.reload
       assert_equal "new-bytes", edition.cover_image.download
-      assert_not edition.candidate_cover_image.attached?
       assert_equal "isfdb", edition.field_sources["cover_image"] # now protected on a future re-enrichment pass
-      assert ActiveStorage::Blob.exists?(candidate_blob_id) # the blob itself survives — cover_image now shares it
+      assert record.reload.cover_image.attached? # the source's own copy is untouched — just shared, not moved
     end
 
-    test "leaving the cover unchecked while accepting other fields purges the candidate and leaves cover_image untouched" do
+    test "leaving the cover unchecked while accepting other fields leaves cover_image untouched" do
       edition = Edition.create!(publisher: "St Martins Pr")
-      enrichment_record!(edition, fields: { "publisher" => "HarperVoyager" })
+      record = enrichment_record!(edition, fields: { "publisher" => "HarperVoyager" })
       edition.cover_image.attach(io: StringIO.new("old-bytes"), filename: "old.jpg", content_type: "image/jpeg")
-      edition.candidate_cover_image.attach(io: StringIO.new("new-bytes"), filename: "new.jpg", content_type: "image/jpeg")
+      record.cover_image.attach(io: StringIO.new("new-bytes"), filename: "new.jpg", content_type: "image/jpeg")
       pending = PendingDecision.create!(
-        kind: "enrichment_edition_mismatch",
+        kind: "enrichment_conflict",
         payload: { "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "fields" => [ "publisher", "cover_image" ] }
       )
 
@@ -110,47 +109,30 @@ module Enrichment
       edition.reload
       assert_equal "HarperVoyager", edition.publisher
       assert_equal "old-bytes", edition.cover_image.download # untouched
-      assert_not edition.candidate_cover_image.attached? # purged, genuinely orphaned
     end
 
-    test "rejecting a bundled decision with a staged candidate cover purges it" do
+    test "rejecting a cover decision leaves the edition's cover and the source's EnrichmentRecord untouched" do
       edition = Edition.create!
-      edition.candidate_cover_image.attach(io: StringIO.new("new-bytes"), filename: "new.jpg", content_type: "image/jpeg")
+      edition.cover_image.attach(io: StringIO.new("old-bytes"), filename: "old.jpg", content_type: "image/jpeg")
+      record = enrichment_record!(edition, fields: {})
+      record.cover_image.attach(io: StringIO.new("new-bytes"), filename: "new.jpg", content_type: "image/jpeg")
       pending = PendingDecision.create!(
-        kind: "enrichment_edition_mismatch",
+        kind: "enrichment_conflict",
         payload: { "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "fields" => [ "cover_image" ] }
       )
 
       PendingDecisionResolver.reject(pending)
 
-      assert_not edition.reload.candidate_cover_image.attached?
+      assert_equal "old-bytes", edition.reload.cover_image.download
+      assert record.reload.cover_image.attached? # the source's own copy persists regardless
       assert_equal "rejected", pending.reload.status
-    end
-
-    test "rejecting an unrelated decision never touches a different pending decision's staged candidate cover" do
-      edition = Edition.create!(publisher: "St Martins Pr")
-      enrichment_record!(edition, fields: { "publisher" => "HarperVoyager" })
-      edition.candidate_cover_image.attach(io: StringIO.new("new-bytes"), filename: "new.jpg", content_type: "image/jpeg")
-      cover_pending = PendingDecision.create!(
-        kind: "enrichment_edition_mismatch",
-        payload: { "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "fields" => [ "cover_image" ] }
-      )
-      unrelated_pending = PendingDecision.create!(
-        kind: "enrichment_field_conflict",
-        payload: { "entity_type" => "Edition", "entity_id" => edition.id, "fields" => [ "publisher" ], "source" => "isfdb" }
-      )
-
-      PendingDecisionResolver.reject(unrelated_pending)
-
-      assert edition.reload.candidate_cover_image.attached? # still staged, belongs to cover_pending
-      assert_equal "pending", cover_pending.reload.status
     end
 
     test "rejecting leaves the entity untouched but resolves the decision" do
       edition = Edition.create!(publisher: "St Martins Pr")
       enrichment_record!(edition, fields: { "publisher" => "HarperVoyager" })
       pending = PendingDecision.create!(
-        kind: "enrichment_field_conflict",
+        kind: "enrichment_conflict",
         payload: { "entity_type" => "Edition", "entity_id" => edition.id, "fields" => [ "publisher" ], "source" => "isfdb" }
       )
 

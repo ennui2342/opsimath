@@ -180,7 +180,7 @@ class GoodreadsSyncJobTest < ActiveSupport::TestCase
     edition = Edition.create!(publisher: "St Martins Pr")
     EnrichmentRecord.create!(entity: edition, provider: "isfdb", external_id: "1", fetched_at: Time.current, raw_payload: {}, fields: { "publisher" => "HarperVoyager" })
     pending = PendingDecision.create!(
-      kind: "enrichment_field_conflict",
+      kind: "enrichment_conflict",
       payload: { "entity_type" => "Edition", "entity_id" => edition.id, "fields" => [ "publisher" ], "source" => "isfdb" }
     )
 

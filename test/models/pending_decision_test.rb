@@ -5,7 +5,7 @@ class PendingDecisionTest < ActiveSupport::TestCase
     edition = Edition.create!
     EnrichmentRecord.create!(entity: edition, provider: "goodreads", external_id: "1", fetched_at: 1.day.ago, raw_payload: {}, fields: { "publisher" => "Ace Books" })
     EnrichmentRecord.create!(entity: edition, provider: "isfdb", external_id: "2", fetched_at: 1.hour.ago, raw_payload: {}, fields: { "publisher" => "Ace" })
-    pending = PendingDecision.create!(kind: "enrichment_field_conflict", payload: { "entity_type" => "Edition", "entity_id" => edition.id })
+    pending = PendingDecision.create!(kind: "enrichment_conflict", payload: { "entity_type" => "Edition", "entity_id" => edition.id })
 
     candidates = pending.field_candidates(:publisher)
 
@@ -14,21 +14,10 @@ class PendingDecisionTest < ActiveSupport::TestCase
     assert_equal "Ace", candidates.find { |c| c[:provider] == "isfdb" }[:value]
   end
 
-  test "field_candidates only surfaces the latest EnrichmentRecord per provider, not every historical fetch" do
-    edition = Edition.create!
-    EnrichmentRecord.create!(entity: edition, provider: "isfdb", external_id: "1", fetched_at: 2.days.ago, raw_payload: {}, fields: { "publisher" => "Old Name" })
-    EnrichmentRecord.create!(entity: edition, provider: "isfdb", external_id: "1", fetched_at: 1.hour.ago, raw_payload: {}, fields: { "publisher" => "New Name" })
-    pending = PendingDecision.create!(kind: "enrichment_field_conflict", payload: { "entity_type" => "Edition", "entity_id" => edition.id })
-
-    candidates = pending.field_candidates(:publisher)
-
-    assert_equal [ { provider: "isfdb", value: "New Name" } ], candidates.map { |c| c.slice(:provider, :value) }
-  end
-
   test "field_candidates omits a provider with no value at all for this field" do
     edition = Edition.create!
     EnrichmentRecord.create!(entity: edition, provider: "goodreads", external_id: "1", fetched_at: Time.current, raw_payload: {}, fields: {})
-    pending = PendingDecision.create!(kind: "enrichment_field_conflict", payload: { "entity_type" => "Edition", "entity_id" => edition.id })
+    pending = PendingDecision.create!(kind: "enrichment_conflict", payload: { "entity_type" => "Edition", "entity_id" => edition.id })
 
     assert_equal [], pending.field_candidates(:publisher)
   end
@@ -49,7 +38,7 @@ class PendingDecisionTest < ActiveSupport::TestCase
     edition = Edition.create!(publisher: "St Martins Pr")
     EnrichmentRecord.create!(entity: edition, provider: "isfdb", external_id: "1", fetched_at: Time.current, raw_payload: {}, fields: { "publisher" => "HarperVoyager" })
     pending = PendingDecision.create!(
-      kind: "enrichment_field_conflict",
+      kind: "enrichment_conflict",
       payload: { "entity_type" => "Edition", "entity_id" => edition.id, "fields" => [ "publisher" ], "source" => "isfdb" }
     )
 
@@ -64,7 +53,7 @@ class PendingDecisionTest < ActiveSupport::TestCase
     edition = Edition.create!(publisher: "St Martins Pr")
     EnrichmentRecord.create!(entity: edition, provider: "isfdb", external_id: "1", fetched_at: Time.current, raw_payload: {}, fields: { "publisher" => "HarperVoyager" })
     pending = PendingDecision.create!(
-      kind: "enrichment_field_conflict",
+      kind: "enrichment_conflict",
       payload: { "entity_type" => "Edition", "entity_id" => edition.id, "fields" => [ "publisher" ], "source" => "isfdb" }
     )
 
@@ -76,7 +65,7 @@ class PendingDecisionTest < ActiveSupport::TestCase
   test "field_diffs special-cases cover_image with no EnrichmentRecord lookup — it's an attachment, not a column" do
     edition = Edition.create!
     pending = PendingDecision.create!(
-      kind: "enrichment_edition_mismatch",
+      kind: "enrichment_conflict",
       payload: { "entity_type" => "Edition", "entity_id" => edition.id, "fields" => [ "cover_image" ], "source" => "isfdb" }
     )
 
@@ -89,10 +78,73 @@ class PendingDecisionTest < ActiveSupport::TestCase
   test "field_diffs raises rather than silently returning nothing when the named source has no backing EnrichmentRecord" do
     edition = Edition.create!(publisher: "St Martins Pr")
     pending = PendingDecision.create!(
-      kind: "enrichment_field_conflict",
+      kind: "enrichment_conflict",
       payload: { "entity_type" => "Edition", "entity_id" => edition.id, "fields" => [ "publisher" ], "source" => "isfdb" }
     )
 
     assert_raises(RuntimeError) { pending.field_diffs }
+  end
+
+  test "comparison_cards builds an edition card, a card per other provider, and the proposing card" do
+    edition = Edition.create!(publisher: "Orbit", publish_date: "2001", language: "eng", page_count: 502, field_sources: { "publisher" => "goodreads" })
+    edition.cover_image.attach(io: StringIO.new("current-bytes"), filename: "current.jpg", content_type: "image/jpeg")
+    EnrichmentRecord.create!(entity: edition, provider: "goodreads", external_id: "1", fetched_at: 1.day.ago, raw_payload: {}, fields: { "publisher" => "Orbit", "format_detail" => nil })
+    isfdb = EnrichmentRecord.create!(entity: edition, provider: "isfdb", external_id: "2", fetched_at: 1.hour.ago, raw_payload: {}, fields: { "publisher" => "Orbit / Little, Brown UK", "publish_date" => "2005", "language" => "eng" })
+    pending = PendingDecision.create!(
+      kind: "enrichment_conflict",
+      payload: { "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "fields" => [ "publisher", "publish_date" ] }
+    )
+
+    cards = pending.comparison_cards
+
+    assert_equal "Edition · in catalog", cards[:edition].label
+    assert_equal "Orbit", cards[:edition].fields.find { |f| f.name == "publisher" }.value
+    assert_equal "goodreads", cards[:edition].fields.find { |f| f.name == "publisher" }.chip
+    assert_equal edition.cover_image.blob, cards[:edition].cover.blob
+
+    other = cards[:others].sole
+    assert_equal "Goodreads · on file", other.label
+    assert_equal "Orbit", other.fields.find { |f| f.name == "publisher" }.value
+    assert_nil other.fields.find { |f| f.name == "format_detail" }.value
+    assert_not other.fields.any? { |f| f.selectable }
+
+    proposed = cards[:proposed]
+    assert_equal "Isfdb · proposed", proposed.label
+    publisher_row = proposed.fields.find { |f| f.name == "publisher" }
+    assert publisher_row.selectable
+    assert_equal "Orbit / Little, Brown UK", publisher_row.value
+    language_row = proposed.fields.find { |f| f.name == "language" }
+    assert_not language_row.selectable
+  end
+
+  test "comparison_cards' proposed card offers the cover checkbox when the source has one and it's in payload fields" do
+    edition = Edition.create!
+    record = EnrichmentRecord.create!(entity: edition, provider: "isfdb", external_id: "1", fetched_at: Time.current, raw_payload: {}, fields: {})
+    record.cover_image.attach(io: StringIO.new("new-bytes"), filename: "new.jpg", content_type: "image/jpeg")
+    pending = PendingDecision.create!(
+      kind: "enrichment_conflict",
+      payload: { "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "fields" => [ "cover_image" ] }
+    )
+
+    proposed = pending.comparison_cards[:proposed]
+
+    assert proposed.cover_selectable
+    assert_equal "new-bytes", proposed.cover.download
+  end
+
+  test "comparison_cards is nil when the entity isn't an Edition" do
+    pending = PendingDecision.create!(kind: "possible_duplicate_work", payload: { "goodreads_book_id" => "1" })
+
+    assert_nil pending.comparison_cards
+  end
+
+  test "comparison_cards is nil when the named source has no backing EnrichmentRecord" do
+    edition = Edition.create!(publisher: "St Martins Pr")
+    pending = PendingDecision.create!(
+      kind: "enrichment_conflict",
+      payload: { "entity_type" => "Edition", "entity_id" => edition.id, "fields" => [ "publisher" ], "source" => "isfdb" }
+    )
+
+    assert_nil pending.comparison_cards
   end
 end

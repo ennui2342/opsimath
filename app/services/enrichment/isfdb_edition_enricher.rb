@@ -1,6 +1,3 @@
-require "net/http"
-require "digest"
-
 module Enrichment
   # Enriches one Edition from isfdb-adapter's /isbn/{isbn} endpoint —
   # deliberately edition-scoped, not work-scoped: that endpoint returns
@@ -35,14 +32,6 @@ module Enrichment
       "digital audio download" => [ "audiobook", nil ],
       "audio mp3 cd" => [ "audiobook", nil ]
     }.freeze
-
-    # field_sources["cover_image"] values that mean "not yet reviewed" —
-    # nil (never touched) or "goodreads" (ShelfSync's own opportunistic
-    # fill, itself unreviewed) — so a freshly-proposed ISFDB cover is a
-    # plain fill rather than a conflict. Only a cover already backed by
-    # "isfdb" (a prior confirmed ISFDB match) is worth protecting with a
-    # comparison — see plan_cover.
-    FILL_ELIGIBLE_COVER_SOURCES = [ nil, "goodreads" ].freeze
 
     def self.enrich(edition, client: Isfdb::Client.new)
       new(edition, client: client).enrich
@@ -90,44 +79,67 @@ module Enrichment
     # hold back — this is "what ISFDB's fetch literally said," captured
     # regardless of the eventual accept/reject outcome, so a standing
     # side-by-side comparison against another source's EnrichmentRecord is
-    # always possible even with no active PendingDecision.
+    # always possible even with no active PendingDecision. Downloads and
+    # attaches the proposed cover to this same record (see
+    # EnrichmentRecord#attach_cover_from_url) so plan_cover below can
+    # compare/stage against it without a second download.
+    #
+    # One EnrichmentRecord per (edition, "isfdb") — found and updated in
+    # place on a re-enrich, not created fresh each time (same policy as
+    # Enrichment::SourceRecorder.record; ISFDB stays a direct caller of
+    # EnrichmentRecord here rather than going through SourceRecorder.record
+    # itself since it needs the record back before apply_fields runs, and
+    # its own per-field plans — not a generic fields hash — are what
+    # actually get integrated).
     def record_enrichment(data)
       format, format_detail = FORMAT_BY_PTYPE[data["binding"].to_s.downcase]
+      fields = {
+        publisher: data["publisher"],
+        language: data["language"],
+        page_count: data["page_count"],
+        publish_date: data["publish_date"],
+        format: format,
+        format_detail: format_detail,
+        cover_image: data["cover_url"]
+      }
 
-      EnrichmentRecord.create!(
-        entity: @edition,
-        provider: "isfdb",
-        external_id: data["_isfdb_pub_id"].to_s,
-        fetched_at: Time.current,
-        raw_payload: data,
-        fields: {
-          publisher: data["publisher"],
-          language: data["language"],
-          page_count: data["page_count"],
-          publish_date: data["publish_date"],
-          format: format,
-          format_detail: format_detail,
-          cover_image: data["cover_url"]
-        }
+      @enrichment_record = EnrichmentRecord.find_or_initialize_by(entity: @edition, provider: "isfdb")
+      @enrichment_record.update!(
+        external_id: data["_isfdb_pub_id"].to_s, fetched_at: Time.current, raw_payload: data,
+        fields: @enrichment_record.fields.merge(fields.stringify_keys)
       )
+      @enrichment_record.attach_cover_from_url(data["cover_url"])
+      @enrichment_record
     end
 
-    # Plans every candidate field before committing any of them — this is
-    # what lets us tell "one field looks off" (a normal, isolated data
-    # improvement or dispute) apart from "several fields disagree at
-    # once" (isfdb-adapter's own documented caveat: one ISBN can be reused
-    # across distinct print runs, so a multi-field disagreement is real
-    # evidence the whole match describes a *different specific printing*,
-    # not several independent facts to adjudicate one at a time).
+    # Memoized so a plain `enrich` call (record_enrichment already ran
+    # moments before) never re-queries — but reprocess can also be called
+    # standalone via the class method, with no record_enrichment call in
+    # this same instance's lifetime, so this falls back to the isfdb
+    # EnrichmentRecord already on file for cases like that.
+    def enrichment_record
+      @enrichment_record ||= EnrichmentRecord.latest(entity: @edition, provider: "isfdb")
+    end
+
+    # Plans every candidate field before committing any of them. A blank
+    # destination field isn't proof this fetch is safe to trust — the ISBN
+    # could be describing a different specific printing entirely (isfdb-
+    # adapter's own documented caveat: one ISBN can be reused across
+    # distinct print runs), and that's exactly the kind of thing a human
+    # looking at the full comparison (cover included) can judge for
+    # themselves but this code can't. So the instant *any* field from this
+    # fetch is a genuine :conflict, nothing from the fetch commits
+    # silently — every field it proposed (fills and refinements too) goes
+    # into one bundled review decision, offered piecemeal (checked by
+    # default — accepting all of them reproduces today's auto-fill
+    # outcome, but the reviewer can now see the whole record first and
+    # uncheck anything that looks like it belongs to a different edition
+    # instead of trusting it sight unseen). Mark, 2026-08-08.
     #
-    # Plain fills never get held back regardless — they can't overwrite
-    # or discard anything, whichever printing the data actually describes.
-    # Only :refine/:conflict plans (the ones requiring an actual judgment
-    # call) count toward that signal: with at most one, trust it as
-    # before (apply an isolated refinement, or raise one normal
-    # single-field PendingDecision for an isolated dispute); with two or
-    # more, don't commit any of them individually — bundle the whole set
-    # into one "review this edition" decision instead.
+    # A lone :refine carries no such risk (it's the same fact restated
+    # more precisely, not a disagreement), so with no real :conflict
+    # present, fills and refinements alike still commit immediately, same
+    # as before.
     def apply_fields(data)
       plans = [
         plan_publisher(data["publisher"]),
@@ -135,47 +147,10 @@ module Enrichment
         FieldApplier.plan(@edition, :page_count, data["page_count"], "isfdb"),
         plan_publish_date(data["publish_date"]),
         *plan_format(data["binding"]),
-        plan_cover(data["cover_url"])
+        plan_cover
       ]
 
-      plans.select { |p| p.action == :fill }.each { |p| commit_plan(p) }
-
-      judgment_plans = plans.select { |p| %i[refine conflict].include?(p.action) }
-      conflicts = judgment_plans.select { |p| p.action == :conflict }
-      cover_conflict = judgment_plans.any? { |p| p.field == :cover_image && p.action == :conflict }
-
-      # A genuine conflict alongside *anything* else needing judgment
-      # (another conflict, or even an otherwise-safe refinement) is what
-      # bundles — two independent refinements with no real disagreement
-      # between them stay independent, since neither implies the other
-      # might be wrong. A cover conflict always bundles on its own too,
-      # even alone: "does this look like the right edition" (judged
-      # primarily by the cover) is the common case this exists for, not
-      # a corner case allowed to fall through to the isolated
-      # enrichment_field_conflict path — which can't represent an
-      # attachment in a JSON payload at all.
-      if cover_conflict || (conflicts.any? && judgment_plans.size > 1)
-        create_edition_mismatch(judgment_plans)
-      else
-        judgment_plans.each { |p| commit_plan(p) }
-      end
-    end
-
-    def commit_plan(plan)
-      plan.field == :cover_image ? commit_cover_plan(plan) : FieldApplier.commit(plan)
-    end
-
-    # :fill defers the actual attach to here, same as every other
-    # field's fill path. :conflict already staged the candidate during
-    # planning (see plan_cover) — a bundled conflict plan never reaches
-    # commit_plan at all (bundled fields go straight to
-    # create_edition_mismatch instead), so the candidate has to be
-    # staged at plan time, not here.
-    def commit_cover_plan(plan)
-      return unless plan.action == :fill
-
-      attach_bytes(@edition.cover_image, plan.value)
-      @edition.update!(field_sources: @edition.field_sources.merge("cover_image" => "isfdb"))
+      SourceRecorder.integrate(plans, entity: @edition, provider: "isfdb")
     end
 
     # Confirmed against real PendingDecision data: of 521 publisher
@@ -249,103 +224,23 @@ module Enrichment
       plans
     end
 
-    # The "review this edition" bundle — a different kind from
-    # enrichment_field_conflict on purpose (per DATA_MODEL.md's
-    # PendingDecision.kind being designed to extend without a new
-    # mechanism): reviewing "does this ISBN match the right printing at
-    # all" is a different question from "which value is correct for this
-    # one field," and deserves its own single decision rather than
-    # scattering across several field-level ones with no visible link
-    # between them.
-    # Find-or-create (not a plain create) so re-enriching an edition that
-    # already has an unresolved mismatch doesn't silently overwrite a
-    # staged candidate cover (has_one_attached — a second stage would
-    # just replace the first) and spawn a second decision alongside it.
-    def create_edition_mismatch(judgment_plans)
-      fields = judgment_plans.map { |p| p.field.to_s }
-
-      existing = PendingDecision.where(kind: "enrichment_edition_mismatch", status: "pending")
-                                 .where("payload @> ?", { entity_type: @edition.class.name, entity_id: @edition.id }.to_json)
-                                 .first
-      return existing if existing
-
-      PendingDecision.create!(
-        kind: "enrichment_edition_mismatch",
-        payload: {
-          "entity_type" => @edition.class.name,
-          "entity_id" => @edition.id,
-          "source" => "isfdb",
-          "fields" => fields
-        }
-      )
-    end
-
     def backfill_isfdb_identifier(data)
       return if data["_isfdb_pub_id"].blank?
 
       EditionIdentifier.find_or_create_by!(edition: @edition, id_type: "isfdb", value: data["_isfdb_pub_id"].to_s)
     end
 
-    # Downloads once, unconditionally — unlike the old attach_cover,
-    # which returned before even reading cover_url once a cover already
-    # existed, silently discarding whatever ISFDB proposed. The whole
-    # point here is comparing against what's already attached, not just
-    # filling a blank. Downloaded and kept, not hotlinked or deferred to
-    # review time (DATA_MODEL.md's Edition.cover_image note — an ISFDB
-    # cover URL can and does go stale over time, and a PendingDecision
-    # can sit in the queue for a while before a human reviews it).
-    # Failure here is logged, not raised: a missing cover shouldn't block
-    # the fields above from being applied.
-    def plan_cover(url)
-      return Plan.new(action: :skipped) if url.blank?
-
-      uri = URI.parse(url)
-      return Plan.new(action: :skipped) unless %w[http https].include?(uri.scheme)
-
-      downloaded = download_cover(uri)
-      return Plan.new(action: :skipped) unless downloaded
-
-      # Only an already ISFDB-confirmed cover is worth protecting with a
-      # comparison. Anything else attached (nil field_sources — never
-      # touched; or "goodreads" — ShelfSync's own opportunistic fill from
-      # the RSS feed's book_image_url) is unreviewed and automated, same
-      # as a genuinely blank cover: comparing two independently-sourced
-      # cover PHOTOS byte-for-byte and treating a mismatch as a real
-      # edition dispute doesn't work the way it does for text fields —
-      # two different providers' scans of the same physical cover differ
-      # trivially and near-universally, carrying no signal about whether
-      # the ISBN match itself is right. Caught live: every freshly
-      # RSS-auto-created edition with both a Goodreads cover and a
-      # successful ISFDB match was spuriously flagged as a mismatch
-      # before this fix, purely because the two photos didn't match
-      # byte-for-byte.
-      if !FILL_ELIGIBLE_COVER_SOURCES.include?(@edition.field_sources["cover_image"])
-        if downloaded[:checksum] == @edition.cover_image.blob.checksum
-          Plan.new(action: :unchanged)
-        else
-          attach_bytes(@edition.candidate_cover_image, downloaded)
-          Plan.new(record: @edition, field: :cover_image, action: :conflict, source: "isfdb")
-        end
-      else
-        Plan.new(record: @edition, field: :cover_image, action: :fill, value: downloaded, source: "isfdb")
-      end
-    rescue StandardError => e
-      Rails.logger.warn("isfdb cover download failed for edition #{@edition.id}: #{e.message}")
-      Plan.new(action: :skipped)
-    end
-
-    def download_cover(uri)
-      response = Net::HTTP.get_response(uri)
-      return nil unless response.is_a?(Net::HTTPSuccess)
-
-      {
-        body: response.body, filename: File.basename(uri.path).presence || "cover.jpg",
-        content_type: response.content_type || "image/jpeg", checksum: Digest::MD5.base64digest(response.body)
-      }
-    end
-
-    def attach_bytes(attachment, downloaded)
-      attachment.attach(io: StringIO.new(downloaded[:body]), filename: downloaded[:filename], content_type: downloaded[:content_type])
+    # record_enrichment already downloaded the proposed cover onto its own
+    # EnrichmentRecord (kept, not hotlinked or deferred to review time:
+    # DATA_MODEL.md's Edition.cover_image note — an ISFDB cover URL can
+    # and does go stale over time, and a PendingDecision can sit in the
+    # queue for a while before a human reviews it), so there's nothing
+    # left to stage here — accepting later just reuses that same blob
+    # (see PendingDecisionResolver#apply_cover). The actual fill/conflict
+    # decision is shared with every other cover-proposing source — see
+    # CoverApplier.
+    def plan_cover
+      CoverApplier.plan(@edition, enrichment_record&.cover_image, "isfdb")
     end
   end
 end

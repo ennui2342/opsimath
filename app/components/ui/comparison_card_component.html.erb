@@ -1,0 +1,62 @@
+<div class="flex flex-col overflow-hidden rounded-lg border bg-white dark:bg-gray-900 <%= @card.proposed ? "border-conflict-800 ring-1 ring-conflict-800 dark:border-conflict-200 dark:ring-conflict-200" : "border-gray-200 dark:border-gray-700" %>">
+  <div class="flex items-baseline justify-between gap-2 border-b px-4 py-3 <%= @card.proposed ? "border-conflict-800 bg-conflict-100 dark:border-conflict-200 dark:bg-conflict-900" : "border-gray-200 dark:border-gray-700" %>">
+    <span class="text-xs font-bold tracking-wide uppercase <%= @card.proposed ? "text-conflict-800 dark:text-conflict-200" : "text-gray-500 dark:text-gray-400" %>">
+      <%= @card.label %>
+    </span>
+    <% if @card.meta %>
+      <span class="text-xs whitespace-nowrap text-gray-400 dark:text-gray-500"><%= @card.meta.to_date.iso8601 %></span>
+    <% end %>
+  </div>
+
+  <% if @card.cover&.attached? %>
+    <div class="flex flex-col items-center gap-2 px-4 pt-4">
+      <%= image_tag @card.cover.variant(resize_to_limit: [ 108, 162 ]),
+            class: "rounded shadow #{"ring-2 ring-conflict-800 dark:ring-conflict-200" if @card.cover_selectable}", alt: "" %>
+      <% if @card.cover_selectable %>
+        <label class="flex items-center gap-1.5 text-xs font-semibold text-conflict-800 dark:text-conflict-200">
+          <%= check_box_tag "fields[]", "cover_image", true, id: "field_cover_image", checked: true, class: "h-4 w-4 rounded border-gray-300" %>
+          Apply this cover
+        </label>
+      <% end %>
+    </div>
+  <% elsif @card.show_empty_cover %>
+    <div class="flex justify-center px-4 pt-4">
+      <div class="flex h-40 w-28 items-center justify-center rounded border border-dashed border-gray-300 text-center text-xs text-gray-400 dark:border-gray-600 dark:text-gray-500">
+        No cover
+      </div>
+    </div>
+  <% end %>
+
+  <div class="flex flex-1 flex-col gap-2 px-4 py-3">
+    <% @card.fields.each do |row| %>
+      <div class="flex items-start gap-2 <%= "-mx-2 rounded-md border border-conflict-800 bg-conflict-100 px-2 py-1.5 dark:border-conflict-200 dark:bg-conflict-900" if row.selectable %>">
+        <% if row.selectable %>
+          <%= check_box_tag "fields[]", row.name, true, id: "field_#{row.name}", checked: true, class: "mt-0.5 h-4 w-4 flex-shrink-0 rounded border-gray-300" %>
+        <% end %>
+        <div class="min-w-0 flex-1">
+          <span class="block text-[10px] font-semibold tracking-wide text-gray-400 uppercase dark:text-gray-500"><%= row.name.to_s.humanize %></span>
+          <span class="block text-sm <%= row.selectable ? "font-semibold text-conflict-800 dark:text-conflict-200" : "text-gray-700 dark:text-gray-300" %>">
+            <% if row.value.blank? %>
+              <span class="text-gray-400 italic dark:text-gray-500">(blank)</span>
+            <% else %>
+              <%= row.value %>
+            <% end %>
+            <%= render(Ui::BadgeComponent.new(text: row.chip, variant: :default)) if row.chip.present? %>
+          </span>
+        </div>
+      </div>
+    <% end %>
+  </div>
+
+  <% if @card.identifiers.present? %>
+    <div class="flex flex-wrap gap-x-3 gap-y-1 border-t border-dashed border-gray-200 px-4 py-3 font-mono text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+      <% @card.identifiers.each do |label, value| %>
+        <span><b class="font-semibold text-gray-400 dark:text-gray-500"><%= label %></b> <%= value %></span>
+      <% end %>
+    </div>
+  <% end %>
+
+  <% if @card.info_note.present? %>
+    <p class="px-4 pb-3 text-xs text-gray-400 dark:text-gray-500"><%= @card.info_note %></p>
+  <% end %>
+</div>

@@ -21,12 +21,6 @@ class Edition < ApplicationRecord
   has_many :variants, class_name: "Edition", foreign_key: :variant_of_edition_id, inverse_of: :variant_of_edition, dependent: :nullify
 
   has_one_attached :cover_image
-  # A staged ISFDB-proposed cover awaiting review, when one already
-  # exists — see Enrichment::IsfdbEditionEnricher#plan_cover. No
-  # migration needed: Active Storage's join table is already polymorphic
-  # on record_type/record_id/name, so a second named attachment slot
-  # costs nothing.
-  has_one_attached :candidate_cover_image
 
   has_many :edition_contents, dependent: :destroy
   has_many :works, through: :edition_contents

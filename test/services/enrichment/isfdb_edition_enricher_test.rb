@@ -72,6 +72,10 @@ module Enrichment
       assert_equal "paperback", record.fields["format"]
       assert_equal "mass_market", record.fields["format_detail"]
       assert_equal "https://isfdb.org/covers/dune.jpg", record.fields["cover_image"]
+      # The EnrichmentRecord holds its own downloaded copy of the cover,
+      # independent of whatever the Edition itself ends up with.
+      assert record.cover_image.attached?
+      assert_equal "fake-jpeg-bytes", record.cover_image.download
 
       assert_equal "Ace Books", @edition.publisher
       assert_equal "eng", @edition.language
@@ -102,15 +106,19 @@ module Enrichment
       assert @edition.edition_identifiers.exists?(id_type: "isfdb", value: "426303")
     end
 
-    test "a genuinely conflicting non-blank field creates a PendingDecision instead of overwriting" do
-      @edition.update!(publisher: "Berkley Windhover")
+    test "a genuinely conflicting non-blank field bundles the whole fetch into an edition mismatch, holding back even the fills" do
+      @edition.update!(publisher: "Berkley Windhover") # language/page_count/publish_date/etc. all still blank
       stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
 
       IsfdbEditionEnricher.enrich(@edition, client: @client)
+      @edition.reload
 
-      assert_equal "Berkley Windhover", @edition.reload.publisher
-      assert PendingDecision.exists?(kind: "enrichment_field_conflict")
+      assert_equal "Berkley Windhover", @edition.publisher # the conflict, untouched
+      assert_nil @edition.language # a blank field isn't proof this fetch is safe — held back too
+
+      decision = PendingDecision.where(kind: "enrichment_conflict").sole
+      assert_equal %w[publisher language page_count publish_date format_detail cover_image], decision.payload["fields"]
     end
 
     test "a generic-suffix publisher variant is merged toward the more complete form, real example" do
@@ -157,18 +165,24 @@ module Enrichment
 
       assert_equal "Berkley Windhover", @edition.publisher # untouched
       assert_equal "1978", @edition.publish_date # untouched
-      assert_equal 0, PendingDecision.where(kind: "enrichment_field_conflict").count
 
-      decision = PendingDecision.where(kind: "enrichment_edition_mismatch").sole
+      decision = PendingDecision.where(kind: "enrichment_conflict").sole
       assert_equal "Edition", decision.payload["entity_type"]
       assert_equal @edition.id, decision.payload["entity_id"]
-      assert_equal %w[publisher publish_date], decision.payload["fields"]
+      # language/page_count/format_detail/cover_image all ride along too,
+      # even though only publisher and publish_date actually disagree —
+      # once any field's a genuine conflict, the whole fetch is held back
+      # together rather than letting the "safe-looking" blanks fill
+      # silently (see IsfdbEditionEnricher#apply_fields).
+      assert_equal %w[publisher language page_count publish_date format_detail cover_image], decision.payload["fields"]
 
       diffs = decision.field_diffs.index_by { |d| d[:field] }
       assert_equal "Berkley Windhover", diffs["publisher"][:current]
       assert_equal "Ace Books", diffs["publisher"][:proposed]
       assert_equal "1978", diffs["publish_date"][:current]
       assert_equal "1979-06", diffs["publish_date"][:proposed]
+      assert_nil diffs["language"][:current]
+      assert_equal "eng", diffs["language"][:proposed]
 
       # The EnrichmentRecord captures what isfdb literally proposed
       # regardless of the bundle being held back from apply_fields.
@@ -192,11 +206,15 @@ module Enrichment
 
       assert_equal "Tor", @edition.publisher # NOT merged, even though it looked safe in isolation
       assert_equal "1978", @edition.publish_date
-      assert PendingDecision.exists?(kind: "enrichment_edition_mismatch")
+      assert PendingDecision.exists?(kind: "enrichment_conflict")
     end
 
-    test "one genuine conflict alongside an unrelated blank fill still applies the fill and flags only the conflict normally" do
-      @edition.update!(publisher: "Berkley Windhover") # language and publish_date left blank
+    test "a would-be-safe blank fill is held back too when it co-occurs with a genuine conflict on the same edition" do
+      # language/page_count/publish_date would normally auto-fill in
+      # isolation (the destination is blank) — but a blank field isn't
+      # proof this fetch describes the same printing, so once publisher
+      # genuinely conflicts, none of them are trusted silently either.
+      @edition.update!(publisher: "Berkley Windhover") # language/page_count/publish_date left blank
       stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.merge(publisher: "Ace Books").to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
 
@@ -204,10 +222,12 @@ module Enrichment
       @edition.reload
 
       assert_equal "Berkley Windhover", @edition.publisher # the one real conflict, untouched
-      assert_equal "eng", @edition.language # unrelated fill still applies
-      assert_equal "2010", @edition.publish_date # unrelated fill still applies
-      assert_equal 0, PendingDecision.where(kind: "enrichment_edition_mismatch").count
-      assert PendingDecision.exists?(kind: "enrichment_field_conflict", status: "pending")
+      assert_nil @edition.language # NOT applied — held back alongside the conflict
+      assert_nil @edition.publish_date # NOT applied — held back alongside the conflict
+
+      decision = PendingDecision.where(kind: "enrichment_conflict", status: "pending").sole
+      assert_includes decision.payload["fields"], "language"
+      assert_includes decision.payload["fields"], "publish_date"
     end
 
     test "a cover download failure doesn't block the other fields from applying" do
@@ -231,11 +251,16 @@ module Enrichment
       @edition.reload
 
       assert_equal "old-cover-bytes", @edition.cover_image.download # untouched pending review
-      assert @edition.candidate_cover_image.attached?
-      assert_equal "new-cover-bytes-from-isfdb", @edition.candidate_cover_image.download
+      # isfdb's own proposal lives on its EnrichmentRecord regardless —
+      # no separate staging slot needed to compare/accept it later.
+      record = EnrichmentRecord.sole
+      assert_equal "new-cover-bytes-from-isfdb", record.cover_image.download
 
-      decision = PendingDecision.where(kind: "enrichment_edition_mismatch").sole
-      assert_equal [ "cover_image" ], decision.payload["fields"]
+      decision = PendingDecision.where(kind: "enrichment_conflict").sole
+      # publisher/language/page_count/publish_date/format_detail ride
+      # along too — a cover conflict means the whole match is in
+      # question, so even their blank-destination fills are held back.
+      assert_equal %w[publisher language page_count publish_date format_detail cover_image], decision.payload["fields"]
     end
 
     test "a cover that's byte-identical to the one already attached is a no-op, not noise" do
@@ -247,19 +272,16 @@ module Enrichment
       IsfdbEditionEnricher.enrich(@edition, client: @client)
       @edition.reload
 
-      assert_not @edition.candidate_cover_image.attached?
+      assert_equal "same-bytes", @edition.cover_image.download # unchanged
       assert_equal 0, PendingDecision.count
     end
 
-    test "a Goodreads-sourced cover is silently replaced, not flagged as a conflict — caught live in production" do
-      # Real regression: ShelfSync's own opportunistic cover fill from
-      # the RSS feed made every freshly auto-created edition with both a
-      # Goodreads cover and a successful ISFDB match spuriously flag as
-      # an enrichment_edition_mismatch, purely because two independently
-      # sourced cover photos don't match byte-for-byte. A Goodreads
-      # cover is itself unreviewed and automated — same trust level as
-      # blank, not something ISFDB's own cover needs to be checked
-      # against.
+    test "a Goodreads-sourced cover that genuinely differs from ISFDB's is a real conflict, not silently replaced" do
+      # Policy simplified deliberately (Mark, 2026-08-08): no per-source
+      # trust hierarchy — a populated cover always goes to review on any
+      # byte difference, regardless of which two sources are involved.
+      # Expected to raise real conflict volume until a genuine image
+      # similarity check exists; that's a follow-up, not a regression.
       @edition.cover_image.attach(io: StringIO.new("goodreads-cover-bytes"), filename: "gr.jpg", content_type: "image/jpeg")
       @edition.update!(field_sources: { "cover_image" => "goodreads" })
       stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.to_json)
@@ -268,10 +290,10 @@ module Enrichment
       IsfdbEditionEnricher.enrich(@edition, client: @client)
       @edition.reload
 
-      assert_equal "new-cover-bytes-from-isfdb", @edition.cover_image.download
-      assert_not @edition.candidate_cover_image.attached?
-      assert_equal "isfdb", @edition.field_sources["cover_image"]
-      assert_equal 0, PendingDecision.count
+      assert_equal "goodreads-cover-bytes", @edition.cover_image.download # untouched pending review
+      assert_equal "goodreads", @edition.field_sources["cover_image"]
+      decision = PendingDecision.where(kind: "enrichment_conflict").sole
+      assert_includes decision.payload["fields"], "cover_image"
     end
 
     test "a cover conflict co-occurring with a real field conflict bundles into one mismatch with both entries" do
@@ -285,10 +307,9 @@ module Enrichment
       @edition.reload
 
       assert_equal "Berkley Windhover", @edition.publisher # untouched
-      assert @edition.candidate_cover_image.attached?
 
-      decision = PendingDecision.where(kind: "enrichment_edition_mismatch").sole
-      assert_equal %w[publisher cover_image].sort, decision.payload["fields"].sort
+      decision = PendingDecision.where(kind: "enrichment_conflict").sole
+      assert_equal %w[publisher language page_count publish_date format_detail cover_image], decision.payload["fields"]
     end
 
     test "re-enriching an edition with an already-unresolved edition mismatch reuses the decision instead of spawning a second one" do
@@ -299,7 +320,7 @@ module Enrichment
       IsfdbEditionEnricher.enrich(@edition, client: @client)
       IsfdbEditionEnricher.enrich(@edition, client: @client)
 
-      assert_equal 1, PendingDecision.where(kind: "enrichment_edition_mismatch").count
+      assert_equal 1, PendingDecision.where(kind: "enrichment_conflict").count
     end
 
     test "a more precise publish_date from isfdb is applied as a refinement, not flagged as a conflict" do
@@ -311,7 +332,7 @@ module Enrichment
 
       assert_equal "2010-06", @edition.reload.publish_date
       assert_equal "isfdb", @edition.field_sources["publish_date"]
-      assert_equal 0, PendingDecision.where(kind: "enrichment_field_conflict").where("payload @> ?", { fields: [ "publish_date" ] }.to_json).count
+      assert_equal 0, PendingDecision.count
     end
 
     test "a less precise publish_date from isfdb is left alone — we already know more" do
@@ -344,8 +365,8 @@ module Enrichment
       IsfdbEditionEnricher.enrich(@edition, client: @client)
 
       assert_equal "2011", @edition.reload.publish_date # untouched
-      decision = PendingDecision.where(kind: "enrichment_field_conflict").where("payload @> ?", { fields: [ "publish_date" ] }.to_json).sole
-      diff = decision.field_diffs.sole
+      decision = PendingDecision.where(kind: "enrichment_conflict").where("payload @> ?", { fields: [ "publish_date" ] }.to_json).sole
+      diff = decision.field_diffs.find { |d| d[:field] == "publish_date" }
       assert_equal "2011", diff[:current]
       assert_equal "2010", diff[:proposed]
     end

@@ -22,7 +22,7 @@ namespace :goodreads do
     puts counts
   end
 
-  desc "Wipe all book/reading/review/enrichment data and rebuild it from source (CSV import + Goodreads sync + ISFDB enrichment). Never run automatically — requires CONFIRM=yes."
+  desc "Wipe all book/reading/review/enrichment data and rebuild it from source (CSV import + Goodreads sync + ISFDB enrichment). Never run automatically — requires CONFIRM=yes. Pass SKIP_SYNC=yes to omit the Goodreads RSS sync step (CSV import + ISFDB enrichment only — e.g. for a restore-point dump that shouldn't carry any RSS-sourced data)."
   task rebuild: :environment do
     abort "Refusing to run without CONFIRM=yes" unless ENV["CONFIRM"] == "yes"
 
@@ -34,7 +34,7 @@ namespace :goodreads do
     end
 
     Rake::Task["goodreads:import"].invoke # also reseeds Genre/Subject (db/seeds.rb) — same as every normal import run
-    Rake::Task["goodreads:sync"].invoke # GoodreadsSyncState is wiped too, so this is a genuine first-ever full backfill
+    Rake::Task["goodreads:sync"].invoke unless ENV["SKIP_SYNC"] == "yes" # GoodreadsSyncState is wiped too, so this is a genuine first-ever full backfill
     Rake::Task["isfdb:enrich_editions"].invoke
   end
 end

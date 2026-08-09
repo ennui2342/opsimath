@@ -1,19 +1,21 @@
 module Enrichment
   # Applies (accept) or discards (reject) a PendingDecision — the first
   # real code path for the "manual edit"/human-review half of
-  # DATA_MODEL.md's EnrichmentRecord policy (Enrichment::FieldApplier
+  # DATA_MODEL.md's EnrichmentRecord policy (Enrichment::SourceRecorder
   # only ever *creates* these; nothing resolved them until now).
   #
   # Two families of kind understand what accept means:
-  # - enrichment_field_conflict / enrichment_edition_mismatch: apply the
-  #   selected proposed field values (all of them, by default — see
-  #   `selected_fields`) onto the Edition entity, via
-  #   PendingDecision#field_diffs (the same display-shaped view the
-  #   review-queue UI renders from — a bundled mismatch's several fields
-  #   and an isolated conflict's one both arrive here identically
-  #   shaped). cover_image is a field_diffs entry too, but can't go
-  #   through a plain record.update! (it's an Active Storage attachment,
-  #   not a column), so it gets its own branch.
+  # - enrichment_conflict: apply the selected proposed field values (all
+  #   of them, by default — see `selected_fields`) onto the Edition
+  #   entity, via PendingDecision#field_diffs (the same display-shaped
+  #   view the review-queue UI renders from — a bundle of several fields
+  #   and a single field both arrive here identically shaped, since
+  #   they're the same mechanism now — see SourceRecorder.integrate).
+  #   cover_image is a field_diffs entry too, but can't go through a
+  #   plain record.update! (it's an Active Storage attachment, not a
+  #   column), so it gets its own branch — reusing the blob already
+  #   sitting on the source's own EnrichmentRecord (see
+  #   EnrichmentRecord#attach_cover_from_url), no staging slot needed.
   # - reread_conflict: opens a new Reading for the confirmed reread,
   #   dated from the currently-reading event that raised it — see
   #   Goodreads::ShelfSync#currently_reading/#flag_pending.
@@ -39,7 +41,6 @@ module Enrichment
     end
 
     def reject
-      purge_own_candidate_cover
       @pending_decision.update!(status: "rejected", resolved_at: Time.current)
     end
 
@@ -61,18 +62,15 @@ module Enrichment
 
     def accept_enrichment(selected_fields)
       record = @pending_decision.entity
+      return unless record
+
       original_diffs = @pending_decision.field_diffs.select { |d| d[:proposed].present? || d[:field] == "cover_image" }
       diffs = selected_fields ? original_diffs.select { |d| selected_fields.map(&:to_s).include?(d[:field]) } : original_diffs
       cover_diff, field_diffs = diffs.partition { |d| d[:field] == "cover_image" }
-      had_cover = original_diffs.any? { |d| d[:field] == "cover_image" }
 
-      if record
-        apply_fields(record, field_diffs) if field_diffs.any?
-        apply_cover(record) if cover_diff.any?
-        prune_payload(diffs) if selected_fields
-      end
-
-      record.candidate_cover_image.purge if record && had_cover && cover_diff.empty? && record.candidate_cover_image.attached?
+      apply_fields(record, field_diffs) if field_diffs.any?
+      apply_cover(record) if cover_diff.any?
+      prune_payload(diffs) if selected_fields
     end
 
     def apply_fields(record, field_diffs)
@@ -81,15 +79,15 @@ module Enrichment
       record.update!(attributes.merge(field_sources: record.field_sources.merge(sources)))
     end
 
-    # .detach, not .purge — cover_image and candidate_cover_image now
-    # reference the same blob row. .purge on a shared blob only happens
-    # to be safe today because Blob#purge rescues the FK-constraint
-    # error it triggers; .detach is the operation that's actually
-    # correct for "this slot is done, but the file is still in use."
+    # The proposing source's own copy of the cover already lives durably
+    # on its EnrichmentRecord (see EnrichmentRecord#attach_cover_from_url)
+    # — no staging slot needed, just reuse that blob directly.
     def apply_cover(record)
-      record.cover_image.attach(record.candidate_cover_image.blob)
-      record.candidate_cover_image.detach
-      record.update!(field_sources: record.field_sources.merge("cover_image" => "isfdb"))
+      source_record = EnrichmentRecord.latest(entity: record, provider: @pending_decision.payload["source"])
+      return unless source_record&.cover_image&.attached?
+
+      record.cover_image.attach(source_record.cover_image.blob)
+      record.update!(field_sources: record.field_sources.merge("cover_image" => @pending_decision.payload["source"]))
     end
 
     # Keeps only the field names actually applied — payload["fields"] is
@@ -101,19 +99,6 @@ module Enrichment
 
       applied_field_names = applied_diffs.map { |d| d[:field] }
       @pending_decision.payload["fields"] &= applied_field_names
-    end
-
-    # Only ever purges a candidate this exact decision staged — an
-    # Edition can have a second, unrelated, still-pending decision (e.g.
-    # an isolated enrichment_field_conflict alongside a bundled
-    # enrichment_edition_mismatch carrying the cover); rejecting one must
-    # never touch the other's staged candidate.
-    def purge_own_candidate_cover
-      entity = @pending_decision.entity
-      return unless entity&.candidate_cover_image&.attached?
-      return unless @pending_decision.field_diffs.any? { |d| d[:field] == "cover_image" }
-
-      entity.candidate_cover_image.purge
     end
   end
 end

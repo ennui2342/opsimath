@@ -63,14 +63,25 @@ module Goodreads
     # that actually signal a meaningful change for that shelf are tracked;
     # e.g. a read-shelf item's rating/review can be edited after the fact
     # (or reverted), which must re-trigger a sync, not look "already seen".
+    #
+    # book_image_url tracked on every shelf that touches an Edition (not
+    # wishlist, which never does): a cover appearing where the feed had
+    # none before, or changing to a different one, is itself a real
+    # update this system should know about — the same as any other field
+    # a source proposes. Without tracking it, ShelfSync#record_goodreads_cover
+    # (and the whole match/conflict workflow behind it, Mark 2026-08-08)
+    # would never even get a chance to run for an already-cataloged item;
+    # only a rating/review/date change would coincidentally re-trigger it.
     def relevant_fields(shelf, item)
       case shelf
-      when "wishlist", "to-read"
+      when "wishlist"
         {}
+      when "to-read"
+        { "book_image_url" => item.book_image_url }
       when "currently-reading"
-        { "user_date_added" => item.user_date_added&.iso8601 }
+        { "user_date_added" => item.user_date_added&.iso8601, "book_image_url" => item.book_image_url }
       when "read", "did-not-finish"
-        { "user_rating" => item.user_rating, "user_read_at" => item.user_read_at&.iso8601, "user_review" => item.user_review }
+        { "user_rating" => item.user_rating, "user_read_at" => item.user_read_at&.iso8601, "user_review" => item.user_review, "book_image_url" => item.book_image_url }
       end
     end
 

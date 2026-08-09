@@ -290,9 +290,11 @@ disagreements really are different phenomena with different likely
 causes, not just "more of the same."
 
 `Enrichment::IsfdbEditionEnricher#apply_fields` now plans every
-candidate field before committing any of them (via
-`Enrichment::FieldApplier.plan`/`.commit`, split out for exactly this),
-rather than deciding field-by-field as it goes. Plain fills are always
+candidate field before committing any of them (via `Enrichment::FieldApplier
+.plan`/`.commit`, split out for exactly this — `.commit` has since moved
+to the shared `Enrichment::SourceRecorder` introduced in the Phase 3
+addendum below, `FieldApplier` itself is plan-only now), rather than
+deciding field-by-field as it goes. Plain fills are always
 committed immediately — they can't discard anything regardless of which
 printing the data actually describes. Fields needing an actual judgment
 call (a refinement *or* a conflict) are counted together: with at most
@@ -792,8 +794,13 @@ speculative polish:**
   alone. Fixed to pull the book title (via `Edition.works`) and the
   actual disputed field(s) with their current → proposed values
   straight out of the `PendingDecision`'s own payload — see
-  `FieldApplier#find_or_create_conflict`/`IsfdbEditionEnricher
-  #create_edition_mismatch` for the two payload shapes this reads.
+  `PendingDecision#field_diffs` (`docs/DATA_MODEL.md`'s `PendingDecision`
+  entry) for the live current-vs-proposed derivation this reads. (At the
+  time of this fix, the payload was built by two separately-named
+  methods, `FieldApplier#find_or_create_conflict`/`IsfdbEditionEnricher
+  #create_edition_mismatch` — both since replaced by the unified
+  `Enrichment::SourceRecorder.create_bundled_decision`, see the Phase 3
+  addendum below.)
 
 **A newly auto-created `Edition` also gets ISFDB enrichment triggered
 immediately, scoped to just that one `Edition`** — a deliberate design
@@ -838,13 +845,190 @@ landmine rather than an active bug. Fixed to read
 `PendingDecision#field_diffs` (the same live-deriving method the review
 UI itself uses) instead of hand-parsing the payload.
 
+**Two more real bugs, both found live during a cold-start resync
+(every `GoodreadsSyncState` wiped for a demo, 2026-08-08) — `touched`
+(Syncer's "no matching sync-state row, so this needs processing" signal)
+had been conflated with `changed` (a real database write happened) ever
+since the previous fix above, and the conflation ran deeper than that one
+fix caught:**
+
+- **Every shelf branch was notifying on `touched` alone, not just the
+  wishlist gap already fixed.** A re-touch of an already-fully-known item
+  (the overwhelmingly common case right after a state reset) is `touched`
+  but made zero real writes — yet still notified "Added to wishlist"/
+  "Started reading"/etc. for books that had been there for ages. Added an
+  explicit `changed` field to `ShelfSync::Outcome`, computed correctly per
+  branch (a pure re-match with nothing to remove is `changed: false`; a
+  genuine wishlist→catalog transition, a newly-opened `Reading`, or a
+  `Reading` whose values actually differ from what's already saved is
+  `changed: true`), and gated every notification on it instead of on
+  `touched`. Caught alongside it: a real duplicate-`Reading` bug from the
+  same conflation — fixed as part of the same pass, see
+  `Goodreads::ShelfSync`'s own test suite for the specific cases.
+- **`sync_summary`'s `synced`/`unchanged` fields are Syncer's own
+  bookkeeping (did an item have no matching sync-state row at all) —
+  Mark caught immediately after the fix above that this reads as "N real
+  changes happened" when it isn't one.** Right after a state reset,
+  `synced=327, unchanged=0` looked like 327 real changes when only ~20
+  genuinely were. Added a `changed` count (`touched.count(&:changed)`,
+  the same field the per-item fix above introduced) alongside the
+  existing fields rather than replacing them — `synced`/`unchanged` stay
+  meaningful for Syncer's own state-diffing question, `changed` answers
+  the different, more useful "did anything real happen" question.
+
+## Phase 3: a real review UI, one shared enrichment pipeline, and image-based cover comparison
+
+Built the same week Phase 2 went live, once a real backlog of
+`PendingDecision`s made "review via Rails console" (this doc's own
+original scope) untenable — see `docs/UI_PRINCIPLES.md` for the UI design
+principles this follows. Three changes, landed together because each one
+surfaced the next while building/using it for real.
+
+### The review UI replaces "Rails console or a minimal read-only view"
+
+A 3-card comparison per `PendingDecision` (`Ui::ComparisonCardComponent`):
+the `Edition`'s current catalog state (with a `field_sources` chip per
+field), a card per other provider with an `EnrichmentRecord` on file
+(reference only, not actionable), and the proposing source's card
+(checkboxes on every disputed field, all checked by default — accepting
+as-is reproduces the old silent-auto-fill outcome, but a reviewer can now
+see the whole fetch, cover included, and uncheck anything that looks like
+it belongs to a different printing before accepting). Keyboard-first
+accept/reject per `docs/UI_PRINCIPLES.md` principle 3, Turbo Streams for
+the accept/reject → next-item loop per principle 4.
+
+### One shared pipeline for every enrichment source, not three drifting implementations
+
+Mark's own diagnosis, after several bugs in a row all traced back to the
+same root cause: "a field conflict isn't just an addition conflict...
+shouldn't [a change coming through the RSS] be seen as an enrichment
+change just the same? ... there's just this kind of separate treatment
+of the Goodreads changes from the ISFDB changes... this false splitting
+of the code is having great problems keeping any changes in sync."
+Concretely true at the time: `Goodreads::Importer` had its own naive
+apply loop, `Goodreads::ShelfSync` had a bolted-on cover-only call, and
+`Enrichment::IsfdbEditionEnricher` had its own bundle-or-commit
+orchestration — three separately-maintained implementations of "what to
+do with a source's proposed fields," which is exactly how a Goodreads
+cover conflict and an ISFDB cover conflict ended up producing two
+differently-shaped `PendingDecision`s for no principled reason.
+
+Fixed with one shared hub, `Enrichment::SourceRecorder` — every source
+(Goodreads CSV import, Goodreads RSS sync, ISFDB enrichment) now routes
+through the same `integrate` method to decide fill vs. bundle vs. hold,
+and the same `commit_plan` to actually write a value. Per-field judgment
+calls that are genuinely source-specific (ISFDB's publisher
+substring-variant merging, its EDTF publish_date precision handling)
+still live where they're informed by that source's real quirks — the
+shared part is the *decision*, never field-specific planning logic that
+has no reason to be shared. The bundling policy itself (established
+earlier: the instant any field from a fetch is a genuine conflict,
+*every* field that fetch proposed — fills and refinements too — gets
+held back and offered together, since a blank destination field isn't
+proof the fetch describes the same printing) now applies identically
+regardless of source.
+
+**`PendingDecision` kinds collapsed from two to one as a direct
+consequence**: `enrichment_field_conflict`/`enrichment_edition_mismatch`
+were never actually different in payload shape (both were already the
+thin `{entity_type, entity_id, fields, source}` pointer from the earlier
+redesign above) — they only ever differed in "one field name vs.
+several," which isn't a different *kind* of decision, just a different
+count. Both are now `enrichment_conflict`. See `DATA_MODEL.md`'s
+`PendingDecision.kind`.
+
+### Cover comparison: from byte-identical-only to real image similarity
+
+Once Goodreads started proposing covers against ISFDB-populated editions
+(and vice versa) under the shared pipeline above, byte-exact comparison
+alone produced real false conflicts — the same physical cover, scanned/
+photographed at different resolutions and crops by two different
+providers, is never byte-identical even though a person looks at both and
+immediately says "same cover." Explored pHash and ORB (feature-matching)
++ RANSAC; chose the latter after empirical validation against real
+conflict pairs from the live backlog (including one ground-truth
+self-correction — "Anathem" was initially read as a match on a quick
+visual scan, caught by cross-checking against the system's own
+independent conflict flag and then zooming into the blurb text, which
+showed a genuinely different byline/typesetting).
+
+New sidecar service, `services/cover_compare/` (Python/FastAPI,
+`docker-compose.yml`'s `cover-compare` service) — deliberately a separate
+service, not in-process Ruby, since OpenCV's Python bindings are the
+mature option for this and the comparison is genuinely stateless/
+cacheable work, not core application logic. Two real fixes needed once
+validated against actual data, not just the algorithm choice:
+
+- **Scale normalization.** ISFDB scans and Goodreads RSS thumbnails
+  differ 3-8x in resolution, which alone drove the ORB match ratio down
+  to misleadingly low values (0.003-0.008) even for genuinely identical
+  covers. Fixed by resizing both images to a 600px canonical long side
+  before matching.
+- **A combined ratio + absolute-inlier-count threshold, not ratio
+  alone.** A busy, detailed cover has a lot of keypoints regardless of
+  how many actually match, so ratio (which divides by total keypoint
+  count) can read low even on a confident match — a real spot-checked
+  case scored 301 RANSAC inliers / 86% survival but still fell under a
+  ratio-only threshold. `Enrichment::CoverApplier::MIN_INLIERS = 350`
+  (alongside `SAME_THRESHOLD = 0.2`) sits between the two clusters
+  actually observed post-normalization: every confirmed genuine match
+  cleared 412+ inliers, the one confirmed genuine conflict in the same
+  spot-check batch posted 277.
+
+Wired into `Enrichment::CoverApplier.plan`: a populated destination with
+bytes that differ from the proposed cover is no longer an automatic
+conflict — the sidecar is asked first, and only a genuine visual
+difference (or an unreachable sidecar) still raises one. Real effect on
+a live batch: conflict volume for cover-only disputes dropped from ~28
+to ~18 out of 228, spot-checked individually against the actual images
+(12 correctly cleared, "The New Weird" correctly still flagged as a
+genuinely different printing).
+
+### `EnrichmentRecord` becomes one row per `(entity, provider)`, not one row per fetch
+
+Full reasoning and the bug that surfaced it live in `PHILOSOPHY.md`
+principle 10's correction and `DATA_MODEL.md`'s `EnrichmentRecord`
+section — not repeated here. Two concrete Goodreads-side gaps this
+closed, both real production data problems, not theoretical:
+
+- **A CSV-imported (matched) edition never got a chance at a Goodreads
+  cover at all.** The CSV export has no image URL column, and the RSS
+  sync's cover-fill call only ever ran for a freshly auto-created
+  edition, never a matched one — so an edition imported via CSV and later
+  re-seen on an RSS shelf stayed coverless from Goodreads forever, even
+  though the RSS feed had a real `book_image_url` for it every time.
+  Fixed: `Goodreads::ShelfSync#ensure_cataloged`'s matched-edition branch
+  now calls the same `record_goodreads_cover` (→ `SourceRecorder.record`)
+  path the auto-create branch already used.
+- **`Goodreads::Syncer#relevant_fields` didn't track `book_image_url` at
+  all**, so a cover appearing in the RSS feed for an already-synced
+  `(goodreads_book_id, shelf)` pair — exactly the backfill case above —
+  never re-triggered `ShelfSync`, since `GoodreadsSyncState`'s diff saw
+  nothing relevant had changed. Fixed: every non-wishlist shelf's
+  `relevant_fields` now includes `book_image_url`, so a cover showing up
+  where there wasn't one correctly re-triggers a sync pass and flows
+  through the standard fill/conflict pipeline like any other enrichment
+  change, per Mark's own framing ("a cover image appearing in the RSS
+  feed where there wasn't one before means an update to the enrichment
+  record, which then triggers an attempted sync to the edition — any
+  update to the enrichment should flow into the standard match/conflict
+  workflow").
+
 ## Explicitly out of scope for this phase
 
-- Any UI. Verification happens via Rails console or, at most, a minimal
-  read-only view — not a reason to design screens yet.
-- Reverse sync (opsimath → Goodreads). Goodreads is the source of truth
-  for now, deliberately, because it's what keeps your community/network
-  presence in sync; inverting that is a real future direction, not this
-  phase.
+- ~~Any UI. Verification happens via Rails console...~~ **Superseded**: a
+  real UI now exists — the `PendingDecision` review queue (3-card
+  comparison: current catalog state, other known providers for reference,
+  the proposing source's fields with checkboxes), per `docs/UI_PRINCIPLES.md`.
+  See the review-UI addendum below.
+- Reverse sync (opsimath → Goodreads) — still out of scope, but not for
+  the reason originally stated here. This was originally framed as
+  "Goodreads is the source of truth for now, deliberately" — corrected
+  (`PHILOSOPHY.md` principle 20): sync direction and data trust turned
+  out to be separate questions, and Goodreads is *not* treated as a
+  trusted source of truth for catalog data, even though sync still only
+  flows one way. Sync stays one-way because that's what keeps your
+  community/network presence current, independent of trust; inverting it
+  is a real future direction, not this phase, for that reason alone.
 - Any `isfdb-adapter` API changes — use it as-is; revisit only on real
   friction.

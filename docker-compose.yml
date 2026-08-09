@@ -39,6 +39,10 @@ x-app: &app
     # cluster-internal service port (8080) — a real bug in the first
     # version of this line, caught by actually testing connectivity.
     ISFDB_ADAPTER_URL: http://isfdb-adapter.k8s.ecafe.org
+    # The cover-compare sidecar below — local-only for now (not deployed
+    # to k8s the way isfdb-adapter is), reached by its Compose service
+    # name on the internal Docker network, not the host-published port.
+    COVER_COMPARE_URL: http://cover-compare:8000
 
 services:
   db:
@@ -81,6 +85,31 @@ services:
       setup:
         condition: service_completed_successfully
 
+  # Local-dev-only sidecar (Enrichment::CoverCompareClient calls it) —
+  # pure ORB+RANSAC image-similarity computation, no policy; see
+  # services/cover_compare/app.py's own header for why this isn't just
+  # more Rails code (needs OpenCV, no mature Ruby binding for this).
+  # Not deployed to k8s yet, unlike isfdb-adapter — a separate decision
+  # once this is validated further, per docs/PHILOSOPHY.md principle 21.
+  # Deps install into a venv on a named volume at container start, not
+  # baked into the image — same reasoning as the Rails app's own
+  # bundle_data volume (Dockerfile.dev's comment).
+  cover-compare:
+    build:
+      context: ./services/cover_compare
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./services/cover_compare:/app
+      - cover_compare_venv:/opt/venv
+    command: bash -c "python -m venv /opt/venv && . /opt/venv/bin/activate && pip install --quiet -r requirements.txt && uvicorn app:app --host 0.0.0.0 --port 8000 --reload"
+    ports:
+      - "8001:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   # Known limitation, confirmed live, not yet resolved: this exits after
   # one build instead of watching continuously — the underlying
   # tailwindcss binary's native filesystem-event watching doesn't reliably
@@ -98,3 +127,4 @@ services:
 volumes:
   postgres_data:
   bundle_data:
+  cover_compare_venv:

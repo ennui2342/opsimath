@@ -5,7 +5,7 @@ module Ui
     end
 
     def conflict
-      render(BadgeComponent.new(text: "enrichment_edition_mismatch", variant: :conflict))
+      render(BadgeComponent.new(text: "enrichment_conflict", variant: :conflict))
     end
 
     def success

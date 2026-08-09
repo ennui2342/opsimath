@@ -13,7 +13,7 @@ class PendingDecisionsTest < ApplicationSystemTestCase
       fields: { "publisher" => "HarperVoyager", "format" => "hardcover" }
     )
     @pending = PendingDecision.create!(
-      kind: "enrichment_field_conflict",
+      kind: "enrichment_conflict",
       payload: { "entity_type" => "Edition", "entity_id" => @edition.id, "fields" => [ "publisher" ], "source" => "isfdb" }
     )
 
@@ -44,7 +44,7 @@ class PendingDecisionsTest < ApplicationSystemTestCase
 
   test "unchecking a field on a bundled edition mismatch excludes it from what gets applied" do
     @pending.update!(
-      kind: "enrichment_edition_mismatch",
+      kind: "enrichment_conflict",
       payload: { "entity_type" => "Edition", "entity_id" => @edition.id, "source" => "isfdb", "fields" => [ "publisher", "format" ] }
     )
 

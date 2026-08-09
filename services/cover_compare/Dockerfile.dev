@@ -1,0 +1,9 @@
+# Local dev only — see Dockerfile for the production image. Gems/deps
+# install at container start against the bind-mounted source, mirroring
+# the Rails app's own Dockerfile.dev, so requirements.txt changes take
+# effect without a rebuild.
+FROM python:3.12-slim
+
+WORKDIR /app
+
+EXPOSE 8000
