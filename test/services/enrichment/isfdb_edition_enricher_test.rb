@@ -31,7 +31,7 @@ module Enrichment
     end
 
     test "skips when isfdb-adapter has no match for this isbn (a real 404)" do
-      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 404)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 404)
 
       result = IsfdbEditionEnricher.enrich(@edition, client: @client)
 
@@ -39,7 +39,7 @@ module Enrichment
     end
 
     test "reports failure without raising on a service error" do
-      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 503)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 503)
 
       result = IsfdbEditionEnricher.enrich(@edition, client: @client)
 
@@ -48,7 +48,7 @@ module Enrichment
     end
 
     test "records an EnrichmentRecord and fills blank fields on a real match" do
-      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.to_json)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE ].to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "fake-jpeg-bytes", headers: { "Content-Type" => "image/jpeg" })
 
       result = IsfdbEditionEnricher.enrich(@edition, client: @client)
@@ -93,6 +93,52 @@ module Enrichment
       assert_equal "isfdb", @edition.field_sources["cover_image"]
     end
 
+    test "when an isbn matches multiple isfdb publications, prefers the one whose year matches what's already on file" do
+      @edition.update!(publish_date: "1985") # real evidence for which printing this is
+      older_printing = DUNE_RESPONSE.merge(publisher: "New English Library", publish_date: "1985", _isfdb_pub_id: 111_111)
+      newer_printing = DUNE_RESPONSE.merge(publisher: "Ace Books", publish_date: "2010", _isfdb_pub_id: 426_303)
+      # isfdb-adapter orders most-recent-first — the newer printing leads
+      # the array, same as its own single-result default would return.
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ newer_printing, older_printing ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      result = IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal :success, result.status
+      assert_equal "New English Library", @edition.reload.publisher # the year-matching printing, not the newest
+      assert_equal 111_111, EnrichmentRecord.sole.raw_payload["_isfdb_pub_id"]
+    end
+
+    test "with no publish_date on file yet, falls back to isfdb-adapter's own most-recent-first default" do
+      # True for every RSS-auto-created edition — book_published is
+      # Work-level, never written to Edition.publish_date.
+      assert_nil @edition.publish_date
+      newer_printing = DUNE_RESPONSE.merge(publisher: "Ace Books", publish_date: "2010", _isfdb_pub_id: 426_303)
+      older_printing = DUNE_RESPONSE.merge(publisher: "New English Library", publish_date: "1985", _isfdb_pub_id: 111_111)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ newer_printing, older_printing ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal "Ace Books", @edition.reload.publisher
+    end
+
+    test "when the known year matches no candidate, falls back to the most-recent-first default rather than raising" do
+      @edition.update!(publish_date: "1999") # doesn't match either candidate below
+      newer_printing = DUNE_RESPONSE.merge(publisher: "Ace Books", publish_date: "2010", _isfdb_pub_id: 426_303)
+      older_printing = DUNE_RESPONSE.merge(publisher: "New English Library", publish_date: "1985", _isfdb_pub_id: 111_111)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ newer_printing, older_printing ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      result = IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      # publish_date itself is a genuine conflict (1999 vs 2010) and holds
+      # the whole fetch back for review — but which candidate got proposed
+      # is still observable via the EnrichmentRecord's own raw_payload.
+      assert_equal :success, result.status
+      assert_equal 426_303, EnrichmentRecord.sole.raw_payload["_isfdb_pub_id"]
+    end
+
     test "reprocess re-applies an already-fetched payload without a new EnrichmentRecord or network call" do
       data = JSON.parse(DUNE_RESPONSE.to_json) # string-keyed, matching a real stored raw_payload
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
@@ -108,7 +154,7 @@ module Enrichment
 
     test "a genuinely conflicting non-blank field bundles the whole fetch into an edition mismatch, holding back even the fills" do
       @edition.update!(publisher: "Berkley Windhover") # language/page_count/publish_date/etc. all still blank
-      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.to_json)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE ].to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
 
       IsfdbEditionEnricher.enrich(@edition, client: @client)
@@ -123,7 +169,7 @@ module Enrichment
 
     test "a generic-suffix publisher variant is merged toward the more complete form, real example" do
       @edition.update!(publisher: "Tor")
-      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.merge(publisher: "Tor Books").to_json)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE.merge(publisher: "Tor Books") ].to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
 
       IsfdbEditionEnricher.enrich(@edition, client: @client)
@@ -135,7 +181,7 @@ module Enrichment
 
     test "the shorter side of a generic-suffix variant is left alone — already the more complete form" do
       @edition.update!(publisher: "DAW Books")
-      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.merge(publisher: "DAW").to_json)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE.merge(publisher: "DAW") ].to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
 
       IsfdbEditionEnricher.enrich(@edition, client: @client)
@@ -146,7 +192,7 @@ module Enrichment
 
     test "an isolated region-flavored publisher variant IS merged — it's an ISBN-keyed fact about this exact printing, not a guess" do
       @edition.update!(publisher: "Orbit")
-      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.merge(publisher: "Orbit (US)").to_json)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE.merge(publisher: "Orbit (US)") ].to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
 
       IsfdbEditionEnricher.enrich(@edition, client: @client)
@@ -157,7 +203,7 @@ module Enrichment
 
     test "two fields disagreeing at once bundles into one edition-mismatch review, neither applied nor split into separate field decisions" do
       @edition.update!(publisher: "Berkley Windhover", publish_date: "1978")
-      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.merge(publisher: "Ace Books", publish_date: "1979-06").to_json)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE.merge(publisher: "Ace Books", publish_date: "1979-06") ].to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
 
       IsfdbEditionEnricher.enrich(@edition, client: @client)
@@ -198,7 +244,7 @@ module Enrichment
       # pattern means the whole ISBN match likely describes a different
       # specific printing, so the refinement isn't trusted either.
       @edition.update!(publisher: "Tor", publish_date: "1978")
-      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.merge(publisher: "Tor Books", publish_date: "1985").to_json)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE.merge(publisher: "Tor Books", publish_date: "1985") ].to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
 
       IsfdbEditionEnricher.enrich(@edition, client: @client)
@@ -215,7 +261,7 @@ module Enrichment
       # proof this fetch describes the same printing, so once publisher
       # genuinely conflicts, none of them are trusted silently either.
       @edition.update!(publisher: "Berkley Windhover") # language/page_count/publish_date left blank
-      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.merge(publisher: "Ace Books").to_json)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE.merge(publisher: "Ace Books") ].to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
 
       IsfdbEditionEnricher.enrich(@edition, client: @client)
@@ -231,7 +277,7 @@ module Enrichment
     end
 
     test "a cover download failure doesn't block the other fields from applying" do
-      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.to_json)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE ].to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 500)
 
       result = IsfdbEditionEnricher.enrich(@edition, client: @client)
@@ -244,7 +290,7 @@ module Enrichment
     test "a cover that differs from the one already attached, with no other field disagreeing, still bundles into an edition mismatch" do
       @edition.cover_image.attach(io: StringIO.new("old-cover-bytes"), filename: "old.jpg", content_type: "image/jpeg")
       @edition.update!(field_sources: { "cover_image" => "isfdb" }) # already ISFDB-confirmed — worth protecting
-      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.to_json)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE ].to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "new-cover-bytes-from-isfdb", headers: { "Content-Type" => "image/jpeg" })
 
       IsfdbEditionEnricher.enrich(@edition, client: @client)
@@ -266,7 +312,7 @@ module Enrichment
     test "a cover that's byte-identical to the one already attached is a no-op, not noise" do
       @edition.cover_image.attach(io: StringIO.new("same-bytes"), filename: "old.jpg", content_type: "image/jpeg")
       @edition.update!(field_sources: { "cover_image" => "isfdb" })
-      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.to_json)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE ].to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "same-bytes", headers: { "Content-Type" => "image/jpeg" })
 
       IsfdbEditionEnricher.enrich(@edition, client: @client)
@@ -284,7 +330,7 @@ module Enrichment
       # similarity check exists; that's a follow-up, not a regression.
       @edition.cover_image.attach(io: StringIO.new("goodreads-cover-bytes"), filename: "gr.jpg", content_type: "image/jpeg")
       @edition.update!(field_sources: { "cover_image" => "goodreads" })
-      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.to_json)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE ].to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "new-cover-bytes-from-isfdb", headers: { "Content-Type" => "image/jpeg" })
 
       IsfdbEditionEnricher.enrich(@edition, client: @client)
@@ -300,7 +346,7 @@ module Enrichment
       @edition.update!(publisher: "Berkley Windhover")
       @edition.cover_image.attach(io: StringIO.new("old-cover-bytes"), filename: "old.jpg", content_type: "image/jpeg")
       @edition.update!(field_sources: { "cover_image" => "isfdb" })
-      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.merge(publisher: "Ace Books").to_json)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE.merge(publisher: "Ace Books") ].to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "new-cover-bytes-from-isfdb", headers: { "Content-Type" => "image/jpeg" })
 
       IsfdbEditionEnricher.enrich(@edition, client: @client)
@@ -314,7 +360,7 @@ module Enrichment
 
     test "re-enriching an edition with an already-unresolved edition mismatch reuses the decision instead of spawning a second one" do
       @edition.update!(publisher: "Berkley Windhover", publish_date: "1978")
-      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.merge(publisher: "Ace Books", publish_date: "1979-06").to_json)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE.merge(publisher: "Ace Books", publish_date: "1979-06") ].to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
 
       IsfdbEditionEnricher.enrich(@edition, client: @client)
@@ -325,7 +371,7 @@ module Enrichment
 
     test "a more precise publish_date from isfdb is applied as a refinement, not flagged as a conflict" do
       @edition.update!(publish_date: "2010")
-      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.merge(publish_date: "2010-06").to_json)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE.merge(publish_date: "2010-06") ].to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
 
       IsfdbEditionEnricher.enrich(@edition, client: @client)
@@ -337,7 +383,7 @@ module Enrichment
 
     test "a less precise publish_date from isfdb is left alone — we already know more" do
       @edition.update!(publish_date: "2010-06-15")
-      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.merge(publish_date: "2010").to_json)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE.merge(publish_date: "2010") ].to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
 
       IsfdbEditionEnricher.enrich(@edition, client: @client)
@@ -348,7 +394,7 @@ module Enrichment
 
     test "the same publish_date value at the same precision is a no-op, not a conflict" do
       @edition.update!(publish_date: "2010")
-      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.to_json)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE ].to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
 
       IsfdbEditionEnricher.enrich(@edition, client: @client)
@@ -359,7 +405,7 @@ module Enrichment
 
     test "a genuinely different publish_date (neither value extends the other) is a real conflict" do
       @edition.update!(publish_date: "2011")
-      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.to_json) # "2010"
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE ].to_json) # "2010"
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
 
       IsfdbEditionEnricher.enrich(@edition, client: @client)
@@ -373,7 +419,7 @@ module Enrichment
 
     test "unmapped pub_ptype values are left alone rather than guessed at" do
       response = DUNE_RESPONSE.merge(binding: "quarto")
-      stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: response.to_json)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ response ].to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
 
       IsfdbEditionEnricher.enrich(@edition, client: @client)

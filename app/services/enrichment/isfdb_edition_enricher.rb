@@ -57,9 +57,10 @@ module Enrichment
       isbn = @edition.edition_identifiers.where(id_type: %w[isbn13 isbn10]).pick(:value)
       return Result.new(status: :skipped, message: "no isbn identifier") unless isbn
 
-      data = @client.lookup_isbn(isbn)
-      return Result.new(status: :skipped, message: "not found in isfdb mirror") unless data
+      candidates = @client.lookup_isbn(isbn)
+      return Result.new(status: :skipped, message: "not found in isfdb mirror") if candidates.empty?
 
+      data = best_candidate(candidates)
       record_enrichment(data)
       reprocess(data)
 
@@ -181,6 +182,29 @@ module Enrichment
       end
 
       Plan.new(record: @edition, field: :publisher, action: :conflict, value: proposed, source: "isfdb", current: current)
+    end
+
+    # An ISBN isn't always unique to one ISFDB publication — a real,
+    # common case for reprinted vintage SF (confirmed 2026-08-10: 565 of
+    # 1,493 of opsimath's own ISFDB-matched ISBNs hit this). isfdb-adapter
+    # returns every candidate, most-recent-printing-first (its own
+    # single-result default, for callers that don't ask for `all`). Mark,
+    # 2026-08-10: rather than trust that "newest wins" default blindly,
+    # prefer whichever candidate's publish year already agrees with what's
+    # on file — that's real evidence of which specific printing this is,
+    # not a guess. Year-level only, not full EDTF precision ("year level
+    # matching overcomes any difference in resolution") — either side
+    # commonly knows only the year, and a year-only value shouldn't be
+    # penalized against a candidate that happens to also know the month.
+    # With no year on file yet (true for every RSS-auto-created edition —
+    # book_published is Work-level, never written to Edition.publish_date)
+    # or no candidate matching it, `candidates.first` reproduces
+    # isfdb-adapter's own default exactly.
+    def best_candidate(candidates)
+      known_year = @edition.publish_date.presence&.slice(0, 4)
+      return candidates.first unless known_year
+
+      candidates.find { |c| c["publish_date"].to_s.start_with?(known_year) } || candidates.first
     end
 
     def substring_variant?(a, b)

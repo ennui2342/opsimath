@@ -13,13 +13,22 @@ module Isfdb
       @base_url = base_url
     end
 
-    # Returns the parsed response hash, or nil if this ISBN isn't in the
-    # mirror (404 — a real, expected outcome, not an error: ISFDB's
-    # coverage is real but incomplete, especially for small-press and
-    # very recent editions).
+    # Returns every ISFDB publication matching this ISBN, most recent
+    # printing first — empty array if this ISBN isn't in the mirror at
+    # all (404 — a real, expected outcome, not an error: ISFDB's coverage
+    # is real but incomplete, especially for small-press and very recent
+    # editions). An ISBN isn't always unique to one specific printing
+    # (confirmed 2026-08-10: 565 of 1,493 of opsimath's own ISFDB-matched
+    # ISBNs hit this, skewed high by how often vintage mass-market SF
+    # gets reprinted under the same ISBN) — `?all=true` returns every
+    # candidate rather than isfdb-adapter's own single-result default
+    # (which just picks the most recent), so the caller can pick the
+    # printing that actually matches other evidence already on file
+    # rather than blindly trusting "newest wins." See
+    # Enrichment::IsfdbEditionEnricher#best_candidate.
     def lookup_isbn(isbn)
-      response = get("/isbn/#{isbn}")
-      return nil if response.is_a?(Net::HTTPNotFound)
+      response = get("/isbn/#{isbn}?all=true")
+      return [] if response.is_a?(Net::HTTPNotFound)
 
       raise ServiceError, "isfdb-adapter returned #{response.code} for isbn #{isbn}" unless response.is_a?(Net::HTTPSuccess)
 

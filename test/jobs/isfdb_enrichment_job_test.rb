@@ -20,7 +20,7 @@ class IsfdbEnrichmentJobTest < ActiveSupport::TestCase
     EditionIdentifier.create!(edition: already_enriched, id_type: "isbn10", value: "1111111111")
     EnrichmentRecord.create!(entity: already_enriched, provider: "isfdb", external_id: "1", fetched_at: Time.current, raw_payload: {})
 
-    stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 200, body: DUNE_RESPONSE.to_json)
+    stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE ].to_json)
 
     counts = IsfdbEnrichmentJob.perform_now
 
@@ -40,7 +40,7 @@ class IsfdbEnrichmentJobTest < ActiveSupport::TestCase
   test "records a failed JobItem without raising when isfdb-adapter errors" do
     edition = Edition.create!(format: "paperback")
     EditionIdentifier.create!(edition: edition, id_type: "isbn10", value: "0441172717")
-    stub_request(:get, "#{BASE_URL}/isbn/0441172717").to_return(status: 503)
+    stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 503)
 
     counts = IsfdbEnrichmentJob.perform_now
 
