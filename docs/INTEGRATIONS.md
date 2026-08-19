@@ -775,9 +775,10 @@ wraps, not a separate incoming webhook.
 not `Syncer`/`ShelfSync`, which stay pure/testable. Per event, one
 message each: `auto_created` (a new Work/Edition/WishlistItem), a
 `pending_decision` alert for each `reread_conflict`/
-`possible_duplicate_work` `ShelfSync` raises, one `sync_summary` per run,
-and `sync_error` if the run itself blows up (re-raised after notifying,
-so Solid Queue's own retry/failure tracking isn't short-circuited).
+`possible_duplicate_work` `ShelfSync` raises, and `sync_error` if the run
+itself blows up (re-raised after notifying, so Solid Queue's own retry/
+failure tracking isn't short-circuited). `notify_summary`/`sync_summary`
+existed here too until 2026-08-19 — see the correction below.
 
 **Two follow-up fixes, both from real usage in production, not
 speculative polish:**
@@ -875,6 +876,16 @@ fix caught:**
   existing fields rather than replacing them — `synced`/`unchanged` stay
   meaningful for Syncer's own state-diffing question, `changed` answers
   the different, more useful "did anything real happen" question.
+
+**Correction, 2026-08-19: `notify_summary`/the `sync_summary` event
+removed entirely, not just gated.** Both fixes above assumed the
+per-run summary was worth keeping once it only fired on real activity —
+in practice Mark found it provided nothing actionable beyond a bare
+processed-count and feed size, redundant with the real per-item
+`auto_created`/`shelf_update`/`pending_decision` messages already
+covering everything worth knowing. `GoodreadsSyncJob#perform` no longer
+calls it; `counts` is still the job's own return value (useful to a
+caller/test), just no longer posted to Discord.
 
 ## Phase 3: a real review UI, one shared enrichment pipeline, and image-based cover comparison
 
