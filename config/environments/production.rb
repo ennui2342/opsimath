@@ -30,8 +30,11 @@ Rails.application.configure do
   # Force all access to the app over SSL, use Strict-Transport-Security, and use secure cookies.
   config.force_ssl = true
 
-  # Skip http-to-https redirect for the default health check endpoint.
-  # config.ssl_options = { redirect: { exclude: ->(request) { request.path == "/up" } } }
+  # opsimath.k8s.ecafe.org has no TLS cert (internal-DNS-only, plain HTTP ingress) - forcing
+  # https there redirects into Traefik's self-signed fallback cert. Tailscale ingress
+  # (opsimath.tail611131.ts.net) has a real cert and keeps the redirect/HSTS/secure-cookie
+  # behavior as normal.
+  config.ssl_options = { redirect: { exclude: ->(request) { request.host == "opsimath.k8s.ecafe.org" } } }
 
   # Log to STDOUT with the current request id as a default log tag.
   config.log_tags = [ :request_id ]
