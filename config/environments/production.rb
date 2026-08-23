@@ -1,5 +1,27 @@
 require "active_support/core_ext/integer/time"
 
+# ActionDispatch::AssumeSSL (config.assume_ssl) marks *every* request as SSL regardless of
+# host, which makes ActionDispatch::SSL's request.ssl? always true and its `ssl_options`
+# redirect `exclude` (below) unreachable dead code. This does the same unconditional
+# "assume the reverse proxy terminated TLS" job, except it skips the assumption for
+# opsimath.k8s.ecafe.org, which genuinely has no TLS anywhere in its path.
+class AssumeSSLExceptHost
+  def initialize(app, excluded_host)
+    @app = app
+    @excluded_host = excluded_host
+  end
+
+  def call(env)
+    if env["HTTP_HOST"].to_s.split(":").first != @excluded_host
+      env["HTTPS"] = "on"
+      env["rack.url_scheme"] = "https"
+      env["HTTP_X_FORWARDED_PORT"] = "443"
+      env["HTTP_X_FORWARDED_PROTO"] = "https"
+    end
+    @app.call(env)
+  end
+end
+
 Rails.application.configure do
   # Settings specified here will take precedence over those in config/application.rb.
 
@@ -24,8 +46,10 @@ Rails.application.configure do
   # Store uploaded files on the local file system (see config/storage.yml for options).
   config.active_storage.service = :local
 
-  # Assume all access to the app is happening through a SSL-terminating reverse proxy.
-  config.assume_ssl = true
+  # Assume all access to the app is happening through a SSL-terminating reverse proxy,
+  # except for opsimath.k8s.ecafe.org (see AssumeSSLExceptHost above).
+  config.assume_ssl = false
+  config.middleware.insert_before ActionDispatch::SSL, AssumeSSLExceptHost, "opsimath.k8s.ecafe.org"
 
   # Force all access to the app over SSL, use Strict-Transport-Security, and use secure cookies.
   config.force_ssl = true
