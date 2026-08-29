@@ -12,8 +12,8 @@ off rather than growing inside `DATA_MODEL.md`/`PHILOSOPHY.md`.
 ## What this is
 
 opsimath had zero UI beyond the Rails 8 auth scaffold until the
-`PendingDecision` review queue and the book page (`docs/BACKLOG.md`
-tracked the need; this is where the actual design decisions live). This
+`PendingDecision` review queue and the book page (the need was tracked
+in the backlog; this is where the actual design decisions live). This
 document was written *before* those two screens, not after, on the
 premise that the first screens set the pattern every later one copies —
 worth getting the defaults right before there are a dozen views to
