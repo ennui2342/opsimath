@@ -51,7 +51,8 @@ Rails.application.configure do
   config.assume_ssl = false
   config.middleware.insert_before ActionDispatch::SSL, AssumeSSLExceptHost, "opsimath.k8s.ecafe.org"
 
-  # Force all access to the app over SSL, use Strict-Transport-Security, and use secure cookies.
+  # Force all access to the app over SSL, use Strict-Transport-Security, and use secure cookies
+  # — with per-host exceptions for opsimath.k8s.ecafe.org below (redirect + session cookie).
   config.force_ssl = true
 
   # opsimath.k8s.ecafe.org has no TLS cert (internal-DNS-only, plain HTTP ingress) - forcing
@@ -59,6 +60,17 @@ Rails.application.configure do
   # (opsimath.tail611131.ts.net) has a real cert and keeps the redirect/HSTS/secure-cookie
   # behavior as normal.
   config.ssl_options = { redirect: { exclude: ->(request) { request.host == "opsimath.k8s.ecafe.org" } } }
+
+  # Third leg of the same host-conditional handling. `config.force_ssl = true` makes railties
+  # set `config.session_options[:secure] = true` *globally, at boot* (see
+  # Rails::Application::DefaultMiddlewareStack) - which is NOT undone by the redirect `exclude`
+  # above. A `secure` session cookie is silently dropped by ActionDispatch on a plain-HTTP
+  # request (CookieJar#write_cookie?), so over opsimath.k8s.ecafe.org the session never
+  # persists: CSRF can't validate, login bounces straight back to the form. Setting it false
+  # here stops that global default; ActionDispatch::SSL still re-flags the cookie `secure` on
+  # the real-HTTPS tailscale path (flag_cookies_as_secure!, which the exclude lambda skips
+  # only for the no-TLS host), so that path is unchanged.
+  config.session_options[:secure] = false
 
   # Log to STDOUT with the current request id as a default log tag.
   config.log_tags = [ :request_id ]
