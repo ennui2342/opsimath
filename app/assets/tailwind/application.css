@@ -11,3 +11,20 @@
   --color-conflict-800: oklch(40% 0.13 60);
   --color-conflict-900: oklch(28% 0.1 55);
 }
+
+/*
+ * Rendered Markdown (Ui::MarkdownComponent) — reviews today. Deliberately
+ * minimal: paragraph rhythm plus the few inline/block elements a prose
+ * review actually uses, not a full typography reset. Grown on demand.
+ */
+@layer components {
+  .markdown > :first-child { margin-top: 0; }
+  .markdown > :last-child { margin-bottom: 0; }
+  .markdown p { margin-block: 0.75em; }
+  .markdown a { text-decoration: underline; }
+  .markdown em { font-style: italic; }
+  .markdown strong { font-weight: 600; }
+  .markdown ul { list-style: disc; margin-block: 0.75em; padding-left: 1.5rem; }
+  .markdown ol { list-style: decimal; margin-block: 0.75em; padding-left: 1.5rem; }
+  .markdown blockquote { margin-block: 0.75em; padding-left: 0.75rem; border-left: 3px solid currentColor; opacity: 0.8; }
+}

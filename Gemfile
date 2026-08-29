@@ -49,6 +49,14 @@ gem "paper_trail"
 # No longer a default gem as of Ruby 3.4 — needed for the Goodreads CSV import
 gem "csv"
 
+# Reviews are stored as Markdown (docs/DATA_MODEL.md): reverse_markdown
+# converts Goodreads' HTML on ingestion, kramdown renders it back to HTML
+# for display — kramdown is also Jekyll's parser, so scifipraxis renders
+# the same stored text identically.
+gem "reverse_markdown", "~> 3.0"
+gem "kramdown", "~> 2.5"
+gem "kramdown-parser-gfm", "~> 1.1" # GFM input, matching Jekyll's default
+
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"

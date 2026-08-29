@@ -29,6 +29,9 @@ module Goodreads
       assert_equal "published", review.status
       assert_equal 5.0, review.rating
       assert_equal [ { "channel" => "goodreads" } ], review.channels
+      # Stored as Markdown — Goodreads' <br><br> became blank-line paragraphs
+      assert_not_includes review.text, "<br"
+      assert_includes review.text, "\n\n"
 
       edition = work.editions.sole
       assert_equal "1978", edition.publish_date # year only, from Year Published — an EDTF string

@@ -359,7 +359,7 @@ module Goodreads
       return unless review_text
 
       Review.create!(
-        work: reading.work, reading: reading, text: review_text, rating: rating,
+        work: reading.work, reading: reading, text: Reviews::Markdown.from_html(review_text), rating: rating,
         status: "published", channels: [ { "channel" => "goodreads" } ]
       )
     end

@@ -463,7 +463,7 @@ per `PHILOSOPHY.md` principle 5.
 | `id` | |
 | `work_id` | |
 | `reading_id` | optional — the reading that prompted it, when there's a clear one-to-one link |
-| `text` | |
+| `text` | **Markdown.** The canonical stored form, regardless of source — Goodreads HTML is converted on ingestion (`Reviews::Markdown.from_html`), scifipraxis reviews are authored as Markdown already. Rendered back to HTML for display by `Ui::MarkdownComponent` via kramdown, which is also Jekyll's parser, so a review renders the same here as when published to scifipraxis |
 | `rating` | 0–5, half-star increments (matches scifipraxis's live `page.stars`/schema.org scale exactly) — the *published* rating, which may still deliberately differ in value from the linked reading's private rating even though the scale is the same |
 | `status` | `draft` / `published` |
 | `published_at` | |

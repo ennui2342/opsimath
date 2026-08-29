@@ -251,7 +251,9 @@ module Goodreads
       assert_equal Date.new(2026, 7, 28), open_reading.date_finished
       assert_equal 5.0, open_reading.rating
       assert_equal open_reading, outcome.entity
-      assert Review.exists?(reading: open_reading)
+      review = Review.find_by!(reading: open_reading)
+      assert_not_includes review.text, "<br" # stored as Markdown, not the feed's HTML
+      assert_includes review.text, "\n\n"
       assert outcome.changed
     end
 

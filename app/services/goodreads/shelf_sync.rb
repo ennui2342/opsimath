@@ -174,7 +174,7 @@ module Goodreads
       return false if reading.reviews.exists?
 
       Review.create!(
-        work: reading.work, reading: reading, text: @item.user_review,
+        work: reading.work, reading: reading, text: Reviews::Markdown.from_html(@item.user_review),
         rating: @item.user_rating, status: "published", channels: [ { "channel" => "goodreads" } ]
       )
       true

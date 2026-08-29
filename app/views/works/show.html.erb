@@ -80,7 +80,9 @@
     <% @work.reviews.each do |review| %>
       <div class="mb-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
         <p class="text-sm text-gray-500 dark:text-gray-400"><%= review.published_at %> &middot; <%= review.rating %>★</p>
-        <p class="mt-2 text-gray-700 dark:text-gray-300"><%= review.text %></p>
+        <div class="mt-2 text-gray-700 dark:text-gray-300">
+          <%= render(Ui::MarkdownComponent.new(text: review.text)) %>
+        </div>
       </div>
     <% end %>
   <% end %>
