@@ -1,0 +1,73 @@
+# UAT / staging — the pre-production gate. Unlike docker-compose.yml (dev:
+# bind-mounted source, hot reload, RAILS_ENV=development) this builds and
+# runs the real production Dockerfile: multi-stage, non-root, gems and
+# assets baked in, RAILS_ENV=staging (a faithful clone of production —
+# see config/environments/staging.rb). `bin/uat` rebuilds every run so
+# the stack is never stale codewise; `bin/uat-db-pull` mirrors the live
+# production database and cover images into it. Full workflow: docs/STAGING.md.
+#
+# Its own compose project name and volumes, and port 3001 — it runs
+# alongside the dev stack (3000) without colliding.
+name: opsimath-uat
+
+x-app: &app
+  build:
+    context: .
+    dockerfile: Dockerfile
+  environment: &app_env
+    RAILS_ENV: staging
+    # bin/uat exports this from config/master.key (git-ignored, not baked
+    # into the image). Running compose directly without it fails loudly.
+    RAILS_MASTER_KEY: ${RAILS_MASTER_KEY:?set it or use bin/uat, which reads config/master.key}
+    DATABASE_HOST: db
+    DATABASE_USERNAME: postgres
+    DATABASE_PASSWORD: postgres
+    ISFDB_ADAPTER_URL: http://isfdb-adapter.k8s.ecafe.org
+    COVER_COMPARE_URL: http://cover-compare:8000
+    RAILS_LOG_LEVEL: debug
+  volumes:
+    - uat_storage:/rails/storage
+  depends_on:
+    db:
+      condition: service_healthy
+
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - uat_postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 20
+
+  web:
+    <<: *app
+    ports:
+      - "3001:80"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:80/up"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  worker:
+    <<: *app
+    command: ["./bin/rails", "solid_queue:start"]
+    depends_on:
+      web:
+        condition: service_healthy
+
+  # The published sidecar image — the same artifact k8s runs, not a local
+  # build. Best-effort: Enrichment::CoverCompareClient tolerates it being
+  # down, so no healthcheck gate.
+  cover-compare:
+    image: ghcr.io/ennui2342/opsimath-cover-compare:latest
+
+volumes:
+  uat_postgres_data:
+  uat_storage:

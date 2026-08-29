@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Bring the UAT / staging stack up on the current working tree.
+#
+# The production Dockerfile is rebuilt every run — Docker's layer cache
+# makes that near-instant when nothing changed, and it means staging is
+# never stale codewise: new gems, migrations and asset changes all land.
+# Runs alongside the dev stack (this is port 3001, dev is 3000).
+#
+#   bin/uat              bring up / refresh
+#   bin/uat-db-pull      mirror live production data into it
+#   docker compose -f docker-compose.uat.yml logs -f web
+#   docker compose -f docker-compose.uat.yml down        tear down (keeps data)
+#   docker compose -f docker-compose.uat.yml down -v     tear down + wipe data
+#
+# See docs/STAGING.md.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+if [[ ! -f config/master.key ]]; then
+  echo "config/master.key is missing — it's needed to boot the app in staging (production) mode." >&2
+  exit 1
+fi
+export RAILS_MASTER_KEY="$(cat config/master.key)"
+
+compose() { docker compose -f docker-compose.uat.yml "$@"; }
+
+echo "==> Building and starting the UAT stack"
+compose up -d --build "$@"
+
+echo "==> Waiting for the app to pass its health check"
+if compose exec -T web sh -c 'command -v curl >/dev/null && until curl -sf http://localhost:80/up >/dev/null 2>&1; do sleep 1; done'; then
+  echo
+  echo "    UAT is up:  http://localhost:3001"
+else
+  echo
+  echo "    Stack started but /up did not come green — check: docker compose -f docker-compose.uat.yml logs web" >&2
+fi

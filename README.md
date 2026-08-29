@@ -31,6 +31,15 @@ runs automatically on boot. See `docker-compose.yml`'s comments for the
 Postgres 18 volume-path and Solid Queue multi-connection gotchas already
 hit and fixed once.
 
+### UAT before pushing
+
+`bin/uat` brings up a second stack (`docker-compose.uat.yml`, port 3001)
+that runs the real production image as `RAILS_ENV=staging`, and
+`bin/uat-db-pull` mirrors the live production database and cover images
+into it. Use it for a hands-on pass on a change before pushing to
+`master` (which deploys straight to production). Full workflow:
+[`docs/STAGING.md`](docs/STAGING.md).
+
 ## Docs
 
 - [`docs/PHILOSOPHY.md`](docs/PHILOSOPHY.md) — why this project exists, the

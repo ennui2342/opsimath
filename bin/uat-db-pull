@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# Mirror the live production database and Active Storage cover images into
+# the local UAT stack, so UAT runs against real, current data.
+#
+# Needs kubectl pointed at the homelab cluster (read-only is enough — this
+# only pg_dumps and tars prod, never writes to it). Safe to re-run any time.
+#
+#   bin/uat-db-pull            DB (full) + blobs (only the ones new since last run)
+#   bin/uat-db-pull --full     DB + every blob, ignoring the incremental stamp
+#
+# The DB dump is always full (it's a few MB). Blobs are incremental: once
+# the dump is loaded, app_staging.active_storage_blobs *is* the prod blob
+# list, so we ask it which keys were created since the last run and copy
+# exactly those (Active Storage keys are content-addressed and immutable —
+# an existing file never changes). First run / --full falls back to taring
+# the whole prod storage tree. See docs/STAGING.md.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+NS=opsimath
+DB_POD=opsimath-db-0
+WEB=deployment/opsimath-web
+DUMP="tmp/opsimath-prod-$(date -u +%Y%m%d-%H%M%S).dump"
+STAMP="tmp/.uat-blob-sync"
+
+command -v kubectl >/dev/null || { echo "kubectl not found / not configured for the homelab cluster" >&2; exit 1; }
+compose() { docker compose -f docker-compose.uat.yml "$@"; }
+psql_uat() { compose exec -T db psql -U postgres -v ON_ERROR_STOP=1 "$@"; }
+web_running() { compose ps --status running --services 2>/dev/null | grep -qx web; }
+
+# Cutoff for the *next* run, captured before we start so anything created
+# mid-sync is simply re-copied next time (cheap — identical immutable content).
+run_started_at="$(date -u +%Y-%m-%dT%H:%M:%S)"
+if [[ "${1:-}" == "--full" || ! -f "$STAMP" ]]; then
+  since=""
+  echo "==> Blob sync: FULL"
+else
+  since="$(cat "$STAMP")"
+  echo "==> Blob sync: incremental (blobs created since $since UTC)"
+fi
+
+echo "==> Dumping production database (${NS}/${DB_POD}:app_production)"
+kubectl -n "$NS" exec "$DB_POD" -- \
+  pg_dump -U app -Fc --no-owner --no-privileges app_production > "$DUMP"
+echo "    $(du -h "$DUMP" | cut -f1) -> $DUMP"
+
+echo "==> Ensuring the UAT database is up"
+compose up -d db
+compose exec -T db sh -c 'until pg_isready -U postgres -q; do sleep 1; done'
+
+echo "==> Recreating app_staging from the dump"
+psql_uat -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'app_staging' AND pid <> pg_backend_pid();" >/dev/null || true
+psql_uat -d postgres -c "DROP DATABASE IF EXISTS app_staging;"
+psql_uat -d postgres -c "CREATE DATABASE app_staging OWNER postgres;"
+compose exec -T db pg_restore -U postgres --no-owner --no-privileges -d app_staging < "$DUMP"
+
+# The dump carries ar_internal_metadata.environment = 'production'; without
+# this the first migrate/prepare in the staging env aborts with
+# ActiveRecord::EnvironmentMismatchError.
+psql_uat -d app_staging -c "UPDATE ar_internal_metadata SET value = 'staging' WHERE key = 'environment';" >/dev/null
+
+echo "==> Syncing Active Storage blobs (cover images)"
+if ! web_running; then
+  echo "    web container not running — run 'bin/uat' first, then re-run (the DB is already loaded)"
+elif [[ -z "$since" ]]; then
+  # Full: tar the whole prod tree. Slow (walks the NFS mount) but only
+  # needed once — every later run is incremental.
+  kubectl -n "$NS" exec "$WEB" -- tar -C /rails/storage --warning=no-file-changed -cf - . \
+    | compose exec -T web tar -C /rails/storage -xf - || [ $? -le 1 ]
+  echo "    full copy done"
+  echo "$run_started_at" > "$STAMP"
+else
+  # Incremental: app_staging now holds the prod blob list. Ask it which
+  # keys are new, turn each into its DiskService path (ab/cd/<key>), and
+  # tar just those named files out of prod — no directory walk.
+  list="$(psql_uat -tA -d app_staging -c \
+    "SELECT substr(key,1,2)||'/'||substr(key,3,2)||'/'||key
+       FROM active_storage_blobs
+      WHERE created_at > '${since}'" | sed 's/\r$//' | grep . || true)"
+  if [[ -z "$list" ]]; then
+    echo "    nothing new"
+  else
+    printf '%s\n' "$list" \
+      | kubectl -n "$NS" exec -i "$WEB" -- tar -C /rails/storage --warning=no-file-changed -cf - -T - \
+      | compose exec -T web tar -C /rails/storage -xf - || [ $? -le 1 ]
+    echo "    copied $(printf '%s\n' "$list" | grep -c .) new blob(s)"
+  fi
+  echo "$run_started_at" > "$STAMP"
+fi
+
+echo "==> Running any migrations the working tree is ahead of prod on"
+if web_running; then
+  compose exec -T web ./bin/rails db:prepare
+else
+  echo "    skipped — 'bin/uat' runs db:prepare on boot"
+fi
+
+rm -f "$DUMP"
+echo "==> Done — production data is now in UAT (http://localhost:3001)"

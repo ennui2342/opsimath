@@ -1,7 +1,12 @@
-# Local development only — see docs/PHILOSOPHY.md principle 13 for why
-# scheduling/jobs are self-contained (Solid Queue) rather than depending on
-# external infrastructure, and principle 21 for the Docker-for-dev decision
-# (keeps the host OS clean; no Ruby/Postgres installed on the host at all).
+# Local development only (hot-reload, RAILS_ENV=development, port 3000) —
+# see docs/PHILOSOPHY.md principle 13 for why scheduling/jobs are
+# self-contained (Solid Queue) rather than depending on external
+# infrastructure, and principle 21 for the Docker-for-dev decision (keeps
+# the host OS clean; no Ruby/Postgres installed on the host at all).
+#
+# For a UAT pass against the real production artifact before pushing, use
+# the separate `docker-compose.uat.yml` stack (port 3001) — `bin/uat` and
+# `docs/STAGING.md`.
 #
 # Gems install at container start (bundle_data volume), not baked into the
 # image at build time — see Dockerfile.dev's own comment for why an
