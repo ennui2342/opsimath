@@ -61,16 +61,18 @@ Rails.application.configure do
   # behavior as normal.
   config.ssl_options = { redirect: { exclude: ->(request) { request.host == "opsimath.k8s.ecafe.org" } } }
 
-  # Third leg of the same host-conditional handling. `config.force_ssl = true` makes railties
-  # set `config.session_options[:secure] = true` *globally, at boot* (see
-  # Rails::Application::DefaultMiddlewareStack) - which is NOT undone by the redirect `exclude`
-  # above. A `secure` session cookie is silently dropped by ActionDispatch on a plain-HTTP
+  # Third leg of the same host-conditional handling. `config.force_ssl = true` otherwise makes
+  # railties set `session_options[:secure] = true` *globally, at boot*
+  # (Rails::Application::DefaultMiddlewareStack), which the redirect `exclude` above does NOT
+  # undo. A `secure` session cookie is silently dropped by ActionDispatch on a plain-HTTP
   # request (CookieJar#write_cookie?), so over opsimath.k8s.ecafe.org the session never
-  # persists: CSRF can't validate, login bounces straight back to the form. Setting it false
-  # here stops that global default; ActionDispatch::SSL still re-flags the cookie `secure` on
-  # the real-HTTPS tailscale path (flag_cookies_as_secure!, which the exclude lambda skips
-  # only for the no-TLS host), so that path is unchanged.
-  config.session_options[:secure] = false
+  # persists: CSRF can't validate, login bounces straight back to the form. Declaring the
+  # store here with `secure: false` (railties' `:build_middleware_stack` skips its forcing
+  # when session_options already has a :secure key) fixes that; ActionDispatch::SSL still
+  # re-flags the cookie `secure` on the real-HTTPS tailscale path (flag_cookies_as_secure!,
+  # which the exclude lambda skips only for the no-TLS host), so that path is unchanged.
+  # `key` must match railties' own default, `"_#{app_name}_session"` (module App -> "app").
+  config.session_store :cookie_store, key: "_app_session", secure: false
 
   # Log to STDOUT with the current request id as a default log tag.
   config.log_tags = [ :request_id ]
