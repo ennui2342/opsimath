@@ -76,6 +76,19 @@ module Goodreads
       assert EnrichmentRecord.exists?(entity: edition, provider: "goodreads", external_id: "61030535")
     end
 
+    test "the RSS status shelf is never turned into a Genre/Subject/Tag on an auto-created book" do
+      # <user_shelves> conflates the exclusive shelf with real custom
+      # shelves; a literal "to-read"/"currently-reading" Tag would show as
+      # a lozenge on the work page forever.
+      ShelfSync.sync(fixture_item("to_read", "61030535"), "to-read", {})
+      ShelfSync.sync(fixture_item("currently_reading", "256246282"), "currently-reading", {})
+
+      assert_empty Tag.where(name: RowParser::STATUS_SHELVES)
+      assert_empty Genre.where(name: RowParser::STATUS_SHELVES)
+      assert_empty Subject.where(name: RowParser::STATUS_SHELVES)
+      assert_not Work.find_by!(title: "Children of Memory").tags.exists?(name: "to-read")
+    end
+
     test "a cover download failure doesn't block cataloging the rest of the item" do
       WebMock.reset!
       stub_request(:get, /i\.gr-assets\.com/).to_return(status: 500)

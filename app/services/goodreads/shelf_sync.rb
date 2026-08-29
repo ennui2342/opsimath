@@ -300,7 +300,16 @@ module Goodreads
       WorkContributor.find_or_create_by!(work: work, contributor: contributor, role: "author")
     end
 
-    SKIPPED_SHELF_LABELS = (RowParser::LITERARY_FORM_SHELF_SIGNALS.keys + %w[fiction]).freeze
+    # RSS <user_shelves> conflates the exclusive/status shelf
+    # (currently-reading, to-read, read, ...) with the user's real custom
+    # shelves — unlike the CSV export, whose "Bookshelves" column already
+    # excludes it (RowParser.extra_shelves strips STATUS_SHELVES for the
+    # Importer). Without STATUS_SHELVES here, a book auto-created while on
+    # currently-reading/to-read gets a literal "currently-reading" Tag
+    # that then shows as a lozenge on the work page forever.
+    SKIPPED_SHELF_LABELS = (
+      RowParser::LITERARY_FORM_SHELF_SIGNALS.keys + RowParser::STATUS_SHELVES + %w[fiction]
+    ).freeze
 
     def link_shelves(work)
       @item.user_shelves.each do |label|
