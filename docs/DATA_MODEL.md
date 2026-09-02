@@ -496,7 +496,7 @@ already covers what that option was reaching for, without either problem.
 | `id` | |
 | `title` | |
 | `author_name` | free text — the wanted book may not exist as a `Work` row yet |
-| `cover_url` | bare URL string, not an Active Storage attachment — proportionate to how speculative a wishlist entry is; downloading/storing an image is deferred until the book is actually acquired and gets a real `Edition.cover_image` |
+| `cover_url` | bare URL string. **Revised by `docs/MOBILE.md`:** the shop-lookup PWA needs a wishlist thumbnail, so `WishlistItem` also gets a real `cover_image` Active Storage attachment (downloaded from `cover_url` on create) and the shared `:thumb` variant — `cover_url` stays as the source-of-record link. The original rationale (deferring the download as proportionate to how speculative a wishlist entry is) no longer holds once the thumbnail is a product requirement |
 | `work_id` | optional, once matched to a real `Work` |
 | `series_id` | optional — restored from librarium's own `wishlist_items.series_id`, dropped in the initial port without a reason. Lets "next volume I need in this series" be tracked even before the specific book is known as a `Work` — a common completionist habit for numbered SF lines |
 | `priority` | |

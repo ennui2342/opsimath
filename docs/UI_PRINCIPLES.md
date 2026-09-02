@@ -31,13 +31,14 @@ mobile-first base, breakpoint-prefixed ones are the progressive layer on
 top — so committing to it explicitly costs nothing beyond writing it
 down.
 
-Not just best-practice box-ticking: `PHILOSOPHY.md` principle 17 already
-names Turbo Native as a real future direction for a mobile client, and a
-personal collector plausibly wants to check or add a book from a phone
-in a shop, not only from a laptop at a desk. A responsive web UI today
-is also the cheapest possible step toward that eventual native client —
-Turbo Native wraps a Hotwire web app in a native shell, so a UI that
-already works properly at phone width is most of the way there already.
+Not just best-practice box-ticking: a personal collector plausibly wants
+to check or add a book from a phone in a shop, not only from a laptop at
+a desk. The "check what edition I own, in a shop" half of that is now its
+own thing — an offline read-only PWA, `docs/MOBILE.md`, with its own
+lookup UI rather than the responsive web app. Turbo Native
+(`PHILOSOPHY.md` principle 17) stays lined up for a later interactive
+client, and a responsive web UI is still the cheapest step toward that —
+a UI that works properly at phone width is most of the way there.
 
 ### 2. Every screen has a named job, and the design serves *that* job
 

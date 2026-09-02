@@ -48,14 +48,18 @@ into it. Use it for a hands-on pass on a change before pushing to
   Edition, Copy, Reading, Review, and how they relate.
 - [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md) — the Goodreads import/
   sync design: the first real feature being built, ahead of any UI.
+- [`docs/MOBILE.md`](docs/MOBILE.md) — spec for the offline, read-only
+  shop-lookup PWA, and the server-side constraints it imposes now.
 
 ## Stack
 
 Ruby 4.0 / Rails 8.1 — chosen over the project's original Python starting
 point; see `docs/PHILOSOPHY.md` principle 17 for why. Postgres. Hotwire
 (Turbo + Stimulus) and Tailwind (v4, via `importmap-rails`/
-`tailwindcss-rails` — no Node toolchain) for the web UI, with Turbo Native
-in view for an eventual mobile client. Solid Queue for scheduling/
+`tailwindcss-rails` — no Node toolchain) for the web UI. Mobile: an
+offline read-only shop-lookup PWA is the first target (`docs/MOBILE.md`);
+Turbo Native stays in view for a later interactive client. Solid Queue
+for scheduling/
 background jobs, PaperTrail for versioning, Rails 8's built-in
 authentication generator for a single-owner login gate — see principles
 13, 15, 18, and 19. Minitest + fixtures + Capybara system tests (Rails

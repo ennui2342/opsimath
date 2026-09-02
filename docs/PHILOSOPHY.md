@@ -505,9 +505,13 @@ without silently dropping either version. Opsimath has no offline-capable
 client today, so none of that machinery is being built now. But an
 offline client (a phone app usable without connectivity) is a real
 possible future, not ruled out — so this is deferred, not foreclosed:
-when/if it becomes real, librarium's `000018`–`000021` migrations are the
-concrete reference design to revisit, not something to redesign from
-scratch.
+when/if a *write-capable* one becomes real, librarium's `000018`–`000021`
+migrations are the concrete reference design to revisit, not something to
+redesign from scratch. (As of 2026-08 a *read-only* offline client is
+being spec'd — `docs/MOBILE.md`, the shop-lookup PWA. Read-only means a
+one-way snapshot with nothing to reconcile, so none of that sync
+machinery applies; it's a narrower thing than the client this note
+anticipates.)
 
 In the meantime, what actually matters for a single always-connected user
 — for different reasons than sync — is covered by one maintained library
