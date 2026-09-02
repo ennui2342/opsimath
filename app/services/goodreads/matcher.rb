@@ -64,8 +64,12 @@ module Goodreads
       return nil if works.empty?
       return Result.new(work: nil, edition: nil, ambiguous: true) if works.size > 1
 
-      work = works.first
-      Result.new(work: work, edition: work.editions.first, ambiguous: false)
+      # A work-only match — deliberately no `edition`. Which of the work's
+      # editions this feed row refers to (or whether it's a new one) is
+      # something the sync can't tell without a human once you own more
+      # than one; `ShelfSync` raises an `EditionReconciliation` on this.
+      # Tiers 1/2 above stay confident: they resolve a specific edition.
+      Result.new(work: works.first, edition: nil, ambiguous: false)
     end
   end
 end

@@ -47,6 +47,7 @@ module Goodreads
     end
 
     def sync(shelf)
+      @shelf = shelf
       case shelf
       when "wishlist" then wishlist
       when "to-read" then to_read
@@ -115,7 +116,7 @@ module Goodreads
         pd = flag_pending("reread_conflict", work: work, edition: edition, extra: { "date_started" => @item.user_date_added })
         Outcome.new(entity: pd, payload: {}, edition: edition, created: cataloged.created, changed: cataloged.created)
       else
-        reading = Reading.create!(work: work, edition: edition, status: "reading", date_started: @item.user_date_added)
+        reading = Reading.create!(work: work, edition: edition, status: "reading", source: "owned_copy", date_started: @item.user_date_added)
         Outcome.new(entity: reading, payload: { "reading_id" => reading.id }, edition: edition, created: cataloged.created, changed: true)
       end
     end
@@ -128,7 +129,7 @@ module Goodreads
       reading = Reading.find_by(id: @prior_payload["reading_id"]) ||
                 work.readings.find_by(status: "reading") ||
                 matching_completed_reading(work, edition) ||
-                Reading.new(work: work, edition: edition, status: status)
+                Reading.new(work: work, edition: edition, status: status, source: "owned_copy")
       reading.status = status
       reading.date_finished = @item.user_read_at
       reading.rating = @item.user_rating if @item.user_rating.present?
@@ -194,6 +195,16 @@ module Goodreads
       if match&.ambiguous
         pd = flag_pending("possible_duplicate_work", work: nil, edition: nil)
         return Cataloged.new(work: nil, edition: nil, pending: pd, created: false, wishlist_removed: false)
+      end
+
+      if match && match.edition.nil?
+        # Matched a Work I own but not a specific Edition (Matcher's
+        # title+author fallback — the feed's goodreads_book_id is new and
+        # no ISBN resolves). Which edition this is, or whether it's a new
+        # one, is a human call — see docs/INTEGRATIONS.md. work: nil so
+        # the shelf handlers bail, same as possible_duplicate_work.
+        rec = flag_edition_reconciliation(match.work)
+        return Cataloged.new(work: nil, edition: nil, pending: rec, created: false, wishlist_removed: false)
       end
 
       work, edition, created =
@@ -355,6 +366,25 @@ module Goodreads
       }
       existing = PendingDecision.where(kind: kind, status: "pending").where("payload @> ?", core.to_json).first
       existing || PendingDecision.create!(kind: kind, payload: core.merge(extra))
+    end
+
+    # Raised when a feed row resolves to a Work I own but not a specific
+    # Edition (see ensure_cataloged). Deduped on (work_id,
+    # goodreads_book_id) like flag_pending; the payload is refreshed on a
+    # re-touch so the resolver always replays the latest feed state.
+    def flag_edition_reconciliation(work)
+      payload = {
+        "goodreads_book_id" => @item.goodreads_book_id,
+        "shelf" => @shelf,
+        "work_id" => work.id,
+        "candidate_edition_ids" => work.editions.ids,
+        "feed_item" => @item.to_h.transform_keys(&:to_s)
+      }
+      existing = EditionReconciliation.pending
+                   .where("payload @> ?", { "work_id" => work.id, "goodreads_book_id" => @item.goodreads_book_id }.to_json)
+                   .first
+      existing&.update!(payload: payload)
+      existing || EditionReconciliation.create!(work: work, payload: payload)
     end
   end
 end

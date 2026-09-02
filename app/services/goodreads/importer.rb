@@ -309,6 +309,7 @@ module Goodreads
         work: work,
         edition: edition,
         status: "reading",
+        source: "owned_copy",
         date_started: RowParser.parse_date_slash(row["Date Added"])
       )
     end
@@ -327,7 +328,7 @@ module Goodreads
         dated.sort_by! { |d| d[:event].date_finished || d[:event].date_started }
         dated.each_with_index do |d, index|
           reading = Reading.create!(
-            work: work, edition: d[:edition], status: status_for(d[:row]),
+            work: work, edition: d[:edition], status: status_for(d[:row]), source: "owned_copy",
             date_started: d[:event].date_started, date_finished: d[:event].date_finished
           )
           apply_rating_review(reading, d[:row]) if index == dated.size - 1
@@ -337,7 +338,7 @@ module Goodreads
         # doc's ordinary-single-read policy (no annotation, not data
         # loss). Rating/review/notes come from whichever row (if any)
         # actually carries them.
-        reading = Reading.create!(work: work, edition: read_like.first[:edition], status: status_for(read_like.first[:row]))
+        reading = Reading.create!(work: work, edition: read_like.first[:edition], status: status_for(read_like.first[:row]), source: "owned_copy")
         signal_row = read_like.find { |f| has_signal?(f[:row]) }
         apply_rating_review(reading, signal_row[:row]) if signal_row
       end

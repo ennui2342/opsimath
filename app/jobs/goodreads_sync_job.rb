@@ -59,8 +59,8 @@ class GoodreadsSyncJob < ApplicationJob
   def process_touched(touched)
     JobItem.create!(run_id: job_id, entity: touched.entity, status: "success", message: "#{touched.shelf}: #{touched.goodreads_book_id}")
 
-    if touched.entity.is_a?(PendingDecision)
-      notify_pending_decision(touched.entity, touched)
+    if touched.entity.is_a?(PendingDecision) || touched.entity.is_a?(EditionReconciliation)
+      notify_review_item(touched.entity, touched)
       return
     end
 
@@ -89,10 +89,17 @@ class GoodreadsSyncJob < ApplicationJob
     ))
   end
 
-  def notify_pending_decision(pending_decision, touched)
+  # Both review queues (PendingDecision + EditionReconciliation) notify
+  # the same way — something needs a human before the sync can finish
+  # this item.
+  def notify_review_item(record, touched)
+    label = record.is_a?(EditionReconciliation) ? "edition reconciliation" : record.kind
     Notifications.notify(Notifications::Event.new(
-      kind: :pending_decision, level: :warn, title: "Needs review: #{pending_decision.kind} — #{touched.title}",
-      fields: { "shelf" => touched.shelf, "goodreads_book_id" => touched.goodreads_book_id, "pending_decision_id" => pending_decision.id }
+      kind: :pending_decision, level: :warn, title: "Needs review: #{label} — #{touched.title}",
+      fields: {
+        "shelf" => touched.shelf, "goodreads_book_id" => touched.goodreads_book_id,
+        "#{record.model_name.param_key}_id" => record.id
+      }
     ))
   end
 

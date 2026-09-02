@@ -372,5 +372,60 @@ module Goodreads
       assert_equal "dnf", reading.status
       assert_equal Date.new(2024, 5, 3), reading.date_finished
     end
+
+    # --- edition reconciliation (title+author match, no confident edition) ---
+
+    def title_author_item(shelf, title:, author:, gr_id:, isbn: nil, **extra)
+      RssClient::FeedItem.new(goodreads_book_id: gr_id, title: title, author_name: author, isbn: isbn, **extra)
+    end
+
+    def owned_work_with_edition(title:, author:, gr_id:, isbn10: nil)
+      work = Work.create!(title: title, literary_form: "novel")
+      WorkContributor.create!(work: work, contributor: Contributor.create!(name: author), role: "author")
+      edition = Edition.create!(format: "paperback")
+      EditionContent.create!(work: work, edition: edition)
+      EditionIdentifier.create!(edition: edition, id_type: "goodreads", value: gr_id)
+      EditionIdentifier.create!(edition: edition, id_type: "isbn10", value: isbn10) if isbn10
+      Copy.create!(edition: edition, disposition: "owned")
+      [ work, edition ]
+    end
+
+    test "a title+author-only match raises an EditionReconciliation instead of binding an edition" do
+      work, edition = owned_work_with_edition(title: "Facets", author: "Walter Jon Williams", gr_id: "3945054", isbn10: "0586213872")
+      item = title_author_item("read", title: "Facets", author: "Walter Jon Williams", gr_id: "1343099", isbn: "0812564022", user_read_at: "2024-02-01")
+
+      outcome = ShelfSync.sync(item, "read", {})
+
+      rec = EditionReconciliation.sole
+      assert_equal work, rec.work
+      assert_equal "1343099", rec.incoming_goodreads_id
+      assert_equal "read", rec.shelf
+      assert_equal [ edition.id ], rec.payload["candidate_edition_ids"]
+      assert_equal rec, outcome.entity
+      assert_empty work.readings                      # deferred, not opened
+      assert_nil edition.reload.enrichment_records.find_by(provider: "goodreads") # no cover record
+    end
+
+    test "the reconciliation is deduped and its payload refreshed on a re-touch" do
+      owned_work_with_edition(title: "Facets", author: "Walter Jon Williams", gr_id: "3945054")
+      base = { title: "Facets", author: "Walter Jon Williams", gr_id: "1343099" }
+
+      ShelfSync.sync(title_author_item("read", **base, user_rating: "3"), "read", {})
+      ShelfSync.sync(title_author_item("read", **base, user_rating: "5"), "read", {})
+
+      assert_equal 1, EditionReconciliation.count
+      assert_equal "5", EditionReconciliation.sole.payload.dig("feed_item", "user_rating")
+    end
+
+    test "a confident (goodreads_book_id) match still opens a Reading with source: owned_copy" do
+      _work, edition = owned_work_with_edition(title: "Blindsight", author: "Peter Watts", gr_id: "48484")
+      item = title_author_item("read", title: "Blindsight", author: "Peter Watts", gr_id: "48484", user_read_at: "2024-03-03")
+
+      outcome = ShelfSync.sync(item, "read", {})
+
+      assert_equal edition, outcome.entity.edition
+      assert_equal "owned_copy", outcome.entity.source
+      assert_equal 0, EditionReconciliation.count
+    end
   end
 end

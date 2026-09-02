@@ -31,7 +31,7 @@ module Goodreads
       assert_equal edition, result.edition
     end
 
-    test "tier 3: falls back to exact normalized title+author when no identifier matches" do
+    test "tier 3: exact normalized title+author matches the work but NOT a specific edition" do
       work = Work.create!(title: "Existentialism from Dostoevsky to Sartre", literary_form: "nonfiction")
       edition = Edition.create!
       EditionContent.create!(work: work, edition: edition)
@@ -41,6 +41,7 @@ module Goodreads
       result = Matcher.match(item(goodreads_book_id: "999999", title: "Existentialism from Dostoevsky to Sartre", author_name: "Walter Kaufmann"))
 
       assert_equal work, result.work
+      assert_nil result.edition, "a work-only match leaves the edition for EditionReconciliation to resolve"
       assert_not result.ambiguous
     end
 
