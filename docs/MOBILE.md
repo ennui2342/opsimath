@@ -53,20 +53,30 @@ not incremental sync — just "here is snapshot version N."
 
 ### The snapshot artifact
 
-**Contents** — a denormalised row per catalogued work, plus a row per
-unmatched wishlist entry; each carries everything the use case needs:
+**Contents** — one flat list of *entries*, each a book you own or have
+wishlisted, so the client runs **one** search / one barcode lookup, not
+one per collection. A catalogued work and an unmatched wishlist item are
+both an entry; a work's one-to-many editions hang off it and are joined
+only after a hit, never searched. Built by `Mobile::ShopView`.
 
-- work: `title`, `sort_name`, author name(s), series name + position
-- normalised search keys: lowercased title, author, series
-- per owned edition: `format`, `publisher`, `publish_date` (year is
-  enough), `isbn10`, `isbn13`, `:thumb`
-- `owned`: boolean (does any `Copy` with `disposition: "owned"` exist for
-  an edition of this work)
-- `wishlisted`: boolean, with the wishlist entry's own `:thumb` and,
-  where a `WishlistItem` points at a catalogued `Work`, folded onto that
-  work's row; a wishlist entry with no matched `Work` gets its own row
-  (its title/author/isbn/thumb)
-- edition + wishlist identifiers indexed for exact ISBN lookup
+```
+entries      id ("work:<id>" | "wishlist:<id>"), kind, title, subtitle,
+             authors, series, series_position, year,
+             owned, wishlisted, thumb,
+             search_title, search_author, search_series,
+             isbn10, isbn13          -- entry-level: kind='wishlist' only
+editions     entry_id, format, publisher, year, isbn10, isbn13, thumb
+                                     -- kind='work' only; the editions you own a copy of; 1..n
+isbn_index   isbn13, entry_id, edition_id   -- every ISBN form folded to 13; edition_id null for wishlist
+meta         version, generated_at
+```
+
+- `owned` = any `Copy` with `disposition: "owned"` for an edition of the
+  work. `wishlisted` = a `WishlistItem` (matched to the work, or its own
+  `kind='wishlist'` entry when unmatched — the only case today, see below).
+- `search_*` are normalised (lowercased) for the client's fuzzy match.
+- barcode: `isbn_index` → `entries` row (+ the matched `editions` row);
+  text: fuzzy over `entries.search_*` → then load `editions` on a hit.
 
 **Format** — SQLite file (`snapshot.sqlite3`), thumbnails stored as
 `BLOB` columns. One file, real indexed queries, thumbnails travel with
@@ -75,6 +85,12 @@ it. Read on the client via `wa-sqlite` over OPFS. (A one-hour spike on
 unworkable the fallback is a gzipped-JSON payload held in memory, so the
 generator keeps its serialisation behind one seam — but SQLite is the
 decision, not a maybe.)
+
+Note: nothing sets `WishlistItem#work_id` today — the Goodreads flow
+deletes a wishlist item on acquisition rather than linking it — so in
+practice every wishlist entry is `kind='wishlist'` and no work entry
+comes back `wishlisted`. `ShopView` handles the matched case anyway
+(costs nothing) in case that flow ever changes.
 
 **Thumbnails** — a single declared Active Storage variant, ~120×180,
 WebP, pre-generated (eager `process`, plus a one-off backfill) so

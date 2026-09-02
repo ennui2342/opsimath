@@ -4,7 +4,9 @@ module Mobile
   class ShopViewTest < ActiveSupport::TestCase
     PNG = Base64.decode64("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
 
-    test "an owned work: one row, owned true, with its owned editions and ISBNs" do
+    def entries = ShopView.build.entries
+
+    test "an owned work: one entry (kind work), owned true, with its owned editions and ISBNs" do
       work = Work.create!(title: "Neuromancer", literary_form: "novel", original_publication_year: 1984)
       gibson = Contributor.create!(name: "William Gibson")
       WorkContributor.create!(work:, contributor: gibson, role: "author", display_order: 0)
@@ -18,18 +20,18 @@ module Mobile
       edition.cover_image.attach(io: StringIO.new(PNG), filename: "c.png", content_type: "image/png")
       Copy.create!(edition:, disposition: "owned")
 
-      result = ShopView.build
+      entry = entries.sole
+      assert_equal "work:#{work.id}", entry.id
+      assert_equal "work", entry.kind
+      assert_equal "Neuromancer", entry.title
+      assert_equal [ "William Gibson" ], entry.authors
+      assert_equal "Sprawl", entry.series
+      assert_equal "1", entry.series_position
+      assert entry.owned
+      assert_not entry.wishlisted
+      assert_nil entry.isbn13 # works carry ISBNs per-edition, not entry-level
 
-      assert_equal 1, result.works.size
-      row = result.works.sole
-      assert_equal "Neuromancer", row.title
-      assert_equal [ "William Gibson" ], row.authors
-      assert_equal "Sprawl", row.series
-      assert_equal "1", row.series_position
-      assert row.owned
-      assert_not row.wishlisted
-
-      ed = row.editions.sole
+      ed = entry.editions.sole
       assert_equal "paperback", ed.format
       assert_equal "Ace Books", ed.publisher
       assert_equal "1984", ed.year
@@ -44,7 +46,7 @@ module Mobile
       EditionContent.create!(work:, edition:)
       Copy.create!(edition:, disposition: "sold")
 
-      assert_empty ShopView.build.works
+      assert_empty entries
     end
 
     test "only owned editions of an owned work appear as edition rows" do
@@ -56,33 +58,45 @@ module Mobile
       Copy.create!(edition: owned_ed, disposition: "owned")
       Copy.create!(edition: other_ed, disposition: "given_away")
 
-      row = ShopView.build.works.sole
-      assert_equal [ "Gollancz" ], row.editions.map(&:publisher)
+      assert_equal [ "Gollancz" ], entries.sole.editions.map(&:publisher)
     end
 
-    test "a wishlisted work matched to a Work folds onto that work's row" do
+    test "a wishlisted work matched to a Work folds onto that work's entry" do
       work = Work.create!(title: "Wanted", literary_form: "novel")
       WishlistItem.create!(title: "Wanted", work:)
 
-      row = ShopView.build.works.sole
-      assert row.wishlisted
-      assert_not row.owned
-      assert_empty row.editions
+      entry = entries.sole
+      assert_equal "work", entry.kind
+      assert entry.wishlisted
+      assert_not entry.owned
+      assert_empty entry.editions
     end
 
-    test "an unmatched wishlist entry becomes a wishlist_entries row with ISBNs from external_ids" do
+    test "an unmatched wishlist entry becomes a kind-wishlist entry with ISBNs from external_ids" do
       WishlistItem.create!(
         title: "Vagabonds", author_name: "Hao Jingfang",
         external_ids: { "goodreads" => "49454725", "isbn10" => "1534422080", "isbn13" => "9781534422087" }
       )
 
-      result = ShopView.build
-      assert_empty result.works
-      entry = result.wishlist_entries.sole
+      entry = entries.sole
+      assert_equal "wishlist", entry.kind
       assert_equal "Vagabonds", entry.title
-      assert_equal "Hao Jingfang", entry.author
+      assert_equal [ "Hao Jingfang" ], entry.authors
+      assert entry.wishlisted
+      assert_not entry.owned
       assert_equal "1534422080", entry.isbn10
       assert_equal "9781534422087", entry.isbn13
+      assert_empty entry.editions
+    end
+
+    test "entries come back sorted by title, works and wishlist entries interleaved" do
+      w = Work.create!(title: "Blindsight", literary_form: "novel")
+      e = Edition.create!
+      EditionContent.create!(work: w, edition: e)
+      Copy.create!(edition: e, disposition: "owned")
+      WishlistItem.create!(title: "Anathem")
+
+      assert_equal [ "Anathem", "Blindsight" ], entries.map(&:title)
     end
 
     test "authors come back in display_order" do
@@ -96,7 +110,7 @@ module Mobile
       EditionContent.create!(work:, edition:)
       Copy.create!(edition:, disposition: "owned")
 
-      assert_equal [ "Larry Niven", "Jerry Pournelle" ], ShopView.build.works.sole.authors
+      assert_equal [ "Larry Niven", "Jerry Pournelle" ], entries.sole.authors
     end
   end
 end

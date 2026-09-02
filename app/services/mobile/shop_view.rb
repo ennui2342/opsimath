@@ -1,48 +1,53 @@
 module Mobile
-  # The denormalised "shop view" of the collection: one row per catalogued
-  # work you own or have wishlisted, plus a row per wishlist entry not yet
-  # matched to a work. Everything the offline lookup PWA needs to answer
-  # "owned / wishlisted / neither" for a book in hand (docs/MOBILE.md
-  # constraint 3).
+  # The denormalised "shop view" of the collection: one flat list of
+  # entries, each a book you own or have wishlisted, carrying everything
+  # the offline lookup PWA needs to answer "owned / wishlisted / neither"
+  # for a book in hand (docs/MOBILE.md constraint 3).
+  #
+  # A single searchable unit deliberately: a catalogued work and an
+  # unmatched wishlist item both become an `Entry`, so the client runs one
+  # search / one barcode lookup, not one per collection. A work's
+  # one-to-many editions hang off its entry (`editions`) and are joined
+  # only after a hit, never searched.
   #
   # Format-agnostic plain data — Mobile::SnapshotBuilder turns it into
-  # snapshot.sqlite3; the same shape is the natural basis for a public API
-  # if one is ever wanted. "Do I own an edition of this work" and "is this
-  # work wishlisted" each resolve in one query, not a per-work check.
+  # snapshot.sqlite3; the same shape is the natural basis for a public API.
+  # "Do I own an edition of this work" and "is this work wishlisted" each
+  # resolve in one query, not a per-work check.
   class ShopView
-    Work = Struct.new(
-      :id, :title, :subtitle, :authors, :series, :series_position,
-      :original_year, :owned, :wishlisted, :editions, keyword_init: true
+    Entry = Struct.new(
+      :id,               # "work:<id>" / "wishlist:<id>" — unique within a snapshot
+      :kind,             # "work" | "wishlist"
+      :title, :subtitle, :authors, :series, :series_position, :original_year,
+      :owned, :wishlisted,
+      :isbn10, :isbn13, :has_cover, # entry-level — set only for kind "wishlist"
+      :editions,                    # [Edition] — set only for kind "work"
+      keyword_init: true
     )
     Edition = Struct.new(
       :id, :format, :format_detail, :publisher, :year, :isbn10, :isbn13, :has_cover,
       keyword_init: true
     )
-    WishlistEntry = Struct.new(
-      :id, :title, :author, :series, :isbn10, :isbn13, :has_cover, keyword_init: true
-    )
-    Result = Struct.new(:works, :wishlist_entries, keyword_init: true)
+    Result = Struct.new(:entries, keyword_init: true)
 
     def self.build = new.build
 
     def build
-      Result.new(works: work_rows, wishlist_entries: wishlist_rows)
+      Result.new(entries: (work_entries + wishlist_entries).sort_by { |e| e.title.to_s.downcase })
     end
 
     private
 
-    def work_rows
+    def work_entries
       owned = owned_work_ids
       wishlisted = wishlisted_work_ids
 
-      scope
-        .where(id: owned | wishlisted)
-        .find_each
-        .map { |work| build_work(work, owned:, wishlisted:) }
-        .sort_by { |w| w.title.to_s.downcase }
+      work_scope.where(id: owned | wishlisted).find_each.map do |work|
+        build_work_entry(work, owned:, wishlisted:)
+      end
     end
 
-    def scope
+    def work_scope
       ::Work.includes(
         { work_contributors: :contributor },
         { work_series: :series },
@@ -50,11 +55,12 @@ module Mobile
       )
     end
 
-    def build_work(work, owned:, wishlisted:)
+    def build_work_entry(work, owned:, wishlisted:)
       first_series = work.work_series.min_by { |ws| ws.position || Float::INFINITY }
 
-      Work.new(
-        id: work.id,
+      Entry.new(
+        id: "work:#{work.id}",
+        kind: "work",
         title: work.title,
         subtitle: work.subtitle.presence,
         authors: authors_of(work),
@@ -84,9 +90,7 @@ module Mobile
     end
 
     def build_edition(edition)
-      isbns = edition.edition_identifiers.each_with_object({}) do |ident, h|
-        h[ident.id_type] = ident.value if %w[isbn10 isbn13].include?(ident.id_type)
-      end
+      isbns = isbn_pair(edition.edition_identifiers)
 
       Edition.new(
         id: edition.id,
@@ -94,23 +98,34 @@ module Mobile
         format_detail: edition.format_detail,
         publisher: edition.publisher.presence,
         year: edition.publish_date&.slice(0, 4),
-        isbn10: isbns["isbn10"],
-        isbn13: isbns["isbn13"],
+        isbn10: isbns[:isbn10],
+        isbn13: isbns[:isbn13],
         has_cover: edition.cover_image.attached?
       )
     end
 
-    def wishlist_rows
+    def wishlist_entries
       WishlistItem.where(work_id: nil).includes(:series, cover_image_attachment: :blob).find_each.map do |item|
-        WishlistEntry.new(
-          id: item.id,
+        Entry.new(
+          id: "wishlist:#{item.id}",
+          kind: "wishlist",
           title: item.title,
-          author: item.author_name,
+          authors: Array(item.author_name.presence),
           series: item.series&.name,
+          original_year: nil,
+          owned: false,
+          wishlisted: true,
           isbn10: item.external_ids["isbn10"],
           isbn13: item.external_ids["isbn13"],
-          has_cover: item.cover_image.attached?
+          has_cover: item.cover_image.attached?,
+          editions: []
         )
+      end
+    end
+
+    def isbn_pair(identifiers)
+      identifiers.each_with_object({}) do |ident, pair|
+        pair[ident.id_type.to_sym] = ident.value if %w[isbn10 isbn13].include?(ident.id_type)
       end
     end
 
