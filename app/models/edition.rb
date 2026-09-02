@@ -1,4 +1,6 @@
 class Edition < ApplicationRecord
+  include HasCoverThumbnail
+
   has_paper_trail
 
   enum :format, {
@@ -19,8 +21,6 @@ class Edition < ApplicationRecord
 
   belongs_to :variant_of_edition, class_name: "Edition", optional: true
   has_many :variants, class_name: "Edition", foreign_key: :variant_of_edition_id, inverse_of: :variant_of_edition, dependent: :nullify
-
-  has_one_attached :cover_image
 
   has_many :edition_contents, dependent: :destroy
   has_many :works, through: :edition_contents

@@ -66,11 +66,14 @@ module Goodreads
 
       info = RowParser.series_info(@item.title)
       series = info.series_name && Series.where("lower(name) = ?", info.series_name.downcase).first
+      external_ids = { "goodreads" => @item.goodreads_book_id }
+      external_ids["isbn10"] = @item.isbn if @item.isbn.present? # so a shop scan can match a not-yet-owned book (docs/MOBILE.md)
       wishlist_item = WishlistItem.create!(
         title: info.title,
         author_name: RowParser.clean_name(@item.author_name),
         series: series,
-        external_ids: { "goodreads" => @item.goodreads_book_id }
+        cover_url: @item.book_image_url,
+        external_ids: external_ids
       )
       Outcome.new(entity: wishlist_item, payload: {}, created: true, changed: true)
     end

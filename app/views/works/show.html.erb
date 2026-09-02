@@ -36,7 +36,7 @@
     <% @work.editions.each do |edition| %>
       <div class="flex gap-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
         <% if edition.cover_image.attached? %>
-          <%= image_tag edition.cover_image, class: "h-32 w-auto rounded object-cover", alt: "" %>
+          <%= image_tag edition.cover_image.variant(:thumb), class: "h-32 w-auto rounded object-cover", alt: "" %>
         <% end %>
         <div class="text-sm text-gray-700 dark:text-gray-300">
           <p class="font-medium text-gray-900 dark:text-gray-100">
