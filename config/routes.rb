@@ -4,6 +4,12 @@ Rails.application.routes.draw do
   resources :passwords, param: :token
 
   resources :works, only: [ :index, :show ]
+
+  # The offline shop-lookup PWA (docs/MOBILE.md) — bearer-token, no session.
+  namespace :mobile do
+    get "snapshot", to: "snapshots#show"
+    get "snapshot/version", to: "snapshots#version"
+  end
   resources :pending_decisions, only: [ :index, :show ] do
     member do
       post :accept

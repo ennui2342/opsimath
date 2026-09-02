@@ -17,3 +17,7 @@ production:
     class: GoodreadsSyncJob
     queue: default
     schedule: every hour at minute 42
+  mobile_snapshot:
+    class: MobileSnapshotJob
+    queue: default
+    schedule: every day at 3:20am

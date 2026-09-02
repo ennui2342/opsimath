@@ -57,6 +57,11 @@ gem "reverse_markdown", "~> 3.0"
 gem "kramdown", "~> 2.5"
 gem "kramdown-parser-gfm", "~> 1.1" # GFM input, matching Jekyll's default
 
+# Postgres is the app database; sqlite3 is only used to build the
+# read-only mobile snapshot (docs/MOBILE.md). Vendors its own libsqlite3,
+# so no system dependency beyond a compiler.
+gem "sqlite3", "~> 2.7"
+
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
