@@ -158,16 +158,31 @@ module Enrichment
     # Confirmed against real PendingDecision data: of 521 publisher
     # "conflicts" where one name is a substring of the other, 442 (85%)
     # are plain generic-suffix noise ("Tor Books" vs "Tor", "DAW" vs "DAW
-    # Books") — genuinely the same publisher. The other 79 (15%) carry a
+    # Books") — genuinely the same publisher. Another slice carries a
     # real territory qualifier ("Orbit" vs "Orbit (US)", "Roc" vs "Roc
     # UK") — but since this is an ISBN-keyed lookup, that qualifier
     # describes the exact printing the ISBN identifies, same as every
     # other field enrichment already trusts; it's not a competing guess
-    # about the collector's copy. What actually determines whether a
-    # substring match is safe is the multi-field check above, not
-    # whether the extra text happens to look like a region — a
-    # region-flavored refinement that co-occurs with another genuine
-    # conflict gets held back (and bundled) exactly like any other.
+    # about the collector's copy.
+    #
+    # What's left is the case a bare substring test can't tell apart from
+    # those: the extra word is a *distinct name*, not a formatting or
+    # region difference — "Orbit" vs "Futura Orbit" (Futura's Orbit
+    # imprint, later Little, Brown's), "Gollancz" vs "Victor Gollancz".
+    # One name containing the other is a coincidence there; we can't
+    # assume the longer form is the right one, so it goes to review like
+    # any other publisher conflict. The extra tokens have to be *only*
+    # non-distinguishing words (generic corporate form + territory) for
+    # the merge-toward-completeness shortcut to fire.
+    #
+    # (A substring variant that co-occurs with another genuine conflict
+    # is held back and bundled regardless — see SourceRecorder.integrate.)
+    NON_DISTINGUISHING_PUBLISHER_WORDS = %w[
+      books book press publishing publications publ editions edition imprint
+      ltd limited inc incorporated co company corp corporation group house the and
+      us usa uk gb can canada au aus australia nz
+    ].freeze
+
     def plan_publisher(proposed)
       return Plan.new(action: :skipped) if proposed.blank?
 
@@ -175,7 +190,7 @@ module Enrichment
       return Plan.new(record: @edition, field: :publisher, action: :fill, value: proposed, source: "isfdb") if current.blank?
       return Plan.new(action: :unchanged) if normalize_name(current) == normalize_name(proposed)
 
-      if substring_variant?(current, proposed)
+      if substring_variant?(current, proposed) && only_non_distinguishing_extra_words?(current, proposed)
         longer = [ current, proposed ].max_by(&:length)
         return Plan.new(action: :unchanged) if longer == current # already the more complete form
 
@@ -183,6 +198,20 @@ module Enrichment
       end
 
       Plan.new(record: @edition, field: :publisher, action: :conflict, value: proposed, source: "isfdb", current: current)
+    end
+
+    # The words in one name but not the other (either direction) — for a
+    # genuine substring variant, the "extra" text the longer name adds.
+    # Merging toward that longer form is only safe when every one of them
+    # is a non-distinguishing word; a single real name in there ("Futura")
+    # means the containment is coincidental and a human should decide.
+    def only_non_distinguishing_extra_words?(a, b)
+      extra = name_tokens(a).to_set ^ name_tokens(b).to_set
+      extra.any? && extra.all? { |word| NON_DISTINGUISHING_PUBLISHER_WORDS.include?(word) }
+    end
+
+    def name_tokens(value)
+      value.to_s.downcase.split(/[^a-z0-9]+/).reject(&:blank?)
     end
 
     # An ISBN isn't always unique to one ISFDB publication — a real,

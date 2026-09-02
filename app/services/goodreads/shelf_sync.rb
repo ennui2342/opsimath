@@ -75,6 +75,7 @@ module Goodreads
         cover_url: @item.book_image_url,
         external_ids: external_ids
       )
+      wishlist_item.attach_cover_from_url(@item.book_image_url) # a :thumb for the shop-lookup PWA (docs/MOBILE.md)
       Outcome.new(entity: wishlist_item, payload: {}, created: true, changed: true)
     end
 

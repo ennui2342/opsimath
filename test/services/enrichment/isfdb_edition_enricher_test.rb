@@ -203,6 +203,36 @@ module Enrichment
       assert_equal 0, PendingDecision.count
     end
 
+    test "a publisher name that merely contains the other but adds a distinct name is a conflict, not a silent merge" do
+      # "Futura Orbit" contains "Orbit", but "Futura" is a real imprint
+      # name, not a generic-form or region word — the containment is a
+      # coincidence, so it goes to review rather than being resolved
+      # either way. Real production case (pending decision 13).
+      @edition.update!(publisher: "Futura Orbit")
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE.merge(publisher: "Orbit") ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal "Futura Orbit", @edition.reload.publisher # untouched
+      decision = PendingDecision.sole
+      assert_includes decision.payload["fields"], "publisher"
+      diffs = decision.field_diffs.index_by { |d| d[:field] }
+      assert_equal "Futura Orbit", diffs["publisher"][:current]
+      assert_equal "Orbit", diffs["publisher"][:proposed]
+    end
+
+    test "the same distinct-name containment is a conflict in the other direction too — the longer form isn't assumed correct" do
+      @edition.update!(publisher: "Orbit")
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE.merge(publisher: "Futura Orbit") ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal "Orbit", @edition.reload.publisher # not silently refined to the longer name
+      assert_includes PendingDecision.sole.payload["fields"], "publisher"
+    end
+
     test "two fields disagreeing at once bundles into one edition-mismatch review, neither applied nor split into separate field decisions" do
       @edition.update!(publisher: "Berkley Windhover", publish_date: "1978")
       stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE.merge(publisher: "Ace Books", publish_date: "1979-06") ].to_json)

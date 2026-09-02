@@ -211,10 +211,30 @@ not just accepting the count:
   at once, not as an isolated region qualifier. Confirmed directly: of
   the 79 region-flavored pairs, 65 were isolated (nothing else disagreed
   on that edition) and 14 co-occurred with another genuine conflict. So
-  region-flavored pairs are no longer special-cased — all substring
-  variants merge toward the more complete form — and what actually gates
-  the merge is the new multi-field check below, not whether the extra
-  text looks like a territory marker.
+  region-flavored pairs are no longer special-cased as *disputes* — and
+  what actually gates a merge is the multi-field check below, not whether
+  the extra text looks like a territory marker.
+
+  **Later correction (2026-09-02, prod pending decision 13 — `"Futura
+  Orbit"` vs `"Orbit"`).** "Merge all substring variants toward the more
+  complete form" over-reached in the other direction: one publisher name
+  containing another is only *evidence* of sameness when the extra words
+  carry no identifying information. `"Futura Orbit"` ⊃ `"Orbit"` by
+  string containment, but "Futura" is a distinct imprint name (Futura's
+  Orbit line, later Little, Brown's) — not a formatting or region
+  difference — so assuming either the longer or the shorter form is
+  correct is exactly the guess we shouldn't make. `plan_publisher` now
+  takes the merge-toward-completeness path only when *every* word in one
+  name but not the other is a non-distinguishing word:
+  `NON_DISTINGUISHING_PUBLISHER_WORDS` — generic corporate form (`books`,
+  `press`, `publishing`, `publications`, `ltd`, `inc`, `co`, `group`,
+  `editions`, `house`, `the`, `and`…) plus territory codes (`us`, `usa`,
+  `uk`, `gb`, `canada`, `australia`, `nz`…). So `"Tor"` → `"Tor Books"`
+  and `"Orbit"` → `"Orbit (US)"` still merge; `"Orbit"` vs `"Futura
+  Orbit"` (either direction) is now a normal `enrichment_conflict` and
+  shows up as a selectable field on the review screen. The multi-field
+  bundling below still applies on top — a would-be-safe merge that
+  co-occurs with a genuine conflict is held back regardless.
 - **`page_count` (558) — dropped from the Goodreads import entirely**,
   not reconciled. Mark's call: Goodreads' `Number of Pages` disagrees
   with ISFDB often enough (558 real conflicts) and matters little enough

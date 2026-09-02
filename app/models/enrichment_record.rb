@@ -1,6 +1,6 @@
-require "net/http"
-
 class EnrichmentRecord < ApplicationRecord
+  include HasCoverImage
+
   belongs_to :entity, polymorphic: true
 
   # Every source's own proposed cover, kept locally — not hotlinked, same
@@ -36,23 +36,5 @@ class EnrichmentRecord < ApplicationRecord
   # rather than adding another one to order against.
   def self.latest(entity:, provider:)
     find_by(entity: entity, provider: provider)
-  end
-
-  def attach_cover_from_url(url)
-    return if url.blank?
-
-    uri = URI.parse(url)
-    return unless %w[http https].include?(uri.scheme)
-
-    response = Net::HTTP.get_response(uri)
-    return unless response.is_a?(Net::HTTPSuccess)
-
-    cover_image.attach(
-      io: StringIO.new(response.body),
-      filename: File.basename(uri.path).presence || "cover.jpg",
-      content_type: response.content_type || "image/jpeg"
-    )
-  rescue StandardError => e
-    Rails.logger.warn("cover download failed for enrichment_record #{id}: #{e.message}")
   end
 end

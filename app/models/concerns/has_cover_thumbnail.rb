@@ -1,10 +1,12 @@
-# A `cover_image` Active Storage attachment plus one shared, declared
-# `:thumb` variant — ~120x180 WebP, the size the offline shop-lookup PWA
-# ships (docs/MOBILE.md constraint 2). `preprocessed: true` so the thumb
-# is generated when the cover is attached rather than on first request,
-# which keeps the snapshot export a plain copy with no image work.
+# A `cover_image` Active Storage attachment (plus HasCoverImage's
+# download helper) and one shared, declared `:thumb` variant — ~120x180
+# WebP, the size the offline shop-lookup PWA ships (docs/MOBILE.md
+# constraint 2). `preprocessed: true` so the thumb is generated when the
+# cover is attached rather than on first request, which keeps the
+# snapshot export a plain copy with no image work.
 module HasCoverThumbnail
   extend ActiveSupport::Concern
+  include HasCoverImage
 
   THUMB_VARIANT = { resize_to_limit: [ 120, 180 ], format: :webp, saver: { quality: 80 } }.freeze
 

@@ -32,4 +32,27 @@ class EnrichmentRecordTest < ActiveSupport::TestCase
 
     assert_nil EnrichmentRecord.latest(entity: edition, provider: "isfdb")
   end
+
+  # HasCoverImage#attach_cover_from_url — shared by EnrichmentRecord,
+  # Edition and WishlistItem.
+  test "attach_cover_from_url downloads and attaches an image" do
+    record = EnrichmentRecord.create!(entity: Edition.create!, provider: "isfdb", external_id: "1", fetched_at: Time.current, raw_payload: {})
+    stub_request(:get, "https://covers.example/x.jpg").to_return(status: 200, body: "jpeg-bytes", headers: { "Content-Type" => "image/jpeg" })
+
+    record.attach_cover_from_url("https://covers.example/x.jpg")
+
+    assert record.cover_image.attached?
+    assert_equal "jpeg-bytes", record.cover_image.download
+  end
+
+  test "attach_cover_from_url swallows a failed fetch and a blank url" do
+    record = EnrichmentRecord.create!(entity: Edition.create!, provider: "isfdb", external_id: "1", fetched_at: Time.current, raw_payload: {})
+    stub_request(:get, "https://covers.example/missing.jpg").to_return(status: 404)
+
+    assert_nothing_raised do
+      record.attach_cover_from_url("https://covers.example/missing.jpg")
+      record.attach_cover_from_url(nil)
+    end
+    assert_not record.cover_image.attached?
+  end
 end
