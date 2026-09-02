@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_02_181711) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_02_193553) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -376,6 +376,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_181711) do
     t.index ["arc_id"], name: "index_work_series_on_arc_id"
     t.index ["series_id"], name: "index_work_series_on_series_id"
     t.index ["work_id"], name: "index_work_series_on_work_id"
+  end
+
+  create_table "work_sibling_isbns", id: false, force: :cascade do |t|
+    t.string "isbn13s", default: [], null: false, array: true
+    t.string "queried_isbns", default: [], null: false, array: true
+    t.datetime "refreshed_at", null: false
+    t.bigint "work_id", null: false
+    t.index ["work_id"], name: "index_work_sibling_isbns_on_work_id", unique: true
   end
 
   create_table "work_subjects", force: :cascade do |t|

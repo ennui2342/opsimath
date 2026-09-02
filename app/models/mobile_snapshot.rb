@@ -11,9 +11,9 @@ class MobileSnapshot < ApplicationRecord
     order(:version).last
   end
 
-  def self.regenerate!(isfdb: nil)
+  def self.regenerate!
     next_version = (current&.version || 0) + 1
-    build = Mobile::SnapshotBuilder.build(version: next_version, isfdb:)
+    build = Mobile::SnapshotBuilder.build(version: next_version)
 
     snapshot = current || new
     snapshot.update!(

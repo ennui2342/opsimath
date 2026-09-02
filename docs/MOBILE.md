@@ -94,11 +94,14 @@ meta         version, generated_at
     An ISBN identifies an edition, not a printing, and publishers reuse
     it across printings *and* issue the same book with different ISBNs —
     so without this, scanning the paperback of a book you own in
-    hardcover would read as "not in your collection." Built by fanning
-    `Isfdb::WorkEditions` (→ `/isbn/{isbn}/editions`) over the owned
-    works at snapshot time; best-effort, skipped for works with no ISFDB
-    match or if the adapter is unreachable. `MobileSnapshotJob` passes
-    the client; a bare `SnapshotBuilder.build` does exact-match only.
+    hardcover would read as "not in your collection." The build reads
+    these from the **`WorkSiblingIsbns` cache** — one query, no network.
+    `Isfdb::SiblingIsbnRefresh` (daily, ahead of the snapshot job) keeps
+    that cache current: it fans `Isfdb::WorkEditions`
+    (→ `/isbn/{isbn}/editions`) over owned works whose row is missing,
+    older than 7 days, or whose own ISBNs changed. It's off the build's
+    critical path, so a slow adapter can't make the snapshot slow or
+    non-deterministic — and a truncated refresh is logged, not silent.
 - barcode / typed ISBN: `isbn_index` → `entries` row (+ the matched
   `editions` row, if `edition_id`); text: fuzzy over `entries.search_*` →
   then load `editions` on a hit.

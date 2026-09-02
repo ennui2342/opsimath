@@ -48,16 +48,10 @@ module Mobile
       CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
     SQL
 
-    # `isfdb:` opt-in — when given (MobileSnapshotJob passes a real client),
-    # the ISBN index is widened with the other printings ISFDB knows for
-    # each owned work, so scanning a paperback resolves to a work you own
-    # in hardcover. Omitted (tests, a bare `rake` run) → owned-edition
-    # ISBNs only, no network.
-    def self.build(version:, isfdb: nil) = new(version, isfdb:).build
+    def self.build(version:) = new(version).build
 
-    def initialize(version, isfdb: nil)
+    def initialize(version)
       @version = version
-      @isfdb = isfdb
       @generated_at = Time.current
     end
 
@@ -139,38 +133,12 @@ module Mobile
     end
 
     # {entry_id => [ISBN-13, ...]} for the other printings ISFDB knows of
-    # each owned work. Best-effort: a work with no ISFDB match, or a
-    # lookup that fails, just contributes nothing. Fanned out across a
-    # small pool — the adapter is a local service and this is ~one call
-    # per owned work.
+    # each owned work — read straight from the WorkSiblingIsbns cache
+    # (Isfdb::SiblingIsbnRefresh keeps it current, off the build's
+    # critical path). No network here.
     def load_related_isbns(view)
-      return {} unless @isfdb
-
       work_ids = view.entries.filter_map { |e| e.id.delete_prefix("work:").to_i if e.kind == "work" }
-      works = ::Work.where(id: work_ids).includes(editions: :edition_identifiers).to_a
-
-      out = Concurrent::Hash.new
-      pool = Concurrent::FixedThreadPool.new(6)
-      works.each do |work|
-        pool.post do
-          i13s = sibling_isbn13s(work)
-          out["work:#{work.id}"] = i13s if i13s.present?
-        end
-      end
-      pool.shutdown
-      pool.wait_for_termination(180) || pool.kill
-      out
-    end
-
-    def sibling_isbn13s(work)
-      Isfdb::WorkEditions.for(work, client: @isfdb).filter_map do |ed|
-        ed["isbn_13"].presence || (ed["isbn_10"].presence && Isbn.to_13(ed["isbn_10"]))
-      end.uniq
-    rescue StandardError => e
-      # Best-effort: a work with no sibling ISBNs just falls back to
-      # exact-match scanning, same as before this pass existed.
-      Rails.logger.warn("mobile snapshot: sibling ISBNs failed for work ##{work.id} — #{e.class}: #{e.message}")
-      nil
+      WorkSiblingIsbns.for_works(work_ids).transform_keys { |id| "work:#{id}" }
     end
 
     def write_meta(db, entry_count)

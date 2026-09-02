@@ -28,4 +28,9 @@ namespace :mobile do
   task backfill_wishlist_covers: :environment do
     puts MobileWishlistCoverBackfillJob.perform_now
   end
+
+  desc "Refresh the WorkSiblingIsbns cache the snapshot build reads for 'you own a different edition' scan resolution"
+  task refresh_sibling_isbns: :environment do
+    puts IsfdbSiblingIsbnRefreshJob.perform_now
+  end
 end

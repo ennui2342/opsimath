@@ -39,7 +39,7 @@ class MobileThumbTest < ActiveSupport::TestCase
     wishlist = WishlistItem.create!(title: "W", external_ids: { "isbn13" => "9780000000002" })
     wishlist.cover_image.attach(io: StringIO.new(PNG), filename: "w.png", content_type: "image/png")
 
-    snapshot = MobileSnapshot.regenerate!(isfdb: nil) # build caches thumbs as it goes
+    snapshot = MobileSnapshot.regenerate! # build caches thumbs as it goes
     e_key = edition.cover_image.variant(:thumb).processed.key
     w_key = wishlist.cover_image.variant(:thumb).processed.key
     e_bytes = MobileThumb.find(e_key).data

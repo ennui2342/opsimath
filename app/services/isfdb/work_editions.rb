@@ -10,18 +10,20 @@ module Isfdb
   # mobile snapshot build derives sibling ISBNs from this; a future
   # "switch edition" picker in the web app would call it the same way.
   class WorkEditions
-    def self.for(work, client: Client.new) = new(work, client:).call
+    def self.for(work, client: Client.new, isbns: nil) = new(work, client:, isbns:).call
 
-    def initialize(work, client:)
+    def initialize(work, client:, isbns: nil)
       @work = work
       @client = client
+      @isbns = isbns
     end
 
     # -> [Hash] adapter edition records, possibly empty. A missing match
     # is not an error (returns []); a real adapter failure propagates as
-    # Isfdb::ServiceError.
+    # Isfdb::ServiceError. `isbns:` overrides the work's own ISBNs when the
+    # caller already has them in hand.
     def call
-      source_isbns.each do |isbn|
+      (@isbns || source_isbns).each do |isbn|
         editions = @client.lookup_editions(isbn)
         return editions if editions.any?
       end
