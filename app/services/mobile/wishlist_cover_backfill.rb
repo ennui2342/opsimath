@@ -13,11 +13,12 @@ module Mobile
     end
 
     BOOK_PAGE = "https://www.goodreads.com/book/show/%s"
-    THROTTLE = 0.5 # be polite between Goodreads page fetches
 
     def self.run(**) = new(**).run
 
-    def initialize(feed: nil)
+    # throttle: seconds to pause between Goodreads page fetches (be polite).
+    def initialize(feed: nil, throttle: 0.5)
+      @throttle = throttle
       feed ||= fetch_wishlist_feed
       @feed_images = feed.to_h { |item| [ item.goodreads_book_id, item.book_image_url ] }
     end
@@ -61,7 +62,7 @@ module Mobile
     end
 
     def scrape_og_image(goodreads_id)
-      sleep THROTTLE
+      sleep @throttle if @throttle.positive?
       html = URI.parse(format(BOOK_PAGE, goodreads_id)).open(read_timeout: 10, &:read)
       url = Nokogiri::HTML(html).at_css('meta[property="og:image"]')&.[]("content")
       url if url.present? && url.exclude?("nophoto")

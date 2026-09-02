@@ -24,6 +24,7 @@ module Goodreads
       assert_equal "Bae Suah", wishlist_item.author_name
       assert_equal "1940953464", wishlist_item.external_ids["isbn10"] # captured for shop-scan matching
       assert_equal "https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/books/1469296531l/29363290._SY475_.jpg", wishlist_item.cover_url
+      assert wishlist_item.cover_image.attached? # downloaded for the shop-lookup :thumb
       assert_equal wishlist_item, outcome.entity
       assert_not Work.exists?(title: "A Greater Music")
       assert outcome.created
