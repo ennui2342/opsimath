@@ -277,20 +277,11 @@ module Goodreads
       # separate columns. Using it here would silently mislabel a
       # work-level fact as edition-specific, same false-precision shape
       # as the publish_date EDTF fix and the format fix before it.
-      edition = ActiveRecord::Base.transaction do
-        edition = Edition.create!
-        EditionIdentifier.create!(edition: edition, id_type: "goodreads", value: @item.goodreads_book_id)
-        # RSS only carries isbn10; derive isbn13 so a shop scan matches (docs/MOBILE.md).
-        EditionIdentifier.create!(edition: edition, id_type: "isbn10", value: @item.isbn) if @item.isbn.present?
-        edition.backfill_isbn_pair!
-        # No existing cover to compare against yet on a just-created
-        # Edition, so this is always a plain fill in practice — but goes
-        # through the same shared record_goodreads_cover path as a
-        # matched edition anyway, for one policy in one place.
-        record_goodreads_cover(edition)
-        edition
-      end
-      EditionContent.create!(edition: edition, work: work)
+      # No existing cover to compare against on a just-created Edition, so
+      # the cover record is always a plain fill in practice — but goes
+      # through EditionBuilder's shared SourceRecorder path anyway, one
+      # policy in one place (also the path change_edition/add_edition use).
+      edition = EditionBuilder.build(work: work, item: @item)
       Copy.create!(edition: edition, disposition: "owned")
 
       [ work, edition ]
