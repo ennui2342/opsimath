@@ -17,6 +17,7 @@ module Mobile
       assert_includes response.body, mobile_snapshot_version_path
       assert_match %r{/assets/sqljs-\w+\.js}, response.body
       assert_match %r{<link rel="manifest"}, response.body
+      assert_match %r{<div id="scanner" hidden>.*<video id="cam"}m, response.body # barcode scanner overlay
     end
 
     test "the first load issues a token, later loads reuse it, ?reset rotates it" do

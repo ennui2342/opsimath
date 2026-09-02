@@ -23,6 +23,13 @@
   <main id="results"></main>
   <p id="empty" class="empty" hidden>no match in your collection or wishlist</p>
 
+  <div id="scanner" hidden>
+    <video id="cam" playsinline muted></video>
+    <div class="reticle"></div>
+    <p id="scanhint">point at the barcode</p>
+    <button id="scanclose" type="button" aria-label="close scanner">✕</button>
+  </div>
+
   <script>window.__pocket = <%= @config.to_json.html_safe %>;</script>
   <script src="<%= asset_path("sqljs.js") %>"></script>
   <script src="<%= asset_path("pocket.js") %>"></script>

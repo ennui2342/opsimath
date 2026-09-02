@@ -7,9 +7,14 @@
   const els = {
     status: document.getElementById("status"),
     q: document.getElementById("q"),
+    scan: document.getElementById("scan"),
     results: document.getElementById("results"),
     empty: document.getElementById("empty"),
     form: document.getElementById("search"),
+    scanner: document.getElementById("scanner"),
+    cam: document.getElementById("cam"),
+    scanhint: document.getElementById("scanhint"),
+    scanclose: document.getElementById("scanclose"),
   };
 
   // --- tiny IndexedDB key/value store -------------------------------------
@@ -117,7 +122,16 @@
     }
   }
 
-  // --- search ----------------------------------------------------------
+  // --- queries -------------------------------------------------------
+  function editionsOf(entryId) {
+    const es = db.prepare("SELECT id, format, format_detail, publisher, year, thumb FROM editions WHERE entry_id = ?");
+    es.bind([entryId]);
+    const out = [];
+    while (es.step()) out.push(es.getAsObject());
+    es.free();
+    return out;
+  }
+
   function search(query) {
     const terms = norm(query).split(/\s+/).filter(Boolean);
     if (!db || terms.length === 0) return [];
@@ -136,42 +150,75 @@
     while (stmt.step()) rows.push(stmt.getAsObject());
     stmt.free();
 
-    for (const row of rows) {
-      if (row.kind === "work") {
-        const es = db.prepare("SELECT format, format_detail, publisher, year, thumb FROM editions WHERE entry_id = ?");
-        es.bind([row.id]);
-        row.editions = [];
-        while (es.step()) row.editions.push(es.getAsObject());
-        es.free();
-      }
-    }
+    for (const row of rows) if (row.kind === "work") row.editions = editionsOf(row.id);
     return rows;
   }
 
+  function byIsbn(ean) {
+    const stmt = db.prepare(
+      `SELECT e.id, e.kind, e.title, e.authors, e.series, e.series_position, e.year,
+              e.owned, e.wishlisted, e.thumb, i.edition_id AS matched
+       FROM isbn_index i JOIN entries e ON e.id = i.entry_id WHERE i.isbn13 = ? LIMIT 1`
+    );
+    stmt.bind([ean]);
+    const row = stmt.step() ? stmt.getAsObject() : null;
+    stmt.free();
+    if (row && row.kind === "work") row.editions = editionsOf(row.id);
+    return row;
+  }
+
+  // --- render -------------------------------------------------------
   const blobUrl = (bytes) =>
     bytes && bytes.length ? URL.createObjectURL(new Blob([bytes], { type: "image/webp" })) : null;
 
-  function render(rows) {
+  function cardHtml(row) {
+    const eds = row.editions || [];
+    const thumb = blobUrl((eds.find((e) => e.thumb) || {}).thumb || row.thumb);
+    const fmt = (e) => [e.format_detail || e.format, e.publisher, e.year].filter(Boolean).join(" · ");
+    const pill = row.owned ? ["owned", "OWNED"] : ["wish", "WISHLIST"];
+
+    return `
+      ${thumb ? `<img src="${thumb}" alt="">` : `<div class="noimg">?</div>`}
+      <div class="body">
+        <div class="title">${esc(row.title)}${row.series ? ` <span class="meta">— ${esc(row.series)}${row.series_position ? " #" + esc(row.series_position) : ""}</span>` : ""}</div>
+        <div class="meta">${esc(row.authors || "")}${row.year ? " · " + row.year : ""}</div>
+        <span class="pill ${pill[0]}">${pill[1]}</span>
+        ${eds.length ? `<div class="editions">${eds.map((e) => `<div class="${row.matched && e.id === row.matched ? "matched" : ""}">${esc(fmt(e))}${row.matched && e.id === row.matched ? " · scanned" : ""}</div>`).join("")}</div>` : ""}
+      </div>`;
+  }
+
+  function el(cls, html) {
+    const d = document.createElement("div");
+    d.className = cls;
+    d.innerHTML = html;
+    return d;
+  }
+
+  function clearResults() {
     els.results.querySelectorAll("img[src^=blob]").forEach((i) => URL.revokeObjectURL(i.src));
     els.results.innerHTML = "";
+  }
+
+  function render(rows) {
+    clearResults();
     els.empty.hidden = rows.length > 0 || norm(els.q.value) === "";
+    for (const row of rows) els.results.appendChild(el("card", cardHtml(row)));
+  }
 
-    for (const row of rows) {
-      const card = document.createElement("div");
-      card.className = "card";
-
-      const thumb = blobUrl((row.editions && row.editions.find((e) => e.thumb) || {}).thumb || row.thumb);
-      const fmt = (e) => [e.format_detail || e.format, e.publisher, e.year].filter(Boolean).join(" · ");
-
-      card.innerHTML = `
-        ${thumb ? `<img src="${thumb}" alt="">` : `<div class="noimg">?</div>`}
+  function renderScan(ean, row) {
+    clearResults();
+    els.empty.hidden = true;
+    els.q.value = "";
+    if (row) {
+      els.results.appendChild(el("card", cardHtml(row)));
+    } else {
+      els.results.appendChild(el("card neither", `
+        <div class="noimg">✕</div>
         <div class="body">
-          <div class="title">${esc(row.title)}${row.series ? ` <span class="meta">— ${esc(row.series)}${row.series_position ? " #" + esc(row.series_position) : ""}</span>` : ""}</div>
-          <div class="meta">${esc(row.authors || "")}${row.year ? " · " + row.year : ""}</div>
-          <span class="pill ${row.owned ? "owned" : "wish"}">${row.owned ? "OWNED" : "WISHLIST"}</span>
-          ${row.editions && row.editions.length ? `<div class="editions">${row.editions.map((e) => `<div>${esc(fmt(e))}</div>`).join("")}</div>` : ""}
-        </div>`;
-      els.results.appendChild(card);
+          <div class="title">Not in your collection</div>
+          <div class="meta">${esc(ean)} — not owned, not on your wishlist</div>
+          <span class="pill neither">NEITHER</span>
+        </div>`));
     }
   }
 
@@ -179,6 +226,50 @@
   function runSearch() {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => render(search(els.q.value)), 120);
+  }
+
+  // --- barcode scanner --------------------------------------------
+  let detector = null;
+  let stream = null;
+  let scanPoll = null;
+  let scanBusy = false;
+
+  async function openScanner() {
+    if (!db) return setStatus("no snapshot yet — connect once first", "error");
+    try {
+      detector = detector || new window.BarcodeDetector({ formats: ["ean_13"] });
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      els.cam.srcObject = stream;
+      await els.cam.play();
+      els.scanner.hidden = false;
+      els.scanhint.textContent = "point at the barcode";
+      scanPoll = setInterval(pollBarcode, 250);
+    } catch (e) {
+      console.error(e);
+      closeScanner();
+      setStatus(e && e.name === "NotAllowedError" ? "camera permission denied" : "camera unavailable", "error");
+    }
+  }
+
+  async function pollBarcode() {
+    if (scanBusy || els.scanner.hidden || !els.cam.videoWidth) return;
+    scanBusy = true;
+    try {
+      const codes = await detector.detect(els.cam);
+      const ean = codes.map((c) => c.rawValue).find((v) => /^\d{13}$/.test(v));
+      if (ean) {
+        closeScanner();
+        renderScan(ean, byIsbn(ean));
+      }
+    } catch (_) { /* transient decode errors are normal */ }
+    finally { scanBusy = false; }
+  }
+
+  function closeScanner() {
+    els.scanner.hidden = true;
+    clearInterval(scanPoll);
+    if (stream) stream.getTracks().forEach((t) => t.stop());
+    stream = null;
   }
 
   // --- boot ----------------------------------------------------------
@@ -197,10 +288,17 @@
       await openDb(bytes);
       setStatus(`snapshot ${ago(generatedAt)} · checking…`, "busy");
     }
+
     els.q.addEventListener("input", runSearch);
     els.form.addEventListener("submit", (e) => { e.preventDefault(); runSearch(); });
     els.status.addEventListener("click", () => sync({ force: true }));
     window.addEventListener("online", () => sync());
+
+    if ("BarcodeDetector" in window && navigator.mediaDevices) {
+      els.scan.hidden = false;
+      els.scan.addEventListener("click", openScanner);
+      els.scanclose.addEventListener("click", closeScanner);
+    }
 
     await sync();
   }

@@ -1,10 +1,21 @@
 # Mobile: the offline shop-lookup PWA
 
-Status: **spec, not built.** Written early — before the client exists —
-because the offline requirement constrains the *server* data model, and
-those constraints are cheapest to honour while the model is still being
-built (`PHILOSOPHY.md` principle 15's "deferred, not foreclosed" applied
-concretely).
+Status: **server side + PWA client built** (`Mobile::` services, the
+snapshot generator, and the `/mobile` PWA — offline lookup, text search,
+and `BarcodeDetector` scanning). Written early — before the client
+existed — because the offline requirement constrains the *server* data
+model, and those constraints are cheapest to honour while the model is
+still being built (`PHILOSOPHY.md` principle 15's "deferred, not
+foreclosed" applied concretely).
+
+**Client divergences from this spec, as built:** the snapshot lives in
+IndexedDB (not OPFS) and is queried with **sql.js** (not `wa-sqlite`);
+app state (snapshot version, last-checked, API token) is in IndexedDB
+too, not `localStorage`. Scanning is native `BarcodeDetector` only — no
+`zxing-wasm` fallback yet (the button is hidden where it's unsupported).
+Camera needs a secure context, so scanning works over
+`opsimath.tail611131.ts.net` (HTTPS) but not the plain-HTTP
+`opsimath.k8s.ecafe.org` ingress.
 
 ## The one use case
 
@@ -152,9 +163,11 @@ snapshot is still fully functional.
   the lookup UI — not the full opsimath web app.
 - **Lookup flow**:
   1. **Barcode** — `BarcodeDetector` (native in Android Chrome) over a
-     `getUserMedia` camera stream; the EAN-13 is an ISBN-13, matched
-     exactly against the indexed identifiers. Fallback to a WASM decoder
-     (`zxing-wasm`) if `BarcodeDetector` is unavailable.
+     `getUserMedia({ facingMode: "environment" })` camera stream, polled
+     ~4×/s; the EAN-13 is an ISBN-13, matched exactly against
+     `isbn_index` (which folds every edition/wishlist ISBN to isbn13).
+     The scan button is hidden where `BarcodeDetector` is unavailable —
+     a `zxing-wasm` fallback is a possible follow-up.
   2. **Text** — type title / author; fuzzy match against the normalised
      search keys.
 - **Result**: one of three states, unambiguous and glanceable —

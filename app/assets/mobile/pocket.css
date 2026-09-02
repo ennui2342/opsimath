@@ -9,6 +9,8 @@
   --owned-bg: #d1fae5;
   --wish: #b45309;
   --wish-bg: #fef3c7;
+  --none: #6b7280;
+  --none-bg: #e5e7eb;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -21,6 +23,8 @@
     --owned-bg: #064e3b;
     --wish: #fcd34d;
     --wish-bg: #78350f;
+    --none: #9ca3af;
+    --none-bg: #1f2937;
   }
 }
 
@@ -87,6 +91,8 @@ main { padding: 0 1rem 3rem; }
 .card .meta { font-size: 0.85rem; color: var(--muted); margin-top: 0.15rem; }
 .card .editions { font-size: 0.82rem; color: var(--muted); margin-top: 0.3rem; }
 .card .editions div { margin-top: 0.1rem; }
+.card .editions div.matched { color: var(--fg); font-weight: 600; }
+.card.neither .noimg { color: var(--none); }
 
 .pill {
   display: inline-block;
@@ -99,3 +105,56 @@ main { padding: 0 1rem 3rem; }
 }
 .pill.owned { color: var(--owned); background: var(--owned-bg); }
 .pill.wish { color: var(--wish); background: var(--wish-bg); }
+.pill.neither { color: var(--none); background: var(--none-bg); }
+
+/* --- barcode scanner overlay --- */
+#scanner {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#scanner[hidden] { display: none; } /* an ID selector outweighs the UA [hidden] rule */
+#scanner #cam {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+#scanner .reticle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 70%;
+  max-width: 320px;
+  aspect-ratio: 5 / 3;
+  transform: translate(-50%, -50%);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 0.6rem;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.45);
+}
+#scanner #scanhint {
+  position: absolute;
+  bottom: calc(2rem + env(safe-area-inset-bottom));
+  left: 0;
+  right: 0;
+  margin: 0;
+  text-align: center;
+  color: #fff;
+  font-size: 0.9rem;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+#scanner #scanclose {
+  position: absolute;
+  top: calc(1rem + env(safe-area-inset-top));
+  right: 1rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 1.1rem;
+}
