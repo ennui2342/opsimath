@@ -1,0 +1,56 @@
+<%
+  # The shell page itself is NOT precached here — fetching it during
+  # install would rotate the ApiToken out from under the page that just
+  # loaded. The fetch handler caches it on the first real navigation.
+  shell = [
+    mobile_manifest_path,
+    asset_path("pocket.css"),
+    asset_path("pocket.js"),
+    asset_path("sqljs.js"),
+    asset_path("sqljs.wasm"),
+    "/icon.png"
+  ]
+  cache_name = "pocket-#{Digest::SHA1.hexdigest(shell.join)[0, 12]}"
+%>
+const CACHE = <%= cache_name.to_json.html_safe %>;
+const SHELL = <%= shell.to_json.html_safe %>;
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));
+});
+
+const SHELL_PAGE = <%= mobile_app_path.to_json.html_safe %>;
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
+      // Warm the shell so a fresh install can open offline. Safe: /mobile
+      // only issues a new token when there isn't one to reuse.
+      .then(() => caches.open(CACHE).then((c) => c.add(SHELL_PAGE).catch(() => {})))
+  );
+});
+
+self.addEventListener("fetch", (event) => {
+  const url = new URL(event.request.url);
+  if (event.request.method !== "GET" || url.origin !== self.location.origin) return;
+
+  // The snapshot + version check and the service worker itself are never
+  // cached here — the app manages the snapshot in IndexedDB, and a stale
+  // SW would defeat updates.
+  if (url.pathname.startsWith("/mobile/snapshot") || url.pathname === <%= mobile_service_worker_path.to_json.html_safe %>) return;
+
+  // Shell page: fresh when online, cached when not.
+  if (url.pathname === SHELL_PAGE || url.pathname === SHELL_PAGE + "/") {
+    event.respondWith(
+      fetch(event.request)
+        .then((res) => { caches.open(CACHE).then((c) => c.put(SHELL_PAGE, res.clone())); return res; })
+        .catch(() => caches.match(SHELL_PAGE))
+    );
+    return;
+  }
+
+  // Everything else in scope: cache-first, falling back to the network.
+  event.respondWith(caches.match(event.request).then((hit) => hit || fetch(event.request)));
+});

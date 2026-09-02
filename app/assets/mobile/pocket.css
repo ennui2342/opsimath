@@ -1,0 +1,101 @@
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #111827;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --card: #f9fafb;
+  --owned: #047857;
+  --owned-bg: #d1fae5;
+  --wish: #b45309;
+  --wish-bg: #fef3c7;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0f19;
+    --fg: #f3f4f6;
+    --muted: #9ca3af;
+    --line: #1f2937;
+    --card: #111827;
+    --owned: #6ee7b7;
+    --owned-bg: #064e3b;
+    --wish: #fcd34d;
+    --wish-bg: #78350f;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font: 16px/1.4 system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 1rem 1rem 0.5rem;
+}
+header h1 { margin: 0; font-size: 1.1rem; letter-spacing: 0.02em; }
+.status { margin: 0; font-size: 0.8rem; color: var(--muted); }
+.status.busy { color: var(--wish); }
+.status.error { color: #dc2626; }
+
+form#search { display: flex; gap: 0.5rem; padding: 0.5rem 1rem 1rem; position: sticky; top: 0; background: var(--bg); }
+#q {
+  flex: 1;
+  padding: 0.7rem 0.9rem;
+  font-size: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: var(--bg);
+  color: var(--fg);
+}
+#scan {
+  padding: 0 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: var(--card);
+  color: var(--fg);
+  font-size: 0.9rem;
+}
+
+main { padding: 0 1rem 3rem; }
+.empty { padding: 2rem 1rem; text-align: center; color: var(--muted); }
+
+.card {
+  display: flex;
+  gap: 0.85rem;
+  padding: 0.85rem 0;
+  border-top: 1px solid var(--line);
+}
+.card:first-child { border-top: none; }
+.card img, .card .noimg {
+  width: 56px;
+  height: 84px;
+  flex: none;
+  object-fit: cover;
+  border-radius: 0.3rem;
+  background: var(--card);
+}
+.card .noimg { display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 1.4rem; }
+.card .body { min-width: 0; flex: 1; }
+.card .title { font-weight: 600; }
+.card .meta { font-size: 0.85rem; color: var(--muted); margin-top: 0.15rem; }
+.card .editions { font-size: 0.82rem; color: var(--muted); margin-top: 0.3rem; }
+.card .editions div { margin-top: 0.1rem; }
+
+.pill {
+  display: inline-block;
+  margin-top: 0.4rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.pill.owned { color: var(--owned); background: var(--owned-bg); }
+.pill.wish { color: var(--wish); background: var(--wish-bg); }

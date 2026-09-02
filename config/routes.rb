@@ -7,6 +7,9 @@ Rails.application.routes.draw do
 
   # The offline shop-lookup PWA (docs/MOBILE.md) — bearer-token, no session.
   namespace :mobile do
+    get "/", to: "app#show", as: :app
+    get "manifest.webmanifest", to: "app#manifest", as: :manifest
+    get "service-worker.js", to: "app#service_worker", as: :service_worker
     get "snapshot", to: "snapshots#show"
     get "snapshot/version", to: "snapshots#version"
   end
