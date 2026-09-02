@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_02_193553) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_02_212457) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -119,6 +119,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_193553) do
     t.datetime "updated_at", null: false
     t.string "value"
     t.index ["edition_id"], name: "index_edition_identifiers_on_edition_id"
+  end
+
+  create_table "edition_reconciliations", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.jsonb "payload", default: {}, null: false
+    t.string "resolution"
+    t.datetime "resolved_at"
+    t.bigint "resolved_edition_id"
+    t.string "run_id"
+    t.string "status", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "work_id", null: false
+    t.index ["status"], name: "index_edition_reconciliations_on_status"
+    t.index ["work_id"], name: "index_edition_reconciliations_on_work_id"
   end
 
   create_table "editions", force: :cascade do |t|
