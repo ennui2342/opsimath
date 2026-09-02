@@ -253,23 +253,29 @@ not just accepting the count:
   bundling below still applies on top — a would-be-safe merge that
   co-occurs with a genuine conflict is held back regardless.
 
-  **Retroactive sweep (2026-09-02).** The heuristic change was applied
-  back over the existing backlog, since the old rule had both silently
-  dropped disagreements (catalog held the longer name, nothing else
-  conflicted → `:unchanged`, no decision) and silently overwritten the
-  catalog publisher with ISFDB's form (`field_sources["publisher"]` →
-  `"isfdb"`, no review). The sweep: (1) restored publisher + field-source
-  from the pre-ISFDB source on the ~32 editions where ISFDB had silently
-  overwritten with a form the new rule counts as distinct (`"Spectra"` →
-  `"Bantam Spectra"`, `"Collins"` → `"HarperCollins (UK)"`); (2) deleted
-  the handful of existing `enrichment_conflict` decisions that were
-  missing `publisher` from their `fields` list; (3) re-ran
-  `IsfdbEditionEnricher.reprocess` over every edition with an ISFDB
-  `EnrichmentRecord`, regenerating those decisions correctly and raising
-  new ones (~34, mostly `"Tor Science Fiction"` vs `"Tor"`) for the
-  genuine publisher disagreements the old rule had swallowed. The ~278
-  joined-name forms ISFDB had already applied were left as-is — the new
-  rule agrees with them.
+  **Retroactive sweep (2026-09-02, `script/publisher_sweep.rb`).** The
+  heuristic change was applied back over the existing backlog, since the
+  old rule had both silently dropped disagreements (catalog held the
+  longer name, nothing else conflicted → `:unchanged`, no decision) and
+  silently overwritten the catalog publisher with ISFDB's form
+  (`field_sources["publisher"]` → `"isfdb"`, no review). Over 1,459
+  ISFDB-enriched editions the sweep: (1) restored publisher +
+  field-source from the pre-ISFDB source on the 24 editions where ISFDB
+  had silently overwritten with a form the new rule counts as distinct
+  (`"Spectra"` → `"Bantam Spectra"`, `"Griffin"` → `"St. Martin's
+  Griffin"`), so step 3 raises a proper review decision for them;
+  (2) deleted all 379 pending `source=isfdb` `enrichment_conflict`
+  decisions (none had ever been resolved and the model carries no
+  partial-review state, so this cost only row ids); (3) re-ran
+  `IsfdbEditionEnricher.reprocess` over every ISFDB `EnrichmentRecord`,
+  which regenerated those decisions under the new rule, auto-applied 25
+  now-safe refinements (`"DAW"` → `"DAW Books"`, `"Gollancz"` →
+  `"Gollancz / Orion"`), and raised ~11 new publisher conflicts
+  (`"Victor Gollancz"` vs `"Gollancz"`, `"Panther Granada"` vs
+  `"Granada"`, a `"Hardwired"`/`"Wired"` pair that looks like bad source
+  data) that the old rule had swallowed. Joined-name and qualifier-tail
+  forms ISFDB had already applied were left as-is — the new rule agrees
+  with them.
 - **`page_count` (558) — dropped from the Goodreads import entirely**,
   not reconciled. Mark's call: Goodreads' `Number of Pages` disagrees
   with ISFDB often enough (558 real conflicts) and matters little enough
