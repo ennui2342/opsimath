@@ -174,17 +174,25 @@ module Enrichment
     # one, so it goes to review like any other publisher conflict.
     #
     # For the merge-toward-completeness shortcut to fire, the extra text
-    # the longer name carries has to be non-distinguishing — either every
-    # extra token is a generic corporate-form or territory word
-    # (NON_DISTINGUISHING_PUBLISHER_WORDS), or the longer name is an
-    # imprint/parent form joined by "/" or "&" (joined_imprint_form?).
+    # the longer name carries has to be non-distinguishing:
+    #   - the longer name is an imprint/parent form joined by "/" or "&"
+    #     (joined_imprint_form?: "Gollancz / Orion"), OR
+    #   - the only difference is a bracketed or comma-led qualifier tail
+    #     ("Orbit" vs "Orbit (Hachette)", "Arrow Books" vs "Arrow Books
+    #     (London)"), OR
+    #   - every remaining extra token is a NON_DISTINGUISHING word —
+    #     corporate form, format/imprint line, or territory.
+    # Anything else ("Panther" vs "Panther Granada", "Gollancz" vs "Victor
+    # Gollancz") is a genuine "which publisher is this" question and goes
+    # to review.
     #
     # (A substring variant that co-occurs with another genuine conflict
     # is held back and bundled regardless — see SourceRecorder.integrate.)
     NON_DISTINGUISHING_PUBLISHER_WORDS = %w[
-      books book press publishing publications publ editions edition imprint
-      ltd limited inc incorporated co company corp corporation group house the and
-      us usa uk gb can canada au aus australia nz
+      books book press publishing publications publishers publ editions edition imprint
+      ltd limited inc incorporated co company corp corporation plc pty gmbh group house
+      paperbacks paperback hardback hardcover science fiction fantasy sf the and
+      us usa uk gb can canada au aus australia nz london
     ].freeze
 
     def plan_publisher(proposed)
@@ -208,16 +216,11 @@ module Enrichment
     # we can safely resolve by keeping the fuller form, rather than a
     # genuine "which publisher is this" question for a human?
     def non_distinguishing_variant?(a, b)
-      only_non_distinguishing_extra_words?(a, b) || joined_imprint_form?([ a, b ].max_by(&:length))
-    end
+      return true if joined_imprint_form?([ a, b ].max_by(&:length))
 
-    # The words in one name but not the other (either direction) — for a
-    # genuine substring variant, the "extra" text the longer name adds.
-    # Merging toward that longer form is only safe when every one of them
-    # is a non-distinguishing word; a single real name in there ("Futura")
-    # means the containment is coincidental and a human should decide.
-    def only_non_distinguishing_extra_words?(a, b)
-      extra = name_tokens(a).to_set ^ name_tokens(b).to_set
+      extra = core_name_tokens(a).to_set ^ core_name_tokens(b).to_set
+      return true if extra.empty? && (qualifier_tail?(a) || qualifier_tail?(b)) # differ only by a (...) / ", ..." tail
+
       extra.any? && extra.all? { |word| NON_DISTINGUISHING_PUBLISHER_WORDS.include?(word) }
     end
 
@@ -230,6 +233,19 @@ module Enrichment
     # qualifiers. Mark, 2026-09-02: trust the fuller form here.
     def joined_imprint_form?(name)
       name.to_s.match?(%r{[/&]})
+    end
+
+    # A trailing "(...)" group or everything after the first comma —
+    # "(UK)", "(Hachette)", ", New York", ", Berkley Publishing Group".
+    # On an ISBN-keyed lookup that's always a territory / city / parent
+    # qualifier on this exact printing, never a competing identity, so it
+    # doesn't block a merge and isn't compared token-by-token.
+    def qualifier_tail?(name)
+      name.to_s.match?(/\([^)]*\)\s*\z/) || name.to_s.include?(",")
+    end
+
+    def core_name_tokens(value)
+      name_tokens(value.to_s.sub(/\s*\([^)]*\)\s*\z/, "").sub(/,.*\z/m, ""))
     end
 
     def name_tokens(value)

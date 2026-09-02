@@ -217,6 +217,29 @@ module Enrichment
       assert_equal 0, PendingDecision.count
     end
 
+    test "publisher variants differing only by a corporate-form, imprint-line or bracketed-tail qualifier are merged" do
+      [
+        [ "Bloomsbury", "Bloomsbury Publishing PLC" ],   # legal form
+        [ "Gollancz", "Gollancz Paperbacks" ],           # format line
+        [ "Tor", "Tor Science Fiction" ],                # genre imprint line
+        [ "Arrow Books", "Arrow Books (London)" ],        # bracketed city tail
+        [ "Orbit", "Orbit (Hachette)" ],                 # bracketed parent tail
+        [ "Berkley Books", "Berkley Books, New York" ]    # comma-led tail
+      ].each do |current, proposed|
+        edition = Edition.create!
+        EditionIdentifier.create!(edition: edition, id_type: "isbn10", value: "0441172717")
+        edition.update!(publisher: current)
+        plan = IsfdbEditionEnricher.new(edition, client: nil).send(:plan_publisher, proposed)
+        assert_includes %i[refine unchanged], plan.action, "#{current.inspect} vs #{proposed.inspect}"
+      end
+    end
+
+    test "a distinct extra name is still a conflict even when a tail qualifier is also present" do
+      @edition.update!(publisher: "Granada")
+      plan = IsfdbEditionEnricher.new(@edition, client: nil).send(:plan_publisher, "Panther Granada")
+      assert_equal :conflict, plan.action
+    end
+
     test "a publisher name that merely contains the other but adds a distinct name is a conflict, not a silent merge" do
       # "Futura Orbit" contains "Orbit", but "Futura" is a real imprint
       # name, not a generic-form or region word — the containment is a

@@ -224,24 +224,34 @@ not just accepting the count:
   Orbit line, later Little, Brown's) — not a formatting or region
   difference — so assuming either the longer or the shorter form is
   correct is exactly the guess we shouldn't make. `plan_publisher` now
-  takes the merge-toward-completeness path only when *every* word in one
-  name but not the other is a non-distinguishing word:
-  `NON_DISTINGUISHING_PUBLISHER_WORDS` — generic corporate form (`books`,
-  `press`, `publishing`, `publications`, `ltd`, `inc`, `co`, `group`,
-  `editions`, `house`, `the`, `and`…) plus territory codes (`us`, `usa`,
-  `uk`, `gb`, `canada`, `australia`, `nz`…) — **or** the longer name is
-  an imprint/parent form joined by `/` or `&` (`joined_imprint_form?`:
-  `"Gollancz / Orion"`, `"Del Rey / Ballantine"`, `"Hodder & Stoughton"`
-  — ISFDB's house style for writing an imprint together with its lineage,
-  trusted like a territory qualifier because the ISBN keys the exact
-  printing; Mark, 2026-09-02: trust the fuller form). So `"Tor"` → `"Tor
-  Books"`, `"Orbit"` → `"Orbit (US)"`, `"Gollancz"` → `"Gollancz /
-  Orion"` all still merge; `"Orbit"` vs `"Futura Orbit"`, `"Panther"` vs
-  `"Panther Granada"`, `"Gollancz"` vs `"Victor Gollancz"` (either
-  direction) are now normal `enrichment_conflict`s and show up as a
-  selectable field on the review screen. The multi-field bundling below
-  still applies on top — a would-be-safe merge that co-occurs with a
-  genuine conflict is held back regardless.
+  takes the merge-toward-completeness path only when the difference
+  between the two names carries no identifying information — one of:
+
+  - the longer name is an imprint/parent form joined by `/` or `&`
+    (`joined_imprint_form?`: `"Gollancz / Orion"`, `"Hodder &
+    Stoughton"` — ISFDB's house style for writing an imprint with its
+    lineage attached, trusted like a territory qualifier because the
+    ISBN keys the exact printing; Mark, 2026-09-02: trust the fuller
+    form);
+  - the names differ *only* by a bracketed or comma-led qualifier tail
+    (`qualifier_tail?`: `"Orbit"` vs `"Orbit (Hachette)"`, `"Arrow
+    Books"` vs `"Arrow Books (London)"`, `"Berkley Books"` vs `"Berkley
+    Books, New York"`) — always a territory / city / parent qualifier on
+    an ISBN-keyed lookup;
+  - every remaining extra token is in `NON_DISTINGUISHING_PUBLISHER_WORDS`
+    — corporate form (`books`, `press`, `publishing`, `ltd`, `plc`,
+    `inc`, `co`, `group`, `house`…), format/imprint line (`paperbacks`,
+    `hardback`, `science`, `fiction`, `fantasy`, `sf`), or territory
+    (`us`, `uk`, `canada`, `london`…).
+
+  So `"Tor"` → `"Tor Books"` / `"Tor Science Fiction"`, `"Orbit"` →
+  `"Orbit (US)"`, `"Gollancz"` → `"Gollancz / Orion"`, `"Bloomsbury"` →
+  `"Bloomsbury Publishing PLC"` all still merge; `"Orbit"` vs `"Futura
+  Orbit"`, `"Granada"` vs `"Panther Granada"`, `"Gollancz"` vs `"Victor
+  Gollancz"` (either direction) are now normal `enrichment_conflict`s and
+  show up as a selectable field on the review screen. The multi-field
+  bundling below still applies on top — a would-be-safe merge that
+  co-occurs with a genuine conflict is held back regardless.
 
   **Retroactive sweep (2026-09-02).** The heuristic change was applied
   back over the existing backlog, since the old rule had both silently
