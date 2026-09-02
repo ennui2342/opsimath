@@ -1,26 +1,32 @@
-require "open-uri"
-
 module Mobile
-  # One-time-ish backfill of wishlist covers for the shop-lookup PWA
-  # (docs/MOBILE.md). Wishlist items predate cover capture; the RSS feed
-  # only carries the ~100 most-recently-added, so the rest come from each
-  # book's Goodreads page `og:image`. Idempotent — skips items that
-  # already have a cover — so it's safe to re-run. Not scheduled;
-  # `ShelfSync#wishlist` covers new items going forward.
+  # Backfills covers for wishlist items that predate cover capture (see
+  # docs/MOBILE.md). Two sources, in order:
+  #
+  #   1. the Goodreads wishlist RSS feed's `book_image_url` — a CDN URL,
+  #      but the feed only carries the ~100 most-recently-added items, so
+  #      this only helps the tail that was added while sync was running;
+  #   2. the ISFDB mirror's `cover_url` for the item's ISBN.
+  #
+  # The old fallback — scraping each book's Goodreads page for `og:image`
+  # — is gone: www.goodreads.com is behind AWS WAF and 202-challenges
+  # every scripted request (the CDN cover URLs it *serves* are fine, we
+  # just can't get the page to read them from). ISFDB covers download
+  # fine and cover ISBN'd items well.
+  #
+  # Idempotent — skips items that already have a cover — so it's safe to
+  # re-run. `ShelfSync#wishlist` captures covers for new items going
+  # forward; this is the catch-up.
   class WishlistCoverBackfill
     Result = Struct.new(:attached, :failed, :skipped, keyword_init: true) do
       def to_s = "attached=#{attached} failed=#{failed} skipped=#{skipped}"
     end
 
-    BOOK_PAGE = "https://www.goodreads.com/book/show/%s"
-
     def self.run(**) = new(**).run
 
-    # throttle: seconds to pause between Goodreads page fetches (be polite).
-    def initialize(feed: nil, throttle: 0.5)
-      @throttle = throttle
+    def initialize(feed: nil, client: Isfdb::Client.new)
       feed ||= fetch_wishlist_feed
       @feed_images = feed.to_h { |item| [ item.goodreads_book_id, item.book_image_url ] }
+      @client = client
     end
 
     def run
@@ -47,27 +53,33 @@ module Mobile
     def fetch_wishlist_feed
       Goodreads::RssClient.new.fetch("wishlist")
     rescue Goodreads::RssClient::ServiceError => e
-      Rails.logger.warn("wishlist cover backfill: RSS feed unavailable (#{e.message}) — Goodreads page scrape only")
+      Rails.logger.warn("wishlist cover backfill: RSS feed unavailable (#{e.message}) — ISFDB only")
       []
     end
 
     def pending
-      WishlistItem.where.missing(:cover_image_attachment)
-                  .where("external_ids ->> 'goodreads' IS NOT NULL")
+      WishlistItem.where.missing(:cover_image_attachment).where(
+        "external_ids ->> 'goodreads' IS NOT NULL " \
+        "OR external_ids ->> 'isbn13' IS NOT NULL " \
+        "OR external_ids ->> 'isbn10' IS NOT NULL"
+      )
     end
 
     def cover_url_for(item)
-      goodreads_id = item.external_ids["goodreads"]
-      @feed_images[goodreads_id].presence || scrape_og_image(goodreads_id)
+      from_feed(item) || from_isfdb(item)
     end
 
-    def scrape_og_image(goodreads_id)
-      sleep @throttle if @throttle.positive?
-      html = URI.parse(format(BOOK_PAGE, goodreads_id)).open(read_timeout: 10, &:read)
-      url = Nokogiri::HTML(html).at_css('meta[property="og:image"]')&.[]("content")
-      url if url.present? && url.exclude?("nophoto")
-    rescue StandardError => e
-      Rails.logger.warn("wishlist cover scrape failed for goodreads #{goodreads_id}: #{e.message}")
+    def from_feed(item)
+      @feed_images[item.external_ids["goodreads"]].presence
+    end
+
+    def from_isfdb(item)
+      isbn = item.external_ids["isbn13"].presence || item.external_ids["isbn10"].presence
+      return unless isbn
+
+      @client.lookup_isbn(isbn).filter_map { |c| c["cover_url"].presence }.first
+    rescue Isfdb::ServiceError => e
+      Rails.logger.warn("wishlist cover backfill: ISFDB lookup failed for #{isbn} — #{e.message}")
       nil
     end
   end

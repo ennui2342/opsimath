@@ -23,7 +23,7 @@ namespace :mobile do
     puts "#{seen} covers seen, #{cached} new thumbs cached (#{MobileThumb.count} total)"
   end
 
-  desc "Backfill covers for wishlist items that predate cover capture (RSS feed + Goodreads page og:image)"
+  desc "Backfill covers for wishlist items that predate cover capture (RSS feed image, then ISFDB cover by ISBN)"
   task backfill_wishlist_covers: :environment do
     puts MobileWishlistCoverBackfillJob.perform_now
   end

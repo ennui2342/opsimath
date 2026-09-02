@@ -245,6 +245,15 @@ and features are built:
    an image is deferred until the book is actually acquired" note gets
    revised: the wishlist thumbnail is now in scope.
 
+   Backfill sources (`Mobile::WishlistCoverBackfill`): the Goodreads RSS
+   feed image (a CDN URL, but only the ~100 most-recent items), then the
+   **ISFDB mirror's `cover_url` for the item's ISBN**. Scraping
+   `www.goodreads.com` book pages for `og:image` is *not* an option —
+   the site is behind AWS WAF and 202-challenges scripted requests (the
+   CDN URLs it serves are fine, we just can't read the page to get
+   them). Items with no ISBN and outside the feed window stay
+   cover-less; a wishlist hit shows fine without a thumbnail.
+
 ## Non-goals (v1) / deferred
 
 - Any write path (adding, editing, logging a read). If it ever happens,
