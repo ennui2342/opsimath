@@ -206,7 +206,7 @@ A specific physical (or, loosely, digital-license) object owned.
 | `acquired_price` | |
 | `inscription` | signed/inscribed notes — collector-relevant for SF paperbacks with author signings |
 | `storage_location_id` | |
-| `disposition` | `owned` / `sold` / `given_away` / `lost` — default `owned`; keeps sold/lost copies in history rather than deleting them |
+| `disposition` | `owned` / `sold` / `given_away` / `lost` / `replaced` — default `owned`; keeps superseded copies in history rather than deleting them. `replaced` records that a copy was swapped out for a better one (of the same edition, or a different edition of the same work) — distinct from `sold`/`given_away` in recording *why* it left, and used by the Goodreads edition-change workflow (`docs/INTEGRATIONS.md`). |
 | `notes` | |
 
 Why a full tier and not just a count on `Edition`: it's normal to end up
@@ -214,6 +214,14 @@ owning two different printings of the same edition-as-cataloged, or an
 accidental duplicate — and once a copy is signed or has a condition worth
 recording, "count: 2" can't hold that. A `Copy` with no interesting fields
 set behaves exactly like the simpler "count" model would have.
+
+An `Edition` can have **zero** `Copy` rows. A printing you've read but
+don't own — a library loan, a borrowed or subscription ebook — is a real
+`Edition` in the catalog with a `Reading` against it and no `Copy`;
+"do I own this" stays the clean derived query "is there an owned `Copy`".
+(The Goodreads sync currently over-claims here — every `read`-shelf book
+gets an owned `Copy` — see `docs/INTEGRATIONS.md`'s edition-reconciliation
+addendum.)
 
 ## StorageLocation
 
@@ -446,7 +454,7 @@ One row per read-through, forever.
 | `dnf_reason` | free text, only relevant when `status = dnf` |
 | `rating` | 0–5, half-star increments — this reading's rating, independent of any other reading of the same work. Same scale as `Review.rating` (see below), confirmed against scifipraxis's live production scale (`page.stars`, schema.org `bestRating: 5`) rather than invented — no conversion needed if a reading becomes a published review |
 | `private_notes` | reading-in-progress notes; not published anywhere |
-| `source` | `owned_copy` / `library` / `borrowed` / `other` — access channel only. Format (print/ebook/audiobook) is never repeated here; it's already `Reading.edition_id → Edition.format`, so "a library ebook of a paperback you own" is `source=library` + an ebook `edition_id`, not a conflict between two format-flavored enum values |
+| `source` | `owned_copy` / `library` / `borrowed` / `other` — access channel only. Format (print/ebook/audiobook) is never repeated here; it's already `Reading.edition_id → Edition.format`, so "a library ebook of a paperback you own" is `source=library` + an ebook `edition_id`, not a conflict between two format-flavored enum values. The Goodreads sync should populate it (defaulting to `owned_copy` for a status-shelf auto-create); a library/ebook read is corrected to the right channel — and its stray owned `Copy` removed — via the edition-reconciliation workflow (`docs/INTEGRATIONS.md`). |
 
 "Have I read this work" and "how many times" are queries over this table
 (`COUNT(*) WHERE work_id = ? AND status = 'completed'`), never stored
@@ -597,6 +605,8 @@ own tables — only the genuinely domain-specific pieces below are.
 ```mermaid
 erDiagram
     JOB_ITEM }o--|| PENDING_DECISION : "may produce"
+    JOB_ITEM }o--|| EDITION_RECONCILIATION : "may produce"
+    EDITION_RECONCILIATION }o--|| WORK : "about"
 ```
 
 (No `Job`/`JobEvent` entities — that bookkeeping lives in Solid Queue's own
@@ -639,6 +649,57 @@ what this actually needs, per principle 16.
 | `payload` | JSON — shape depends on `kind`. `enrichment_conflict` is a thin pointer, not a frozen value snapshot: `{entity_type, entity_id, fields: [field_name, ...], source}` — the entity plus which field name(s) are in dispute (one for an isolated conflict, several when a whole fetch is bundled — see `docs/INTEGRATIONS.md`'s enrichment addendum for why that's a different question from a single-field dispute, and why source no longer matters to which shape this takes) and which source raised it. No `current_value`/`proposed` stored: once `EnrichmentRecord.fields` exists, freezing a value at raise time is a staleness hazard against a real review backlog — `PendingDecision#field_diffs` derives the actual current-vs-proposed comparison live, from the entity's column plus that source's own `EnrichmentRecord` |
 | `status` | `pending` / `accepted` / `rejected` |
 | `created_at` / `resolved_at` | |
+
+### EditionReconciliation
+
+A second review queue, kept separate from `PendingDecision` on purpose.
+`PendingDecision` asks "two sources disagree about a *field value* —
+which is right"; this asks "an incoming reading/shelf event doesn't map
+cleanly onto the collection's *edition and ownership structure* — how
+should it land". Different question, structural resolution actions
+(create / relink / dispose records, not pick a value), different review
+screen — so a distinct model, not another `kind`.
+
+Raised by the Goodreads sync (`docs/INTEGRATIONS.md`) when `Matcher`
+resolves a feed row to a `Work` you already have but **not** to a
+specific `Edition` via `goodreads_book_id` — the title+author fallback
+fired, or a `goodreads_book_id` that's new for a book already catalogued.
+Today the sync silently binds to `work.editions.first` (arbitrary the
+moment you own more than one edition of a book) and records only the
+cover; this routes the ambiguity to a human instead.
+
+| Field | Notes |
+|---|---|
+| `id` | |
+| `work_id` | the matched work — always known (that's the trigger) |
+| `run_id` | optional — the sync run that raised it |
+| `payload` | JSON: the feed row as received (`goodreads_book_id`, `isbn`, `title`, shelf, read dates, rating, review, cover URL) plus the candidate `edition_id`s already on the work. Live-derived, not a frozen enrichment snapshot — same reasoning as `PendingDecision.payload`. |
+| `resolution` | null while pending, then `relink` / `change_edition` / `add_edition` / `unowned_read` / `rejected` |
+| `resolved_edition_id` | optional — the edition the resolution created or acted on |
+| `status` | `pending` / `resolved` |
+| `created_at` / `resolved_at` | |
+
+Resolutions:
+
+- **`relink`** — same edition, Goodreads churned its id. Add the new
+  `goodreads_book_id` to the matched `Edition`'s identifiers (keep the
+  old — a book legitimately accumulates them); touch nothing else.
+- **`change_edition`** — you swapped your copy. Pick which existing
+  `Edition` this replaces; its current owned `Copy` becomes
+  `disposition: replaced`; a fresh `Edition` (feed data + an ISFDB pass)
+  and a new owned `Copy` are created on the work.
+- **`add_edition`** — an additional copy alongside what you have. New
+  `Edition` + owned `Copy` on the same `Work`, enriched normally.
+- **`unowned_read`** — a library loan / borrowed or subscription ebook.
+  New `Edition` with **no `Copy`**; the `Reading` this event opens or
+  closes gets `source: library` / `borrowed` / `other`.
+
+Reading binding, stated once: a `Reading` is bound to the `Edition` it
+happened in, forever. `change_edition` never moves a historical
+`Reading` — the old `Edition` and its `Copy(replaced)` persist precisely
+so that history keeps a real edition to point at. A genuine reread in a
+different edition is a *new* `Reading` on the new edition, not a mutation
+of the old one.
 
 ### User / Session / ApiToken (authentication only)
 

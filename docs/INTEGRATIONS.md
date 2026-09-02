@@ -656,6 +656,12 @@ suffix stripped) when ISBN doesn't resolve — librarium's own comment notes
 ISBN is "sparse" for older editions, not useless, so trying it first when
 present is a free improvement, not a redesign.
 
+The title+author fallback resolves a *work*, not an *edition*: today
+`Matcher` returns `work.editions.first`, which is arbitrary the moment
+you own more than one edition of a book. That gap, and the related "you
+changed which edition a book points at on Goodreads" case, are handled
+by the edition-reconciliation addendum below — not by guessing here.
+
 ### Per-shelf behavior
 
 - **`wishlist`** → create/update a `WishlistItem` — and only a
@@ -808,6 +814,59 @@ ambiguously), and a new one this design surfaces —
 `Reading` for that work is already open — genuinely ambiguous: duplicate
 event, a forgotten-to-close previous read, or an intentional reread
 starting before the last one's paperwork caught up).
+
+### Addendum: edition-level reconciliation (designed, not yet built)
+
+The matching strategy above has a gap that only shows once you own more
+than one edition of a book, or change which edition a shelved book points
+at on Goodreads. `Matcher`'s title+author fallback returns
+`work.editions.first` — arbitrary — and `ShelfSync`, on any work-level
+match, does nothing but `record_goodreads_cover`: it never re-reads a
+matched edition's ISBN/format/publisher from the feed (deliberate — the
+RSS feed's per-edition data is thin and untrusted). So an edition swap on
+Goodreads surfaces in opsimath as a lone `cover_image` conflict, which
+reads as "only the cover differs" when in fact the catalogued edition is
+now the wrong printing.
+
+Real cases that exposed this (2026-09):
+- **Facets** — re-shelved to a Tor US edition; the feed carried isbn
+  `0812501810`, the catalogued edition has `0586213872` (Grafton UK). The
+  ISBN delta is a clean "different edition" signal, sitting unused in the
+  `goodreads` `EnrichmentRecord`'s raw payload.
+- **The Anubis Gates** — re-shelved to a Goodreads edition with no ISBN
+  at all. No clean signal — genuinely a human call whether it's a swap, a
+  Goodreads id merge, or an added copy. Reread detection can't help
+  disambiguate either: it keys on `goodreads_book_id` + read dates, and a
+  dateless reread of the same work is already collapsed into the existing
+  `Reading` regardless.
+
+Design: when `Matcher` resolves to a `Work` you own but not to a specific
+`Edition` via `goodreads_book_id`, raise an `EditionReconciliation`
+(`docs/DATA_MODEL.md`) rather than binding to `editions.first`. It is a
+*separate* queue from `PendingDecision` on purpose — the question isn't
+"which field value is right" but "how does this record map onto my
+editions and copies", and the resolutions are structural: `relink` /
+`change_edition` / `add_edition` / `unowned_read`.
+
+Two model deltas fall out:
+- `Copy.disposition` gains `replaced` — `change_edition` ends the old
+  copy without deleting it, so the `Reading` done in it keeps a real
+  `Edition` to point at.
+- The sync must be able to create a `Copy`-less `Edition` (`unowned_read`)
+  and to populate `Reading.source`. Today it always creates an owned
+  `Copy` for a `read`-shelf book and never sets `source`, so opsimath
+  over-claims ownership for any library/subscription-ebook read the user
+  shelved as read on Goodreads. Since the user is a physical collector
+  (read ≈ owned the large majority of the time), the auto-create default
+  stays `owned_copy`; `unowned_read` is the escape hatch, not a flip of
+  the default.
+
+Reading stays bound to the edition it happened in — `change_edition`
+never moves a historical `Reading`; a reread in a new edition is a new
+`Reading`. `book_published` is still work-level (see above), so a
+`change_edition`/`add_edition` `Edition` starts with every enrichable
+field blank and takes its real values from the ISFDB pass on the new
+ISBN — no fabricated edition data from the feed.
 
 ### Out-of-band notification: `Notifications::`
 
