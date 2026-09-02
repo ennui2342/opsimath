@@ -179,30 +179,55 @@ module Mobile
       }.each { |k, v| db.execute("INSERT INTO meta VALUES (?,?)", [ k.to_s, v.to_s ]) }
     end
 
-    # One pass over the covers that ShopView flagged, keyed the same way
-    # the entry/edition rows are. A thumb that fails to render is skipped,
-    # not fatal.
+    # {snapshot key ("edition:<id>" / "wishlist:<id>") => thumb bytes} for
+    # the covers ShopView flagged. Bytes come from the MobileThumb cache
+    # in one query; a miss falls back to a blob download (slow — that's
+    # the whole reason for the cache) and backfills it. A thumb that
+    # can't be produced is skipped, not fatal.
     def load_thumbs(view)
+      records = thumb_records(view)
+      keys = records.transform_values { |record| variant_key(record) }
+      cached = MobileThumb.fetch(keys.values.compact.uniq)
+
+      keys.each_with_object({}) do |(snap_key, blob_key), thumbs|
+        bytes = (blob_key && cached[blob_key]) || download_and_cache(records[snap_key], blob_key)
+        thumbs[snap_key] = bytes if bytes
+      end
+    end
+
+    def thumb_records(view)
       edition_ids = view.entries.flat_map { |e| e.editions.select(&:has_cover).map(&:id) }
       wishlist_ids = view.entries.select { |e| e.kind == "wishlist" && e.has_cover }
                         .map { |e| e.id.delete_prefix("wishlist:").to_i }
 
-      thumbs = {}
-      Edition.where(id: edition_ids).find_each do |edition|
-        bytes = thumb_bytes(edition)
-        thumbs["edition:#{edition.id}"] = bytes if bytes
+      records = {}
+      Edition.where(id: edition_ids).includes(cover_image_attachment: :blob).find_each do |e|
+        records["edition:#{e.id}"] = e
       end
-      WishlistItem.where(id: wishlist_ids).find_each do |item|
-        bytes = thumb_bytes(item)
-        thumbs["wishlist:#{item.id}"] = bytes if bytes
+      WishlistItem.where(id: wishlist_ids).includes(cover_image_attachment: :blob).find_each do |w|
+        records["wishlist:#{w.id}"] = w
       end
-      thumbs
+      records
     end
 
-    def thumb_bytes(record)
-      record.cover_image.variant(:thumb).processed.download
+    # The variant's own blob key — the MobileThumb cache key. For an
+    # already-generated variant (preprocessed on attach, warmed by
+    # `rake mobile:warm_thumbs`) `.processed` is DB-only, no storage I/O;
+    # it's the `.download` in the fallback below that the cache exists to
+    # avoid, not this.
+    def variant_key(record)
+      record.cover_image.variant(:thumb).processed.key
     rescue StandardError => e
-      Rails.logger.warn("mobile snapshot: :thumb failed for #{record.class}##{record.id} — #{e.message}")
+      Rails.logger.warn("mobile snapshot: variant key failed for #{record.class}##{record.id} — #{e.message}")
+      nil
+    end
+
+    def download_and_cache(record, blob_key)
+      bytes = record.cover_image.variant(:thumb).processed.download
+      MobileThumb.store(blob_key, bytes)
+      bytes
+    rescue StandardError => e
+      Rails.logger.warn("mobile snapshot: :thumb download failed for #{record.class}##{record.id} — #{e.message}")
       nil
     end
 

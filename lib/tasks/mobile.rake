@@ -5,18 +5,22 @@ namespace :mobile do
     puts "snapshot v#{snapshot.version}: #{snapshot.entry_count} entries, #{snapshot.byte_size} bytes"
   end
 
-  desc "Generate the :thumb variant for every existing edition/wishlist cover, so the nightly snapshot build does no image work"
+  desc "Generate the :thumb variant for every edition/wishlist cover and cache its bytes (MobileThumb), so the snapshot build does no image work or blob I/O"
   task warm_thumbs: :environment do
-    warmed = 0
+    seen = cached = 0
     [ Edition, WishlistItem ].each do |model|
-      model.joins(:cover_image_attachment).find_each do |record|
-        record.cover_image.variant(:thumb).processed
-        warmed += 1
+      model.joins(:cover_image_attachment).includes(cover_image_attachment: :blob).find_each do |record|
+        seen += 1
+        variant = record.cover_image.variant(:thumb).processed
+        next if MobileThumb.exists?(blob_key: variant.key)
+
+        MobileThumb.store(variant.key, variant.download)
+        cached += 1
       rescue StandardError => e
         warn "  #{model}##{record.id}: #{e.message}"
       end
     end
-    puts "warmed #{warmed} :thumb variants"
+    puts "#{seen} covers seen, #{cached} new thumbs cached (#{MobileThumb.count} total)"
   end
 
   desc "Backfill covers for wishlist items that predate cover capture (RSS feed + Goodreads page og:image)"

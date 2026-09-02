@@ -216,7 +216,12 @@ and features are built:
    an ISBN it had access to.
 2. **A declared `:thumb` variant** (~120×180 WebP), generated eagerly for
    every edition *and every wishlist entry* with a cover, so the snapshot
-   export never does image work.
+   export never does image work. Its bytes are also cached in
+   `mobile_thumbs` (keyed by variant blob key, filled by
+   `rake mobile:warm_thumbs`) so the build reads all ~1.4k thumbs in one
+   query instead of a blob download each — the download scales with the
+   whole library and re-fetches bytes that almost never changed. Pure
+   derived cache: safe to truncate.
 3. **One "shop view" read model.** "Do I own an edition of this work" and
    "is this work wishlisted" must each be answerable in a single query,
    and serialisable. Resist spreading that logic across
