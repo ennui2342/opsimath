@@ -167,9 +167,15 @@ snapshot is still fully functional.
      ~4×/s; the EAN-13 is an ISBN-13, matched exactly against
      `isbn_index` (which folds every edition/wishlist ISBN to isbn13).
      The scan button is hidden where `BarcodeDetector` is unavailable —
-     a `zxing-wasm` fallback is a possible follow-up.
-  2. **Text** — type title / author; fuzzy match against the normalised
-     search keys.
+     a `zxing-wasm` fallback is a possible follow-up. Older US mass
+     markets carry a **shop UPC-A** instead of a Bookland EAN — that
+     doesn't map to an ISBN, so a detected 12-digit UPC just prompts
+     "type the ISBN from the cover".
+  2. **Text / ISBN** — type title / author (fuzzy match against the
+     normalised search keys), *or* type an ISBN-10/13 (dashes and spaces
+     fine): a query that's all digits/`X`/dashes is converted to ISBN-13
+     and run through the same `isbn_index` lookup as a scan. This is the
+     fallback for damaged or UPC-only barcodes.
 - **Result**: one of three states, unambiguous and glanceable —
   - **Owned** — green; list the owned editions (format · publisher ·
     year) with thumbnails.

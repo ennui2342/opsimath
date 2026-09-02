@@ -17,7 +17,7 @@
   </header>
 
   <form id="search" autocomplete="off">
-    <input id="q" type="search" enterkeyhint="search" placeholder="title or author" autofocus>
+    <input id="q" type="search" enterkeyhint="search" placeholder="title, author, or ISBN" autofocus>
     <button id="scan" type="button" hidden>scan</button>
   </form>
 
@@ -28,6 +28,7 @@
     <video id="cam" playsinline muted></video>
     <div class="reticle"></div>
     <p id="scanhint">point at the barcode</p>
+    <p id="scansub">older paperbacks carry a shop UPC, not an ISBN — close and type the number instead</p>
     <button id="scanclose" type="button" aria-label="close scanner">✕</button>
   </div>
 

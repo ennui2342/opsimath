@@ -51,6 +51,18 @@
   const esc = (s) =>
     String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
+  // A raw string -> ISBN-13, or null. Accepts an ISBN-13 as-is and converts a
+  // 10-digit ISBN (matches lib/isbn.rb's to_13: 978 prefix, recomputed check).
+  const toIsbn13 = (raw) => {
+    const s = (raw || "").replace(/[^\dXx]/g, "").toUpperCase();
+    if (/^\d{13}$/.test(s)) return s;
+    if (!/^\d{9}[\dX]$/.test(s)) return null;
+    const core = "978" + s.slice(0, 9);
+    let sum = 0;
+    for (let i = 0; i < 12; i++) sum += +core[i] * (i % 2 ? 3 : 1);
+    return core + ((10 - (sum % 10)) % 10);
+  };
+
   const setStatus = (text, cls = "") => {
     els.status.textContent = text;
     els.status.className = "status" + (cls ? " " + cls : "");
@@ -183,7 +195,7 @@
         <div class="title">${esc(row.title)}${row.series ? ` <span class="meta">— ${esc(row.series)}${row.series_position ? " #" + esc(row.series_position) : ""}</span>` : ""}</div>
         <div class="meta">${esc(row.authors || "")}${row.year ? " · " + row.year : ""}</div>
         <span class="pill ${pill[0]}">${pill[1]}</span>
-        ${eds.length ? `<div class="editions">${eds.map((e) => `<div class="${row.matched && e.id === row.matched ? "matched" : ""}">${esc(fmt(e))}${row.matched && e.id === row.matched ? " · scanned" : ""}</div>`).join("")}</div>` : ""}
+        ${eds.length ? `<div class="editions">${eds.map((e) => `<div class="${row.matched && e.id === row.matched ? "matched" : ""}">${esc(fmt(e))}${row.matched && e.id === row.matched ? " · matched" : ""}</div>`).join("")}</div>` : ""}
       </div>`;
   }
 
@@ -205,10 +217,10 @@
     for (const row of rows) els.results.appendChild(el("card", cardHtml(row)));
   }
 
-  function renderScan(ean, row) {
+  // A single-ISBN result (from a scan or a typed ISBN): one card, or NEITHER.
+  function renderLookup(code, row) {
     clearResults();
     els.empty.hidden = true;
-    els.q.value = "";
     if (row) {
       els.results.appendChild(el("card", cardHtml(row)));
     } else {
@@ -216,7 +228,7 @@
         <div class="noimg">✕</div>
         <div class="body">
           <div class="title">Not in your collection</div>
-          <div class="meta">${esc(ean)} — not owned, not on your wishlist</div>
+          <div class="meta">${esc(code)} — not owned, not on your wishlist</div>
           <span class="pill neither">NEITHER</span>
         </div>`));
     }
@@ -225,7 +237,16 @@
   let searchTimer = null;
   function runSearch() {
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => render(search(els.q.value)), 120);
+    searchTimer = setTimeout(() => {
+      const raw = els.q.value.trim();
+      // Only treat the query as an ISBN when it's nothing but ISBN characters —
+      // a title with a number in it still goes to text search.
+      if (/^[\dXx\s-]+$/.test(raw)) {
+        const isbn13 = toIsbn13(raw);
+        if (isbn13) return renderLookup(isbn13, byIsbn(isbn13));
+      }
+      render(search(els.q.value));
+    }, 120);
   }
 
   // --- barcode scanner --------------------------------------------
@@ -237,7 +258,7 @@
   async function openScanner() {
     if (!db) return setStatus("no snapshot yet — connect once first", "error");
     try {
-      detector = detector || new window.BarcodeDetector({ formats: ["ean_13"] });
+      detector = detector || new window.BarcodeDetector({ formats: ["ean_13", "upc_a"] });
       stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
       els.cam.srcObject = stream;
       await els.cam.play();
@@ -255,11 +276,19 @@
     if (scanBusy || els.scanner.hidden || !els.cam.videoWidth) return;
     scanBusy = true;
     try {
-      const codes = await detector.detect(els.cam);
-      const ean = codes.map((c) => c.rawValue).find((v) => /^\d{13}$/.test(v));
+      const values = (await detector.detect(els.cam)).map((c) => c.rawValue);
+      const ean = values.find((v) => /^\d{13}$/.test(v));
+      const upc = values.find((v) => /^\d{12}$/.test(v));
       if (ean) {
         closeScanner();
-        renderScan(ean, byIsbn(ean));
+        els.q.value = "";
+        renderLookup(ean, byIsbn(ean));
+      } else if (upc) {
+        // An older paperback with a shop UPC instead of a Bookland EAN — the
+        // UPC doesn't map to an ISBN, so send them to the search box.
+        closeScanner();
+        setStatus("that's a shop UPC, not an ISBN — type the ISBN from the cover", "error");
+        els.q.focus();
       }
     } catch (_) { /* transient decode errors are normal */ }
     finally { scanBusy = false; }
