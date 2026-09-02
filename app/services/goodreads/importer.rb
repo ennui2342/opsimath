@@ -270,6 +270,7 @@ module Goodreads
         if (isbn13 = RowParser.clean_isbn(row["ISBN13"]))
           EditionIdentifier.create!(edition: edition, id_type: "isbn13", value: isbn13)
         end
+        edition.backfill_isbn_pair! # fill whichever of the pair the export was missing (docs/MOBILE.md)
 
         format, format_detail = RowParser.format_and_detail(row["Binding"])
 

@@ -268,7 +268,9 @@ module Goodreads
       edition = ActiveRecord::Base.transaction do
         edition = Edition.create!
         EditionIdentifier.create!(edition: edition, id_type: "goodreads", value: @item.goodreads_book_id)
+        # RSS only carries isbn10; derive isbn13 so a shop scan matches (docs/MOBILE.md).
         EditionIdentifier.create!(edition: edition, id_type: "isbn10", value: @item.isbn) if @item.isbn.present?
+        edition.backfill_isbn_pair!
         # No existing cover to compare against yet on a just-created
         # Edition, so this is always a plain fill in practice — but goes
         # through the same shared record_goodreads_cover path as a

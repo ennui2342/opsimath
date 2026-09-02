@@ -89,6 +89,8 @@ module Enrichment
       assert_equal "mass_market", @edition.format_detail
 
       assert @edition.edition_identifiers.exists?(id_type: "isfdb", value: "426303")
+      # ISFDB carries both ISBN forms; the edition only had isbn10, so isbn13 gets filled.
+      assert_equal "9780441172719", @edition.edition_identifiers.find_by(id_type: "isbn13")&.value
       assert @edition.cover_image.attached?
       assert_equal "isfdb", @edition.field_sources["cover_image"]
     end

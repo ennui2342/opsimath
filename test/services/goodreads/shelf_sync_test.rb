@@ -70,6 +70,7 @@ module Goodreads
       assert_nil edition.publish_date # left for isfdb enrichment — book_published isn't this edition's date
       assert_nil edition.format # no signal from the feed — left for isfdb enrichment, not fabricated
       assert_equal "0316466409", edition.edition_identifiers.find_by(id_type: "isbn10").value
+      assert_equal "9780316466400", edition.edition_identifiers.find_by(id_type: "isbn13").value # derived — RSS only carries isbn10
       assert_equal 1, edition.copies.count
       assert edition.cover_image.attached?
       assert_equal "goodreads", edition.field_sources["cover_image"]

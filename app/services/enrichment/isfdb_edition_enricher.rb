@@ -72,6 +72,7 @@ module Enrichment
     def reprocess(data)
       apply_fields(data)
       backfill_isfdb_identifier(data)
+      backfill_isbn_identifiers(data)
     end
 
     private
@@ -252,6 +253,20 @@ module Enrichment
       return if data["_isfdb_pub_id"].blank?
 
       EditionIdentifier.find_or_create_by!(edition: @edition, id_type: "isfdb", value: data["_isfdb_pub_id"].to_s)
+    end
+
+    # ISFDB's pub record carries both ISBN forms. Fill whichever the
+    # edition is missing — but only fill, never add a second value for a
+    # type that's already present (that would be a real conflict, and the
+    # ISBN is how this pub was matched in the first place, so it should
+    # agree). Then derive anything still missing. See docs/MOBILE.md.
+    def backfill_isbn_identifiers(data)
+      { "isbn10" => Isbn.normalize(data["isbn_10"]), "isbn13" => Isbn.normalize(data["isbn_13"]) }.each do |id_type, value|
+        next if value.blank? || @edition.edition_identifiers.exists?(id_type: id_type)
+
+        @edition.edition_identifiers.create!(id_type: id_type, value: value)
+      end
+      @edition.backfill_isbn_pair!
     end
 
     # record_enrichment already downloaded the proposed cover onto its own

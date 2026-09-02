@@ -37,4 +37,20 @@ class Edition < ApplicationRecord
   # blank until real ISFDB enrichment fills it in cleanly. The enum itself
   # still rejects any non-nil value outside the known set.
   validates :publish_date, format: { with: PUBLISH_DATE_FORMAT }, allow_nil: true
+
+  # Fill the missing half of the ISBN-10/13 pair from the half that's
+  # present. Deterministic (`Isbn.to_13`/`to_10`), so the derived value
+  # needs no source tracking. Idempotent — a no-op once both exist or
+  # neither is derivable (pre-ISBN books, 979- prefixes). Called wherever
+  # an ISBN identifier is added; see docs/MOBILE.md constraint 1.
+  def backfill_isbn_pair!
+    present = edition_identifiers.where(id_type: %w[isbn10 isbn13]).pluck(:id_type, :value).to_h
+    return if present.key?("isbn10") && present.key?("isbn13")
+
+    if present["isbn10"] && (derived = Isbn.to_13(present["isbn10"]))
+      edition_identifiers.create!(id_type: "isbn13", value: derived)
+    elsif present["isbn13"] && (derived = Isbn.to_10(present["isbn13"]))
+      edition_identifiers.create!(id_type: "isbn10", value: derived)
+    end
+  end
 end
