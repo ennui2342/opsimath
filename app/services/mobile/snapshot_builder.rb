@@ -48,16 +48,23 @@ module Mobile
       CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
     SQL
 
-    def self.build(version:) = new(version).build
+    # `isfdb:` opt-in — when given (MobileSnapshotJob passes a real client),
+    # the ISBN index is widened with the other printings ISFDB knows for
+    # each owned work, so scanning a paperback resolves to a work you own
+    # in hardcover. Omitted (tests, a bare `rake` run) → owned-edition
+    # ISBNs only, no network.
+    def self.build(version:, isfdb: nil) = new(version, isfdb:).build
 
-    def initialize(version)
+    def initialize(version, isfdb: nil)
       @version = version
+      @isfdb = isfdb
       @generated_at = Time.current
     end
 
     def build
       view = ShopView.build
       thumbs = load_thumbs(view)
+      @related_isbns = load_related_isbns(view)
       file = Tempfile.new([ "mobile-snapshot", ".sqlite3" ])
       file.close
 
@@ -105,17 +112,65 @@ module Mobile
       isbn_rows(entry).each { |row| db.execute("INSERT INTO isbn_index VALUES (?,?,?)", row) }
     end
 
-    # Every ISBN this entry can be scanned by, folded to ISBN-13.
+    # Every ISBN this entry can be scanned by, folded to ISBN-13. Rows
+    # with an edition_id are an edition you own; a null edition_id is a
+    # wishlist item or — for an owned work — one of the *other* printings
+    # ISFDB knows (you own a different edition of that book).
     def isbn_rows(entry)
+      owned = Set.new
       rows = entry.editions.filter_map do |edition|
         i13 = edition.isbn13 || (edition.isbn10 && Isbn.to_13(edition.isbn10))
-        [ i13, entry.id, edition.id ] if i13
+        next unless i13
+
+        owned << i13
+        [ i13, entry.id, edition.id ]
       end
+
       if entry.kind == "wishlist"
         i13 = entry.isbn13 || (entry.isbn10 && Isbn.to_13(entry.isbn10))
         rows << [ i13, entry.id, nil ] if i13
       end
+
+      (@related_isbns[entry.id] || []).each do |i13|
+        rows << [ i13, entry.id, nil ] unless owned.include?(i13)
+      end
+
       rows
+    end
+
+    # {entry_id => [ISBN-13, ...]} for the other printings ISFDB knows of
+    # each owned work. Best-effort: a work with no ISFDB match, or a
+    # lookup that fails, just contributes nothing. Fanned out across a
+    # small pool — the adapter is a local service and this is ~one call
+    # per owned work.
+    def load_related_isbns(view)
+      return {} unless @isfdb
+
+      work_ids = view.entries.filter_map { |e| e.id.delete_prefix("work:").to_i if e.kind == "work" }
+      works = ::Work.where(id: work_ids).includes(editions: :edition_identifiers).to_a
+
+      out = Concurrent::Hash.new
+      pool = Concurrent::FixedThreadPool.new(6)
+      works.each do |work|
+        pool.post do
+          i13s = sibling_isbn13s(work)
+          out["work:#{work.id}"] = i13s if i13s.present?
+        end
+      end
+      pool.shutdown
+      pool.wait_for_termination(180) || pool.kill
+      out
+    end
+
+    def sibling_isbn13s(work)
+      Isfdb::WorkEditions.for(work, client: @isfdb).filter_map do |ed|
+        ed["isbn_13"].presence || (ed["isbn_10"].presence && Isbn.to_13(ed["isbn_10"]))
+      end.uniq
+    rescue StandardError => e
+      # Best-effort: a work with no sibling ISBNs just falls back to
+      # exact-match scanning, same as before this pass existed.
+      Rails.logger.warn("mobile snapshot: sibling ISBNs failed for work ##{work.id} — #{e.class}: #{e.message}")
+      nil
     end
 
     def write_meta(db, entry_count)

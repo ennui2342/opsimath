@@ -3,9 +3,9 @@ require "json"
 
 module Isfdb
   # Thin JSON client for ~/projects/isfdb-adapter — see that repo's README
-  # for the full API contract. Only /isbn/{isbn} is used so far (per
-  # docs/INTEGRATIONS.md's enrichment scope: ISBN-based lookup only for
-  # v1, /search's fuzzy title/author matching deliberately deferred).
+  # for the full API contract. ISBN-keyed lookups only (per
+  # docs/INTEGRATIONS.md's enrichment scope: /search's fuzzy title/author
+  # matching deliberately deferred).
   class ServiceError < StandardError; end
 
   class Client
@@ -31,6 +31,22 @@ module Isfdb
       return [] if response.is_a?(Net::HTTPNotFound)
 
       raise ServiceError, "isfdb-adapter returned #{response.code} for isbn #{isbn}" unless response.is_a?(Net::HTTPSuccess)
+
+      JSON.parse(response.body)
+    end
+
+    # Every publication ISFDB holds for the *title* this ISBN belongs to —
+    # i.e. all the other printings (hardcover, mass market, book club,
+    # ebook) of the same book. Edition-shaped records, same fields as
+    # lookup_isbn. `[]` when the ISBN isn't in the mirror (404). Used to
+    # widen the mobile snapshot's ISBN index (Mobile::SnapshotBuilder) so
+    # scanning any printing resolves to a work you own, and it's the
+    # natural backing for a future "switch edition" picker in the web app.
+    def lookup_editions(isbn)
+      response = get("/isbn/#{isbn}/editions")
+      return [] if response.is_a?(Net::HTTPNotFound)
+
+      raise ServiceError, "isfdb-adapter returned #{response.code} for isbn #{isbn} editions" unless response.is_a?(Net::HTTPSuccess)
 
       JSON.parse(response.body)
     end

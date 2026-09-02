@@ -78,7 +78,7 @@ entries      id ("work:<id>" | "wishlist:<id>"), kind, title, subtitle,
              isbn10, isbn13          -- entry-level: kind='wishlist' only
 editions     entry_id, format, publisher, year, isbn10, isbn13, thumb
                                      -- kind='work' only; the editions you own a copy of; 1..n
-isbn_index   isbn13, entry_id, edition_id   -- every ISBN form folded to 13; edition_id null for wishlist
+isbn_index   isbn13, entry_id, edition_id   -- every ISBN form folded to 13
 meta         version, generated_at
 ```
 
@@ -86,8 +86,22 @@ meta         version, generated_at
   work. `wishlisted` = a `WishlistItem` (matched to the work, or its own
   `kind='wishlist'` entry when unmatched — the only case today, see below).
 - `search_*` are normalised (lowercased) for the client's fuzzy match.
-- barcode: `isbn_index` → `entries` row (+ the matched `editions` row);
-  text: fuzzy over `entries.search_*` → then load `editions` on a hit.
+- `isbn_index` row shapes:
+  - `edition_id` set → an edition you own; a scan of it is an exact hit.
+  - `edition_id` null, `kind='wishlist'` → the wishlist item's own ISBN.
+  - `edition_id` null, `kind='work'` → one of the **other printings**
+    ISFDB knows for a work you own (you have it in a different edition).
+    An ISBN identifies an edition, not a printing, and publishers reuse
+    it across printings *and* issue the same book with different ISBNs —
+    so without this, scanning the paperback of a book you own in
+    hardcover would read as "not in your collection." Built by fanning
+    `Isfdb::WorkEditions` (→ `/isbn/{isbn}/editions`) over the owned
+    works at snapshot time; best-effort, skipped for works with no ISFDB
+    match or if the adapter is unreachable. `MobileSnapshotJob` passes
+    the client; a bare `SnapshotBuilder.build` does exact-match only.
+- barcode / typed ISBN: `isbn_index` → `entries` row (+ the matched
+  `editions` row, if `edition_id`); text: fuzzy over `entries.search_*` →
+  then load `editions` on a hit.
 
 **Format** — SQLite file (`snapshot.sqlite3`), thumbnails stored as
 `BLOB` columns. One file, real indexed queries, thumbnails travel with
@@ -181,7 +195,9 @@ snapshot is still fully functional.
      fallback for damaged or UPC-only barcodes.
 - **Result**: one of three states, unambiguous and glanceable —
   - **Owned** — green; list the owned editions (format · publisher ·
-    year) with thumbnails.
+    year) with thumbnails. A scan/ISBN that resolved via a sibling ISBN
+    (you own a *different* printing) still reads Owned, with a "you own a
+    different edition" line above the title.
   - **On wishlist** — amber; show the wishlist entry.
   - **Neither** — grey; "not in the collection or wishlist".
 
@@ -235,6 +251,14 @@ and features are built:
   history.
 - Full-size covers — thumbnails only.
 - App-store distribution — it's an installed PWA.
+- Persisting sibling editions as opsimath domain data. Assessed 2026-09-02:
+  the only concrete need is the mobile ISBN index, satisfied at snapshot
+  build time; a future web-app "switch edition" picker (for when
+  enrichment matched the wrong printing) is inherently a *live* query and
+  would call `Isfdb::WorkEditions` the same way. opsimath treats ISFDB as
+  a live source, not a mirror to sync. Revisit only if the importer turns
+  out to be creating duplicate `Work`s that a broad ISBN→work index would
+  prevent — measure first.
 
 ## Settled
 

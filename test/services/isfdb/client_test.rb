@@ -47,5 +47,32 @@ module Isfdb
 
       assert_raises(ServiceError) { @client.lookup_isbn("0441172717") }
     end
+
+    test "lookup_editions returns every printing of the title" do
+      stub_request(:get, "#{BASE_URL}/isbn/0765304678/editions").to_return(
+        status: 200,
+        body: [
+          { title: "Crossfire", isbn_10: "0765304678", isbn_13: "9780765304674", binding: "hc", _isfdb_pub_id: 8297 },
+          { title: "Crossfire", isbn_10: "0765343894", isbn_13: "9780765343895", binding: "pb", _isfdb_pub_id: 8299 }
+        ].to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      result = @client.lookup_editions("0765304678")
+
+      assert_equal %w[9780765304674 9780765343895], result.map { |e| e["isbn_13"] }
+    end
+
+    test "lookup_editions returns [] when the ISBN isn't in the mirror" do
+      stub_request(:get, "#{BASE_URL}/isbn/0000000000/editions").to_return(status: 404)
+
+      assert_equal [], @client.lookup_editions("0000000000")
+    end
+
+    test "lookup_editions raises on a 503" do
+      stub_request(:get, "#{BASE_URL}/isbn/0765304678/editions").to_return(status: 503)
+
+      assert_raises(ServiceError) { @client.lookup_editions("0765304678") }
+    end
   end
 end

@@ -18,8 +18,8 @@ module Mobile
                                        external_ids: { "isbn13" => "9781534422087", "isbn10" => "1534422080" })
     end
 
-    def build_and_open
-      @result = SnapshotBuilder.build(version: 7)
+    def build_and_open(isfdb: nil)
+      @result = SnapshotBuilder.build(version: 7, isfdb:)
       @path = Tempfile.new([ "snap", ".sqlite3" ]).path
       IO.copy_stream(@result.io, @path)
       db = SQLite3::Database.new(@path)
@@ -69,6 +69,29 @@ module Mobile
         [ "9780441569595", "work:#{@work.id}", @edition.id ],
         [ "9781534422087", "wishlist:#{@wishlist.id}", nil ]
       ], rows
+    end
+
+    test "with an isfdb client, sibling ISBNs from ISFDB widen the index for an owned work" do
+      base = "http://isfdb-adapter.test:8080"
+      stub_request(:get, "#{base}/isbn/9780441569595/editions").to_return(
+        status: 200,
+        body: [
+          { title: "Neuromancer", isbn_13: "9780441569595", binding: "hc" }, # the printing we own
+          { title: "Neuromancer", isbn_13: "9780722186978", binding: "pb" }, # a different printing
+          { title: "Neuromancer", isbn_10: "0586066454", binding: "pb" }     # ISBN-10 only
+        ].to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+      db = build_and_open(isfdb: Isfdb::Client.new(base_url: base))
+
+      rows = db.execute("SELECT isbn13, entry_id, edition_id FROM isbn_index")
+        .map { |r| [ r["isbn13"], r["entry_id"], r["edition_id"] ] }
+      wid = "work:#{@work.id}"
+      assert_includes rows, [ "9780441569595", wid, @edition.id ]        # owned edition — kept as the exact match
+      assert_includes rows, [ "9780722186978", wid, nil ]                # sibling printing -> work, no edition
+      assert_includes rows, [ Isbn.to_13("0586066454"), wid, nil ]       # ISBN-10 sibling, folded to -13
+      assert_equal 1, rows.count { |i13, _, _| i13 == "9780441569595" }  # not also added as a null row
     end
 
     test "meta carries version, entry count, generation time" do

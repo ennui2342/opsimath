@@ -170,7 +170,8 @@
     const stmt = db.prepare(
       `SELECT e.id, e.kind, e.title, e.authors, e.series, e.series_position, e.year,
               e.owned, e.wishlisted, e.thumb, i.edition_id AS matched
-       FROM isbn_index i JOIN entries e ON e.id = i.entry_id WHERE i.isbn13 = ? LIMIT 1`
+       FROM isbn_index i JOIN entries e ON e.id = i.entry_id WHERE i.isbn13 = ?
+       ORDER BY (i.edition_id IS NULL), (e.owned = 0) LIMIT 1`
     );
     stmt.bind([ean]);
     const row = stmt.step() ? stmt.getAsObject() : null;
@@ -183,7 +184,7 @@
   const blobUrl = (bytes) =>
     bytes && bytes.length ? URL.createObjectURL(new Blob([bytes], { type: "image/webp" })) : null;
 
-  function cardHtml(row) {
+  function cardHtml(row, note) {
     const eds = row.editions || [];
     const thumb = blobUrl((eds.find((e) => e.thumb) || {}).thumb || row.thumb);
     const fmt = (e) => [e.format_detail || e.format, e.publisher, e.year].filter(Boolean).join(" · ");
@@ -192,6 +193,7 @@
     return `
       ${thumb ? `<img src="${thumb}" alt="">` : `<div class="noimg">?</div>`}
       <div class="body">
+        ${note ? `<div class="meta alt">${esc(note)}</div>` : ""}
         <div class="title">${esc(row.title)}${row.series ? ` <span class="meta">— ${esc(row.series)}${row.series_position ? " #" + esc(row.series_position) : ""}</span>` : ""}</div>
         <div class="meta">${esc(row.authors || "")}${row.year ? " · " + row.year : ""}</div>
         <span class="pill ${pill[0]}">${pill[1]}</span>
@@ -222,7 +224,10 @@
     clearResults();
     els.empty.hidden = true;
     if (row) {
-      els.results.appendChild(el("card", cardHtml(row)));
+      // A work-level hit with no matched edition = you own a *different*
+      // printing than the one just scanned.
+      const note = row.kind === "work" && !row.matched ? "you own a different edition:" : null;
+      els.results.appendChild(el("card", cardHtml(row, note)));
     } else {
       els.results.appendChild(el("card neither", `
         <div class="noimg">✕</div>

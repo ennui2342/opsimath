@@ -92,6 +92,7 @@ main { padding: 0 1rem 3rem; }
 .card .editions { font-size: 0.82rem; color: var(--muted); margin-top: 0.3rem; }
 .card .editions div { margin-top: 0.1rem; }
 .card .editions div.matched { color: var(--fg); font-weight: 600; }
+.card .meta.alt { color: var(--owned); font-weight: 600; margin-top: 0; margin-bottom: 0.15rem; }
 .card.neither .noimg { color: var(--none); }
 
 .pill {
