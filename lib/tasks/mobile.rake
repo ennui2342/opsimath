@@ -5,9 +5,10 @@ namespace :mobile do
     puts "snapshot v#{snapshot.version}: #{snapshot.entry_count} entries, #{snapshot.byte_size} bytes"
   end
 
-  desc "Generate the :thumb variant for every edition/wishlist cover and cache its bytes (MobileThumb), so the snapshot build does no image work or blob I/O"
+  desc "Cache every :thumb-variant's bytes (MobileThumb) so the snapshot build does no image work or blob I/O — seeds from the current snapshot, then fills gaps from Active Storage"
   task warm_thumbs: :environment do
-    seen = cached = 0
+    seeded = MobileThumb.seed_from_snapshot
+    seen = filled = 0
     [ Edition, WishlistItem ].each do |model|
       model.joins(:cover_image_attachment).includes(cover_image_attachment: :blob).find_each do |record|
         seen += 1
@@ -15,12 +16,12 @@ namespace :mobile do
         next if MobileThumb.exists?(blob_key: variant.key)
 
         MobileThumb.store(variant.key, variant.download)
-        cached += 1
+        filled += 1
       rescue StandardError => e
         warn "  #{model}##{record.id}: #{e.message}"
       end
     end
-    puts "#{seen} covers seen, #{cached} new thumbs cached (#{MobileThumb.count} total)"
+    puts "seeded #{seeded} from snapshot, filled #{filled} gaps of #{seen} covers (#{MobileThumb.count} cached)"
   end
 
   desc "Backfill covers for wishlist items that predate cover capture (RSS feed image, then ISFDB cover by ISBN)"
