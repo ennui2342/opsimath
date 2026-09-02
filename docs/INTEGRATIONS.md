@@ -815,7 +815,7 @@ ambiguously), and a new one this design surfaces —
 event, a forgotten-to-close previous read, or an intentional reread
 starting before the last one's paperwork caught up).
 
-### Addendum: edition-level reconciliation (designed, not yet built)
+### Addendum: edition-level reconciliation
 
 The matching strategy above has a gap that only shows once you own more
 than one edition of a book, or change which edition a shelved book points
@@ -840,26 +840,43 @@ Real cases that exposed this (2026-09):
   dateless reread of the same work is already collapsed into the existing
   `Reading` regardless.
 
-Design: when `Matcher` resolves to a `Work` you own but not to a specific
-`Edition` via `goodreads_book_id`, raise an `EditionReconciliation`
-(`docs/DATA_MODEL.md`) rather than binding to `editions.first`. It is a
-*separate* queue from `PendingDecision` on purpose — the question isn't
-"which field value is right" but "how does this record map onto my
+Built (2026-09): when `Matcher` resolves to a `Work` you own but not to a
+specific `Edition` via `goodreads_book_id` (`by_title_author` now returns
+`edition: nil` rather than `editions.first`), `ShelfSync#ensure_cataloged`
+raises an `EditionReconciliation` (`docs/DATA_MODEL.md`) and bails the
+shelf handler, same shape as `possible_duplicate_work`. **Every**
+title+author match raises one — nothing is handled silently; `relink`
+("same edition, Goodreads churned the id") is a one-click resolution. It
+is a *separate* queue from `PendingDecision` on purpose — the question
+isn't "which field value is right" but "how does this record map onto my
 editions and copies", and the resolutions are structural: `relink` /
-`change_edition` / `add_edition` / `unowned_read`.
+`change_edition` / `add_edition` / `unowned_read` / `rejected`, applied
+by `Goodreads::EditionReconciliationResolver`.
 
-Two model deltas fall out:
-- `Copy.disposition` gains `replaced` — `change_edition` ends the old
+`relink` / `change_edition` / `add_edition` make the `goodreads_book_id`
+resolve to a confident `Edition`, then **replay** the feed event through
+`ShelfSync.sync` — the existing `read_like` semantics then open the
+deferred `Reading` (a matching prior read date re-touches it in place; a
+new date is a new reading on the confident edition). `unowned_read` is
+handled directly: a `Copy`-less `Edition` (`Goodreads::EditionBuilder`,
+the shared "build one Edition from a feed item" path, no `Copy`) plus a
+`Reading` with `source: library`/`borrowed`/`other`. `change_edition`
+first flips the replaced copy to `Copy(disposition: "replaced")`.
+
+Two model deltas came with it:
+- `Copy.disposition` gained `replaced` — `change_edition` ends the old
   copy without deleting it, so the `Reading` done in it keeps a real
   `Edition` to point at.
-- The sync must be able to create a `Copy`-less `Edition` (`unowned_read`)
-  and to populate `Reading.source`. Today it always creates an owned
-  `Copy` for a `read`-shelf book and never sets `source`, so opsimath
-  over-claims ownership for any library/subscription-ebook read the user
-  shelved as read on Goodreads. Since the user is a physical collector
-  (read ≈ owned the large majority of the time), the auto-create default
-  stays `owned_copy`; `unowned_read` is the escape hatch, not a flip of
-  the default.
+- The sync now creates a `Copy`-less `Edition` for `unowned_read`, and
+  populates `Reading.source` (`ShelfSync` + `Importer` auto-creates
+  default to `owned_copy`; the migration backfilled every existing
+  `Reading` to `owned_copy`). Before this it always created an owned
+  `Copy` for a `read`-shelf book and never set `source`, so opsimath
+  over-claimed ownership for any library/subscription-ebook read shelved
+  as read on Goodreads. Since the user is a physical collector (read ≈
+  owned the large majority of the time), the auto-create default stays
+  `owned_copy`; `unowned_read` is the escape hatch, not a flip of the
+  default.
 
 Reading stays bound to the edition it happened in — `change_edition`
 never moves a historical `Reading`; a reread in a new edition is a new

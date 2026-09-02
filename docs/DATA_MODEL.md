@@ -664,9 +664,12 @@ Raised by the Goodreads sync (`docs/INTEGRATIONS.md`) when `Matcher`
 resolves a feed row to a `Work` you already have but **not** to a
 specific `Edition` via `goodreads_book_id` — the title+author fallback
 fired, or a `goodreads_book_id` that's new for a book already catalogued.
-Today the sync silently binds to `work.editions.first` (arbitrary the
-moment you own more than one edition of a book) and records only the
-cover; this routes the ambiguity to a human instead.
+Before this existed the sync bound to `work.editions.first` (arbitrary
+the moment you own more than one edition) and recorded only the cover;
+now `Matcher#by_title_author` returns `edition: nil` and
+`ShelfSync#ensure_cataloged` routes the ambiguity to a human. **Every**
+such match raises one — `relink` is a one-click resolution. Applied by
+`Goodreads::EditionReconciliationResolver`.
 
 | Field | Notes |
 |---|---|
