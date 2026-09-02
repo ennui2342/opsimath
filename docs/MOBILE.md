@@ -168,9 +168,12 @@ snapshot is still fully functional.
      `isbn_index` (which folds every edition/wishlist ISBN to isbn13).
      The scan button is hidden where `BarcodeDetector` is unavailable —
      a `zxing-wasm` fallback is a possible follow-up. Older US mass
-     markets carry a **shop UPC-A** instead of a Bookland EAN — that
-     doesn't map to an ISBN, so a detected 12-digit UPC just prompts
-     "type the ISBN from the cover".
+     markets carry a **publisher retail UPC-A** (`0 37145 …` is Tom
+     Doherty / Tor, for example) instead of a Bookland EAN. It's the same
+     everywhere that printing is sold, but it doesn't map to an ISBN and
+     opsimath holds no UPC data, so a detected 12-digit UPC just prompts
+     "type the ISBN from the cover". (ISFDB has a UPC identifier type but
+     coverage is thin — a real-yield probe before any integration.)
   2. **Text / ISBN** — type title / author (fuzzy match against the
      normalised search keys), *or* type an ISBN-10/13 (dashes and spaces
      fine): a query that's all digits/`X`/dashes is converted to ISBN-13

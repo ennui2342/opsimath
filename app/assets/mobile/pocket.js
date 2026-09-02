@@ -284,10 +284,11 @@
         els.q.value = "";
         renderLookup(ean, byIsbn(ean));
       } else if (upc) {
-        // An older paperback with a shop UPC instead of a Bookland EAN — the
-        // UPC doesn't map to an ISBN, so send them to the search box.
+        // A US mass market carrying a publisher retail UPC instead of a
+        // Bookland EAN — the UPC doesn't map to an ISBN, so send them to
+        // the search box.
         closeScanner();
-        setStatus("that's a shop UPC, not an ISBN — type the ISBN from the cover", "error");
+        setStatus("that's a UPC, not an ISBN — type the ISBN from the cover", "error");
         els.q.focus();
       }
     } catch (_) { /* transient decode errors are normal */ }
