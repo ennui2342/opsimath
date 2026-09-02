@@ -47,6 +47,11 @@ module Mobile
       manifest = JSON.parse(response.body)
       assert_equal mobile_app_path, manifest["start_url"]
       assert_equal "standalone", manifest["display"]
+
+      purposes = manifest["icons"].map { |i| i["purpose"] }
+      assert_includes purposes, "maskable"
+      assert_includes purposes, "any"
+      assert(manifest["icons"].any? { |i| i["sizes"] == "192x192" }, "needs a 192px icon for installability")
     end
 
     test "service worker is public JS that precaches the shell" do

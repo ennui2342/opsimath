@@ -275,8 +275,24 @@
   // --- boot ----------------------------------------------------------
   async function boot() {
     if ("serviceWorker" in navigator && cfg.serviceWorkerUrl) {
+      // If a controller is already in place, a later controllerchange means a
+      // new version has taken over — reload once so the page runs fresh code.
+      // (Skipped on the very first visit, where no-controller -> controller
+      // fires the same event without an update having happened.)
+      if (navigator.serviceWorker.controller) {
+        let reloading = false;
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+          if (reloading) return;
+          reloading = true;
+          window.location.reload();
+        });
+      }
       navigator.serviceWorker.register(cfg.serviceWorkerUrl, { scope: cfg.scope }).catch(console.error);
     }
+    // Ask the browser to keep our storage (the snapshot + token) off the
+    // eviction list. Installed PWAs usually get this for free; asking is
+    // harmless and covers the in-browser case too.
+    navigator.storage?.persist?.().catch(() => {});
     if (cfg.apiToken) await idb.set("apiToken", cfg.apiToken);
 
     setStatus("loading…", "busy");
