@@ -168,12 +168,16 @@ module Enrichment
     # What's left is the case a bare substring test can't tell apart from
     # those: the extra word is a *distinct name*, not a formatting or
     # region difference — "Orbit" vs "Futura Orbit" (Futura's Orbit
-    # imprint, later Little, Brown's), "Gollancz" vs "Victor Gollancz".
-    # One name containing the other is a coincidence there; we can't
-    # assume the longer form is the right one, so it goes to review like
-    # any other publisher conflict. The extra tokens have to be *only*
-    # non-distinguishing words (generic corporate form + territory) for
-    # the merge-toward-completeness shortcut to fire.
+    # imprint, later Little, Brown's), "Gollancz" vs "Victor Gollancz",
+    # "Panther" vs "Panther Granada". One name containing the other is a
+    # coincidence there; we can't assume the longer form is the right
+    # one, so it goes to review like any other publisher conflict.
+    #
+    # For the merge-toward-completeness shortcut to fire, the extra text
+    # the longer name carries has to be non-distinguishing — either every
+    # extra token is a generic corporate-form or territory word
+    # (NON_DISTINGUISHING_PUBLISHER_WORDS), or the longer name is an
+    # imprint/parent form joined by "/" or "&" (joined_imprint_form?).
     #
     # (A substring variant that co-occurs with another genuine conflict
     # is held back and bundled regardless — see SourceRecorder.integrate.)
@@ -190,7 +194,7 @@ module Enrichment
       return Plan.new(record: @edition, field: :publisher, action: :fill, value: proposed, source: "isfdb") if current.blank?
       return Plan.new(action: :unchanged) if normalize_name(current) == normalize_name(proposed)
 
-      if substring_variant?(current, proposed) && only_non_distinguishing_extra_words?(current, proposed)
+      if substring_variant?(current, proposed) && non_distinguishing_variant?(current, proposed)
         longer = [ current, proposed ].max_by(&:length)
         return Plan.new(action: :unchanged) if longer == current # already the more complete form
 
@@ -198,6 +202,13 @@ module Enrichment
       end
 
       Plan.new(record: @edition, field: :publisher, action: :conflict, value: proposed, source: "isfdb", current: current)
+    end
+
+    # Is the difference between two substring-related publisher names one
+    # we can safely resolve by keeping the fuller form, rather than a
+    # genuine "which publisher is this" question for a human?
+    def non_distinguishing_variant?(a, b)
+      only_non_distinguishing_extra_words?(a, b) || joined_imprint_form?([ a, b ].max_by(&:length))
     end
 
     # The words in one name but not the other (either direction) — for a
@@ -208,6 +219,17 @@ module Enrichment
     def only_non_distinguishing_extra_words?(a, b)
       extra = name_tokens(a).to_set ^ name_tokens(b).to_set
       extra.any? && extra.all? { |word| NON_DISTINGUISHING_PUBLISHER_WORDS.include?(word) }
+    end
+
+    # "Gollancz / Orion", "Del Rey / Ballantine", "Hodder & Stoughton" —
+    # ISFDB's house style for writing an imprint together with its parent
+    # (or a co-publication). The "/" or "&" is the tell: not a competing
+    # name for the same entity, the same entity written with its lineage
+    # attached — and on an ISBN-keyed lookup that lineage describes the
+    # exact printing, the same trust already extended to territory
+    # qualifiers. Mark, 2026-09-02: trust the fuller form here.
+    def joined_imprint_form?(name)
+      name.to_s.match?(%r{[/&]})
     end
 
     def name_tokens(value)

@@ -203,6 +203,20 @@ module Enrichment
       assert_equal 0, PendingDecision.count
     end
 
+    test "an imprint/parent form joined by a slash IS merged — same entity with its lineage attached, not a competing name" do
+      # "Gollancz" -> "Gollancz / Orion" is ISFDB's house style for
+      # imprint-and-parent; the "/" is the tell. Trusted like a territory
+      # qualifier — an ISBN-keyed fact about this printing.
+      @edition.update!(publisher: "Gollancz")
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE.merge(publisher: "Gollancz / Orion") ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal "Gollancz / Orion", @edition.reload.publisher
+      assert_equal 0, PendingDecision.count
+    end
+
     test "a publisher name that merely contains the other but adds a distinct name is a conflict, not a silent merge" do
       # "Futura Orbit" contains "Orbit", but "Futura" is a real imprint
       # name, not a generic-form or region word — the containment is a

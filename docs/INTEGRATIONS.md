@@ -229,12 +229,37 @@ not just accepting the count:
   `NON_DISTINGUISHING_PUBLISHER_WORDS` — generic corporate form (`books`,
   `press`, `publishing`, `publications`, `ltd`, `inc`, `co`, `group`,
   `editions`, `house`, `the`, `and`…) plus territory codes (`us`, `usa`,
-  `uk`, `gb`, `canada`, `australia`, `nz`…). So `"Tor"` → `"Tor Books"`
-  and `"Orbit"` → `"Orbit (US)"` still merge; `"Orbit"` vs `"Futura
-  Orbit"` (either direction) is now a normal `enrichment_conflict` and
-  shows up as a selectable field on the review screen. The multi-field
-  bundling below still applies on top — a would-be-safe merge that
-  co-occurs with a genuine conflict is held back regardless.
+  `uk`, `gb`, `canada`, `australia`, `nz`…) — **or** the longer name is
+  an imprint/parent form joined by `/` or `&` (`joined_imprint_form?`:
+  `"Gollancz / Orion"`, `"Del Rey / Ballantine"`, `"Hodder & Stoughton"`
+  — ISFDB's house style for writing an imprint together with its lineage,
+  trusted like a territory qualifier because the ISBN keys the exact
+  printing; Mark, 2026-09-02: trust the fuller form). So `"Tor"` → `"Tor
+  Books"`, `"Orbit"` → `"Orbit (US)"`, `"Gollancz"` → `"Gollancz /
+  Orion"` all still merge; `"Orbit"` vs `"Futura Orbit"`, `"Panther"` vs
+  `"Panther Granada"`, `"Gollancz"` vs `"Victor Gollancz"` (either
+  direction) are now normal `enrichment_conflict`s and show up as a
+  selectable field on the review screen. The multi-field bundling below
+  still applies on top — a would-be-safe merge that co-occurs with a
+  genuine conflict is held back regardless.
+
+  **Retroactive sweep (2026-09-02).** The heuristic change was applied
+  back over the existing backlog, since the old rule had both silently
+  dropped disagreements (catalog held the longer name, nothing else
+  conflicted → `:unchanged`, no decision) and silently overwritten the
+  catalog publisher with ISFDB's form (`field_sources["publisher"]` →
+  `"isfdb"`, no review). The sweep: (1) restored publisher + field-source
+  from the pre-ISFDB source on the ~32 editions where ISFDB had silently
+  overwritten with a form the new rule counts as distinct (`"Spectra"` →
+  `"Bantam Spectra"`, `"Collins"` → `"HarperCollins (UK)"`); (2) deleted
+  the handful of existing `enrichment_conflict` decisions that were
+  missing `publisher` from their `fields` list; (3) re-ran
+  `IsfdbEditionEnricher.reprocess` over every edition with an ISFDB
+  `EnrichmentRecord`, regenerating those decisions correctly and raising
+  new ones (~34, mostly `"Tor Science Fiction"` vs `"Tor"`) for the
+  genuine publisher disagreements the old rule had swallowed. The ~278
+  joined-name forms ISFDB had already applied were left as-is — the new
+  rule agrees with them.
 - **`page_count` (558) — dropped from the Goodreads import entirely**,
   not reconciled. Mark's call: Goodreads' `Number of Pages` disagrees
   with ISFDB often enough (558 real conflicts) and matters little enough
