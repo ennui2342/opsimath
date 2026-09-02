@@ -42,11 +42,9 @@ isfdb_records.each do |r|
   next if ip.blank?
 
   if e.field_sources["publisher"] == "isfdb"
-    e.enrichment_records.each do |o|
-      next if o.provider == "isfdb"
-      ov = o.fields["publisher"]
-      cat2 << [ e, o.provider, ov, ip ] if ov.present? && plan_for(ov, ip).action == :conflict
-    end
+    o = e.enrichment_records.reject { |rec| rec.provider == "isfdb" }
+          .find { |rec| rec.fields["publisher"].present? && plan_for(rec.fields["publisher"], ip).action == :conflict }
+    cat2 << [ e, o.provider, o.fields["publisher"], ip ] if o
   end
 
   auto_refine << [ e, e.publisher, ip ] if plan_for(e.publisher, ip).action == :refine
@@ -67,7 +65,7 @@ if DRY_RUN
   puts "\n[dry-run] nothing written. Set DRY_RUN = false and rerun to apply."
 else
   ActiveRecord::Base.transaction do
-    cat2.each { |e, _p, ov, _ip| e.update!(publisher: ov, field_sources: e.field_sources.merge("publisher" => "goodreads")) }
+    cat2.each { |e, prov, ov, _ip| e.update!(publisher: ov, field_sources: e.field_sources.merge("publisher" => prov)) }
     puts "restored #{cat2.size} publishers"
     n = doomed.count
     doomed.destroy_all
