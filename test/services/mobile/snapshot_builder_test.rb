@@ -8,7 +8,7 @@ module Mobile
     setup do
       @work = Work.create!(title: "Neuromancer", literary_form: "novel", original_publication_year: 1984)
       WorkContributor.create!(work: @work, contributor: Contributor.create!(name: "William Gibson"), role: "author", display_order: 0)
-      @edition = Edition.create!(format: "paperback", publisher: "Ace Books", publish_date: "1984")
+      @edition = Edition.create!(format: "paperback", publisher: "Ace Books", publish_date: "1984", page_count: 271)
       EditionContent.create!(work: @work, edition: @edition)
       EditionIdentifier.create!(edition: @edition, id_type: "isbn13", value: "9780441569595")
       EditionIdentifier.create!(edition: @edition, id_type: "isfdb", value: "55210")
@@ -47,15 +47,32 @@ module Mobile
       assert_equal 1, wl["wishlisted"]
     end
 
-    test "owned editions hang off the work entry, carrying ISBNs and linkable ids" do
+    test "owned editions hang off the work entry, carrying ISBNs, page count, disposition and linkable ids" do
       db = build_and_open
-      editions = db.execute("SELECT entry_id, publisher, isbn13, isfdb, goodreads FROM editions")
+      editions = db.execute("SELECT entry_id, publisher, page_count, disposition, isbn13, isfdb, goodreads FROM editions")
       assert_equal 1, editions.size
       assert_equal "work:#{@work.id}", editions.first["entry_id"]
       assert_equal "Ace Books", editions.first["publisher"]
+      assert_equal 271, editions.first["page_count"]
+      assert_equal "owned", editions.first["disposition"]
       assert_equal "9780441569595", editions.first["isbn13"]
       assert_equal "55210", editions.first["isfdb"]
       assert_nil editions.first["goodreads"]
+    end
+
+    test "a retired edition is exported as a card but never lands in isbn_index" do
+      retired = Edition.create!(publisher: "Grafton UK")
+      EditionContent.create!(work: @work, edition: retired)
+      EditionIdentifier.create!(edition: retired, id_type: "isbn13", value: "9780586213872")
+      Copy.create!(edition: retired, disposition: "replaced")
+
+      db = build_and_open
+
+      rows = db.execute("SELECT publisher, disposition FROM editions WHERE entry_id = ? ORDER BY disposition", "work:#{@work.id}")
+      assert_equal [ [ "Ace Books", "owned" ], [ "Grafton UK", "replaced" ] ], rows.map { |r| [ r["publisher"], r["disposition"] ] }
+
+      indexed = db.execute("SELECT isbn13 FROM isbn_index WHERE entry_id = ?", "work:#{@work.id}").map { |r| r["isbn13"] }
+      assert_equal [ "9780441569595" ], indexed # the retired printing's ISBN is absent
     end
 
     test "embeds the :thumb as a WebP BLOB, and caches it in MobileThumb" do

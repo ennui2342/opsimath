@@ -7,6 +7,12 @@ class Copy < ApplicationRecord
   # change_edition path. See docs/DATA_MODEL.md.
   enum :disposition, { owned: "owned", sold: "sold", given_away: "given_away", lost: "lost", replaced: "replaced" }
 
+  # Short lozenge labels for the shared edition card (web + pocket).
+  DISPOSITION_LABELS = {
+    "owned" => "Owned", "sold" => "Sold", "given_away" => "Given away",
+    "lost" => "Lost", "replaced" => "Replaced"
+  }.freeze
+
   belongs_to :edition
   belongs_to :storage_location, optional: true
 

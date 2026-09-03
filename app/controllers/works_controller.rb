@@ -7,6 +7,6 @@ class WorksController < ApplicationController
   end
 
   def show
-    @work = Work.includes(editions: [ :edition_identifiers, { cover_image_attachment: :blob } ]).find(params[:id])
+    @work = Work.includes(editions: [ :edition_identifiers, :copies, { cover_image_attachment: :blob } ]).find(params[:id])
   end
 end

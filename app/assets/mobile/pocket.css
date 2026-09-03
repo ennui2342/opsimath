@@ -93,7 +93,8 @@ main { padding: 0 1rem 3rem; }
 .entry .meta.alt { color: var(--owned); font-weight: 600; margin-top: 0; margin-bottom: 0.15rem; }
 .entry.neither .noimg { color: var(--none); }
 
-/* One owned printing — same shape as Ui::EditionCardComponent on the web. */
+/* One printing a copy has passed through — same shape as
+   Ui::EditionCardComponent on the web. */
 .edition {
   display: flex;
   gap: 0.7rem;
@@ -113,6 +114,7 @@ main { padding: 0 1rem 3rem; }
 .edition .fmt { font-weight: 600; font-size: 0.9rem; }
 .edition.matched .fmt { color: var(--owned); }
 .edition .meta { font-size: 0.8rem; }
+.edition .pill { margin-top: 0.35rem; }
 .edition .ids {
   display: flex;
   flex-wrap: wrap;
@@ -121,6 +123,7 @@ main { padding: 0 1rem 3rem; }
   font: 0.72rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--muted);
 }
+.edition .ids + .ids { margin-top: 0.1rem; }
 .edition .ids b { font-weight: 600; opacity: 0.75; }
 .edition .ids a { color: inherit; text-decoration: underline; }
 
@@ -135,7 +138,7 @@ main { padding: 0 1rem 3rem; }
 }
 .pill.owned { color: var(--owned); background: var(--owned-bg); }
 .pill.wish { color: var(--wish); background: var(--wish-bg); }
-.pill.neither { color: var(--none); background: var(--none-bg); }
+.pill.neither, .pill.other { color: var(--none); background: var(--none-bg); }
 
 /* --- barcode scanner overlay --- */
 #scanner {

@@ -90,11 +90,11 @@ shape:
 
 ```
 ┌────────┬─────────────────────────────────┐
-│ [cover]│  Mass market            ← bold  │   format_detail → format → "Edition"
+│ [cover]│  Mass market   [Owned]  ← bold  │   format_detail → format → "Edition"
 │  h-32  │  Grafton · 1988 · 471 pages      │   publisher · year · pages, blanks dropped
 │  or a  │                                  │
-│ dashed │  ISBN-13 9780…  ISBN-10 0586…    │   mono footer, EditionIdentifier order
-│  "No   │  ISFDB 12345↗  Goodreads 1343↗   │   ISFDB/Goodreads linked, ISBNs plain
+│ dashed │  ISBN-13 9780…  ISBN-10 0586…    │   row 1 — ISBNs, plain
+│  "No   │  ISFDB 12345↗  Goodreads 1343↗   │   row 2 — linkable ids
 │ cover" │                                  │
 └────────┴─────────────────────────────────┘
 ```
@@ -102,22 +102,30 @@ shape:
 - Cover keeps the page's existing size (`h-32` on the web work page); a
   missing cover gets the same dashed **"No cover"** placeholder
   `ComparisonCardComponent` uses, so a grid of edition cards aligns.
-- The identifier footer is the **same treatment** as
-  `ComparisonCardComponent`'s (`flex flex-wrap`, mono, `text-xs`,
-  `<b>label</b> value`). Order and labels come from
+- **Status lozenge** next to the format line — `Owned` (`:success` /
+  green) for an edition with an owned `Copy`, otherwise the retired
+  disposition (`Replaced` / `Sold` / … as `:default` / grey, from
+  `Copy::DISPOSITION_LABELS`); nothing for a catalogue-only edition (no
+  copy). An owned copy wins if an edition has both.
+- The identifier footer is **two mono rows** — ISBNs on the first, the
+  linkable ids (`ISFDB`, `Goodreads`) on the second — so it wraps
+  predictably instead of interleaving. Order and labels come from
   `EditionIdentifier::DISPLAY_ORDER` / `#label`; a link appears only when
-  `EditionIdentifier#external_url` is non-nil (ISFDB, Goodreads) — ISBNs
-  are deliberately unlinked (no single right destination).
+  `EditionIdentifier#external_url` is non-nil — ISBNs are deliberately
+  unlinked (no single right destination).
 
 **This layout is shared with the pocket app** (`docs/MOBILE.md`), which
 can't use a ViewComponent — it builds cards in plain JS
 (`pocket.js` `editionCardHtml` / `idFooter`) against CSS classes in
 `pocket.css` (`.edition`, `.edition .fmt`, `.edition .ids`). The two
-implementations track this one spec: same format→publisher→ids hierarchy,
-same identifier order, same ISFDB/Goodreads-only linking. `pocket.js`'s
-`ID_URL` map mirrors `EditionIdentifier::EXTERNAL_URL_BY_TYPE`; keep them
-in step. The snapshot carries the ids per edition
-(`Mobile::SnapshotBuilder` `editions` table: `isbn10/isbn13/isfdb/goodreads`).
+implementations track this one spec: same format→lozenge→meta→ids
+hierarchy, same identifier order + two-row split, same
+ISFDB/Goodreads-only linking. `pocket.js`'s `ID_URL` map mirrors
+`EditionIdentifier::EXTERNAL_URL_BY_TYPE` and its `DISPOSITION` map
+mirrors `Copy::DISPOSITION_LABELS`; keep them in step. The snapshot
+carries per edition: `format_detail`, `page_count`, `disposition`,
+`isbn10/isbn13/isfdb/goodreads` (`Mobile::SnapshotBuilder` `editions`
+table).
 
 When you change the edition layout, change it in both places (or write
 down why they diverge) — same rule as `feedback_goodreads_path_parity`

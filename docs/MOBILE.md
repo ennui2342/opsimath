@@ -77,8 +77,10 @@ entries      id ("work:<id>" | "wishlist:<id>"), kind, title, subtitle,
              search_title, search_author, search_series,
              isbn10, isbn13          -- entry-level: kind='wishlist' only
 editions     entry_id, format, format_detail, publisher, year,
-             isbn10, isbn13, isfdb, goodreads, thumb
-                                     -- kind='work' only; the editions you own a copy of; 1..n
+             page_count, disposition, isbn10, isbn13, isfdb, goodreads, thumb
+                                     -- kind='work' only; every edition of the work a Copy has
+                                     -- passed through (owned + retired: replaced/sold/…); 1..n
+                                     -- disposition: drives the per-card lozenge (owned first)
                                      -- isfdb/goodreads: the linkable ids for the shared edition-card footer
 isbn_index   isbn13, entry_id, edition_id   -- every ISBN form folded to 13
 meta         version, generated_at
@@ -87,9 +89,13 @@ meta         version, generated_at
 - `owned` = any `Copy` with `disposition: "owned"` for an edition of the
   work. `wishlisted` = a `WishlistItem` (matched to the work, or its own
   `kind='wishlist'` entry when unmatched — the only case today, see below).
+- `editions` carries retired printings too (a `replaced`/`sold` copy),
+  so a card can show *which* edition you hold now vs. used to — but only
+  an `owned` edition feeds `isbn_index`. A work appears at all only if
+  it's owned or wishlisted, so a purely-retired work never surfaces.
 - `search_*` are normalised (lowercased) for the client's fuzzy match.
 - `isbn_index` row shapes:
-  - `edition_id` set → an edition you own; a scan of it is an exact hit.
+  - `edition_id` set → an edition you currently own; a scan of it is an exact hit.
   - `edition_id` null, `kind='wishlist'` → the wishlist item's own ISBN.
   - `edition_id` null, `kind='work'` → one of the **other printings**
     ISFDB knows for a work you own (you have it in a different edition).
@@ -199,16 +205,18 @@ snapshot is still fully functional.
      and run through the same `isbn_index` lookup as a scan. This is the
      fallback for damaged or UPC-only barcodes.
 - **Result**: one of three states, unambiguous and glanceable —
-  - **Owned** — green; a work header (title / series / author · year /
-    OWNED) followed by one **edition card per owned printing**, each in the
-    shared edition layout (`docs/DESIGN_SYSTEM.md` "Edition card"): cover
-    thumbnail, bold format line, `publisher · year`, and the mono
-    identifier footer with ISFDB / Goodreads hyperlinked. A scan/ISBN that
-    resolved via a sibling ISBN (you own a *different* printing) still
-    reads Owned, with a "you own a different edition" line above the title;
-    the matched card is marked. `pocket.js`'s `editionCardHtml` /
-    `idFooter` are the JS twin of `Ui::EditionCardComponent`.
-  - **On wishlist** — amber; the wishlist entry with its own cover.
+  - **Owned** — a work header (title / series / author · year) followed by
+    one **edition card per printing a copy has passed through**, each in
+    the shared edition layout (`docs/DESIGN_SYSTEM.md` "Edition card"):
+    cover thumbnail, bold format line, its own **OWNED / REPLACED / …
+    lozenge**, `publisher · year · pages`, and the two-row identifier
+    footer with ISFDB / Goodreads hyperlinked. A scan/ISBN that resolved
+    via a sibling ISBN (you own a *different* printing) still reads Owned,
+    with a "you own a different edition" line above the title; the matched
+    card is marked. `pocket.js`'s `editionCardHtml` / `idFooter` are the
+    JS twin of `Ui::EditionCardComponent`.
+  - **On wishlist** — amber; the wishlist entry with its own cover and a
+    WISHLIST lozenge on the header (it has no edition cards).
   - **Neither** — grey; "not in the collection or wishlist".
 
 The scan UX is the make-or-break — see "To validate" below.

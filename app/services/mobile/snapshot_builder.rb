@@ -34,6 +34,8 @@ module Mobile
         format_detail TEXT,
         publisher     TEXT,
         year          INTEGER,
+        page_count    INTEGER,
+        disposition   TEXT,
         isbn10        TEXT,
         isbn13        TEXT,
         isfdb         TEXT,
@@ -97,10 +99,11 @@ module Mobile
 
       entry.editions.each do |edition|
         db.execute(
-          "INSERT INTO editions VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+          "INSERT INTO editions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
           [
             edition.id, entry.id, edition.format, edition.format_detail, edition.publisher,
-            edition.year&.to_i, edition.isbn10, edition.isbn13, edition.isfdb, edition.goodreads,
+            edition.year&.to_i, edition.page_count, edition.disposition,
+            edition.isbn10, edition.isbn13, edition.isfdb, edition.goodreads,
             blob(thumbs["edition:#{edition.id}"])
           ]
         )
@@ -109,18 +112,20 @@ module Mobile
       isbn_rows(entry).each { |row| db.execute("INSERT INTO isbn_index VALUES (?,?,?)", row) }
     end
 
-    # Every ISBN this entry can be scanned by, folded to ISBN-13. Rows
-    # with an edition_id are an edition you own; a null edition_id is a
-    # wishlist item or — for an owned work — one of the *other* printings
-    # ISFDB knows (you own a different edition of that book).
+    # Every ISBN this entry can be scanned by, folded to ISBN-13. A row
+    # with an edition_id is an edition you currently *own*; a null
+    # edition_id is a wishlist item or — for a work you own — one of the
+    # *other* printings ISFDB knows. A retired edition (`replaced`/`sold`)
+    # is shown as a card but never generates an index row: it's neither an
+    # owned exact match nor a "different edition you own" hint.
     def isbn_rows(entry)
-      owned = Set.new
+      seen = Set.new
       rows = entry.editions.filter_map do |edition|
         i13 = edition.isbn13 || (edition.isbn10 && Isbn.to_13(edition.isbn10))
         next unless i13
 
-        owned << i13
-        [ i13, entry.id, edition.id ]
+        seen << i13
+        [ i13, entry.id, edition.id ] if edition.disposition == "owned"
       end
 
       if entry.kind == "wishlist"
@@ -129,7 +134,7 @@ module Mobile
       end
 
       (@related_isbns[entry.id] || []).each do |i13|
-        rows << [ i13, entry.id, nil ] unless owned.include?(i13)
+        rows << [ i13, entry.id, nil ] unless seen.include?(i13)
       end
 
       rows

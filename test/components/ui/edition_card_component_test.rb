@@ -33,6 +33,40 @@ module Ui
       assert_no_selector "a", text: "9780575077255"
     end
 
+    test "identifier footer splits into an ISBN row and a linkable-id row" do
+      edition = Edition.create!
+      EditionIdentifier.create!(edition:, id_type: "isbn13", value: "9780575077255")
+      EditionIdentifier.create!(edition:, id_type: "isbn10", value: "0575077255")
+      EditionIdentifier.create!(edition:, id_type: "goodreads", value: "678")
+
+      render_inline(EditionCardComponent.new(edition:))
+
+      rows = page.all("div.font-mono > div")
+      assert_equal 2, rows.size
+      assert_equal %w[ISBN-13 ISBN-10], rows[0].all("b").map(&:text)
+      assert_equal %w[Goodreads], rows[1].all("b").map(&:text)
+    end
+
+    test "status badge reads Owned for an owned copy, the disposition otherwise, nothing for a catalogue-only edition" do
+      owned = Edition.create!
+      Copy.create!(edition: owned, disposition: "owned")
+      assert_equal [ "Owned", :success ], EditionCardComponent.new(edition: owned).status_badge
+
+      replaced = Edition.create!
+      Copy.create!(edition: replaced, disposition: "replaced")
+      assert_equal [ "Replaced", :default ], EditionCardComponent.new(edition: replaced).status_badge
+
+      assert_nil EditionCardComponent.new(edition: Edition.create!).status_badge
+    end
+
+    test "an owned copy wins the badge over a retired one on the same edition" do
+      edition = Edition.create!
+      Copy.create!(edition:, disposition: "replaced")
+      Copy.create!(edition:, disposition: "owned")
+
+      assert_equal [ "Owned", :success ], EditionCardComponent.new(edition:).status_badge
+    end
+
     test "shows a dashed placeholder when no cover is attached" do
       render_inline(EditionCardComponent.new(edition: Edition.create!))
 

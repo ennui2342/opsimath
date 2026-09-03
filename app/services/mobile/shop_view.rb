@@ -25,7 +25,8 @@ module Mobile
       keyword_init: true
     )
     Edition = Struct.new(
-      :id, :format, :format_detail, :publisher, :year, :isbn10, :isbn13, :isfdb, :goodreads, :has_cover,
+      :id, :format, :format_detail, :publisher, :year, :page_count, :disposition,
+      :isbn10, :isbn13, :isfdb, :goodreads, :has_cover,
       keyword_init: true
     )
     Result = Struct.new(:entries, keyword_init: true)
@@ -69,7 +70,7 @@ module Mobile
         original_year: work.original_publication_year,
         owned: owned.include?(work.id),
         wishlisted: wishlisted.include?(work.id),
-        editions: owned_editions_of(work)
+        editions: editions_of(work)
       )
     end
 
@@ -80,13 +81,27 @@ module Mobile
           .map { |wc| wc.contributor.name }
     end
 
-    # Only the editions you actually own a copy of — that's what's useful
-    # in a shop ("you own the mass-market, Ace, 1984"). A wishlisted-only
-    # work has no edition rows.
-    def owned_editions_of(work)
+    # Every edition of this work that a copy has passed through — owned
+    # ones plus the retired ones (`replaced`/`sold`/…), so the shop card
+    # can show which printing you hold now and which you used to.
+    # `disposition` per edition carries that; only `owned` editions feed
+    # the exact-match `isbn_index` (see SnapshotBuilder#isbn_rows).
+    # Owned first, then by id. A wishlisted-only work has no edition rows.
+    def editions_of(work)
       work.editions
-          .select { |e| e.copies.any? { |c| c.disposition == "owned" } }
+          .select { |e| e.copies.any? }
+          .sort_by { |e| [ owned?(e) ? 0 : 1, e.id ] }
           .map { |edition| build_edition(edition) }
+    end
+
+    def owned?(edition) = edition.copies.any? { |c| c.disposition == "owned" }
+
+    # An edition with a mix of copies reads as owned if any copy is; else
+    # it takes the disposition of its (single, realistically) retired copy.
+    def disposition_of(edition)
+      return "owned" if owned?(edition)
+
+      edition.copies.first&.disposition
     end
 
     def build_edition(edition)
@@ -98,6 +113,8 @@ module Mobile
         format_detail: edition.format_detail,
         publisher: edition.publisher.presence,
         year: edition.publish_date&.slice(0, 4),
+        page_count: edition.page_count,
+        disposition: disposition_of(edition),
         isbn10: ids["isbn10"],
         isbn13: ids["isbn13"],
         isfdb: ids["isfdb"],

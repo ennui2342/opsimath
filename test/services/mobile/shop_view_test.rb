@@ -13,7 +13,7 @@ module Mobile
       series = Series.create!(name: "Sprawl")
       WorkSeries.create!(work:, series:, position: 1)
 
-      edition = Edition.create!(format: "paperback", format_detail: "mass_market", publisher: "Ace Books", publish_date: "1984")
+      edition = Edition.create!(format: "paperback", format_detail: "mass_market", publisher: "Ace Books", publish_date: "1984", page_count: 271)
       EditionContent.create!(work:, edition:)
       EditionIdentifier.create!(edition:, id_type: "isbn10", value: "0441569595")
       EditionIdentifier.create!(edition:, id_type: "isbn13", value: "9780441569595")
@@ -37,6 +37,8 @@ module Mobile
       assert_equal "paperback", ed.format
       assert_equal "Ace Books", ed.publisher
       assert_equal "1984", ed.year
+      assert_equal 271, ed.page_count
+      assert_equal "owned", ed.disposition
       assert_equal "0441569595", ed.isbn10
       assert_equal "9780441569595", ed.isbn13
       assert_equal "55210", ed.isfdb
@@ -53,14 +55,28 @@ module Mobile
       assert_empty entries
     end
 
-    test "only owned editions of an owned work appear as edition rows" do
+    test "every edition a copy passed through appears, owned first, each with its disposition" do
       work = Work.create!(title: "Two Printings", literary_form: "novel")
+      retired_ed = Edition.create!(publisher: "Orbit")
       owned_ed = Edition.create!(publisher: "Gollancz")
-      other_ed = Edition.create!(publisher: "Orbit")
-      EditionContent.create!(work:, edition: owned_ed)
-      EditionContent.create!(work:, edition: other_ed)
+      catalogue_only = Edition.create!(publisher: "Tor") # no copy — never surfaces
+      [ retired_ed, owned_ed, catalogue_only ].each { |e| EditionContent.create!(work:, edition: e) }
       Copy.create!(edition: owned_ed, disposition: "owned")
-      Copy.create!(edition: other_ed, disposition: "given_away")
+      Copy.create!(edition: retired_ed, disposition: "replaced")
+
+      eds = entries.sole.editions
+      assert_equal [ "Gollancz", "Orbit" ], eds.map(&:publisher) # owned first
+      assert_equal %w[owned replaced], eds.map(&:disposition)
+    end
+
+    test "an edition read but not owned (a Copy-less unowned read) does not surface" do
+      work = Work.create!(title: "Library Book", literary_form: "novel")
+      owned_ed = Edition.create!(publisher: "Gollancz")
+      library_ed = Edition.create!(publisher: "Orbit")
+      EditionContent.create!(work:, edition: owned_ed)
+      EditionContent.create!(work:, edition: library_ed)
+      Copy.create!(edition: owned_ed, disposition: "owned")
+      Reading.create!(work:, edition: library_ed, status: "completed", source: "library")
 
       assert_equal [ "Gollancz" ], entries.sole.editions.map(&:publisher)
     end

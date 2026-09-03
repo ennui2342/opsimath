@@ -143,7 +143,7 @@
 
   // --- queries -------------------------------------------------------
   function editionsOf(entryId) {
-    const es = db.prepare("SELECT id, format, format_detail, publisher, year, isbn10, isbn13, isfdb, goodreads, thumb FROM editions WHERE entry_id = ?");
+    const es = db.prepare("SELECT id, format, format_detail, publisher, year, page_count, disposition, isbn10, isbn13, isfdb, goodreads, thumb FROM editions WHERE entry_id = ?");
     es.bind([entryId]);
     const out = [];
     while (es.step()) out.push(es.getAsObject());
@@ -198,40 +198,53 @@
     goodreads: (v) => `https://www.goodreads.com/book/show/${encodeURIComponent(v)}`,
   };
 
+  const idSpan = ([label, v, url]) =>
+    `<span><b>${label}</b> ${url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(v)}</a>` : esc(v)}</span>`;
+
   // The mono identifier footer — same shape as Ui::EditionCardComponent on
-  // the web (docs/DESIGN_SYSTEM.md "Edition card").
+  // the web (docs/DESIGN_SYSTEM.md "Edition card"): ISBNs on one line, the
+  // linkable ids on the next.
   function idFooter(e) {
-    const items = [
-      ["ISBN-13", e.isbn13, null],
-      ["ISBN-10", e.isbn10, null],
+    const isbns = [["ISBN-13", e.isbn13], ["ISBN-10", e.isbn10]].filter(([, v]) => v);
+    const links = [
       ["ISFDB", e.isfdb, e.isfdb && ID_URL.isfdb(e.isfdb)],
       ["Goodreads", e.goodreads, e.goodreads && ID_URL.goodreads(e.goodreads)],
     ].filter(([, v]) => v);
-    if (!items.length) return "";
-    return `<div class="ids">${items
-      .map(([label, v, url]) =>
-        `<span><b>${label}</b> ${url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(v)}</a>` : esc(v)}</span>`)
-      .join("")}</div>`;
+    if (!isbns.length && !links.length) return "";
+    return (
+      (isbns.length ? `<div class="ids">${isbns.map(idSpan).join("")}</div>` : "") +
+      (links.length ? `<div class="ids">${links.map(idSpan).join("")}</div>` : "")
+    );
   }
+
+  // Copy disposition -> lozenge. Mirrors Copy::DISPOSITION_LABELS.
+  const DISPOSITION = {
+    owned: ["owned", "OWNED"], replaced: ["other", "REPLACED"], sold: ["other", "SOLD"],
+    given_away: ["other", "GIVEN AWAY"], lost: ["other", "LOST"],
+  };
 
   function editionCardHtml(e, matched) {
     const thumb = blobUrl(e.thumb);
+    const meta = [e.publisher, e.year, e.page_count ? e.page_count + " pages" : null].filter(Boolean);
+    const pill = DISPOSITION[e.disposition];
     return `<div class="edition${matched ? " matched" : ""}">
       ${thumb ? `<img src="${thumb}" alt="">` : `<div class="noimg">?</div>`}
       <div class="body">
         <div class="fmt">${esc(humanize(e.format_detail || e.format) || "Edition")}${matched ? ` <span class="meta">· matched</span>` : ""}</div>
-        ${[e.publisher, e.year].filter(Boolean).length ? `<div class="meta">${esc([e.publisher, e.year].filter(Boolean).join(" · "))}</div>` : ""}
+        ${meta.length ? `<div class="meta">${esc(meta.join(" · "))}</div>` : ""}
+        ${pill ? `<span class="pill ${pill[0]}">${pill[1]}</span>` : ""}
         ${idFooter(e)}
       </div>
     </div>`;
   }
 
-  // A result: a work/wishlist header, then one full edition card per owned
-  // printing (docs/MOBILE.md). Works carry no header cover — their covers
-  // live on the edition cards; a wishlist item's only cover sits on the head.
+  // A result: a work/wishlist header, then one full edition card per
+  // printing a copy has passed through (docs/MOBILE.md) — each card
+  // carrying its own OWNED / REPLACED / … lozenge. Works carry no header
+  // cover (covers live on the edition cards); a wishlist item has no
+  // edition cards, so its cover and its WISHLIST lozenge sit on the head.
   function entryHtml(row, note) {
     const eds = row.editions || [];
-    const pill = row.owned ? ["owned", "OWNED"] : ["wish", "WISHLIST"];
     const headThumb = eds.length === 0 ? blobUrl(row.thumb) : null;
 
     return `
@@ -241,7 +254,7 @@
           ${note ? `<div class="meta alt">${esc(note)}</div>` : ""}
           <div class="title">${esc(row.title)}${row.series ? ` <span class="meta">— ${esc(row.series)}${row.series_position ? " #" + esc(row.series_position) : ""}</span>` : ""}</div>
           <div class="meta">${esc(row.authors || "")}${row.year ? " · " + row.year : ""}</div>
-          <span class="pill ${pill[0]}">${pill[1]}</span>
+          ${eds.length === 0 && row.wishlisted ? `<span class="pill wish">WISHLIST</span>` : ""}
         </div>
       </div>
       ${eds.map((e) => editionCardHtml(e, row.matched && e.id === row.matched)).join("")}`;
