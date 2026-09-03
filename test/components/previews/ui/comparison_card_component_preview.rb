@@ -44,5 +44,35 @@ module Ui
       )
       render(ComparisonCardComponent.new(card: card))
     end
+
+    # EditionReconciliation: the incoming Goodreads row — a remote cover URL,
+    # no attachment, flagged `proposed`.
+    def incoming_feed_card
+      card = Ui::ComparisonCardComponent::Card.new(
+        label: "Goodreads · incoming", proposed: true,
+        cover_url: "https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/books/1287032152l/1343099.jpg",
+        fields: [
+          Ui::ComparisonCardComponent::FieldRow.new(name: "goodreads id", value: "1343099"),
+          Ui::ComparisonCardComponent::FieldRow.new(name: "isbn", value: "0812501810"),
+          Ui::ComparisonCardComponent::FieldRow.new(name: "read", value: "2024-06-01")
+        ]
+      )
+      render(ComparisonCardComponent.new(card: card))
+    end
+
+    # EditionReconciliation: one owned edition, pickable — the header is a
+    # radio, a checked card takes the conflict ring.
+    def selectable_edition_card
+      card = Ui::ComparisonCardComponent::Card.new(
+        label: "Edition · owned · read", show_empty_cover: true,
+        select_name: "target_edition_id", select_value: "42", selected: true,
+        fields: [
+          Ui::ComparisonCardComponent::FieldRow.new(name: "format", value: "Paperback"),
+          Ui::ComparisonCardComponent::FieldRow.new(name: "publisher", value: "Grafton")
+        ],
+        identifiers: [ [ "ISBN-13", "9780586213872" ], [ "Goodreads", "1343099" ] ]
+      )
+      render(ComparisonCardComponent.new(card: card))
+    end
   end
 end

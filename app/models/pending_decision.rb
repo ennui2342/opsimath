@@ -3,12 +3,14 @@ class PendingDecision < ApplicationRecord
 
   validates :kind, presence: true
 
-  # Display shape for the 3-card review screen (Ui::ComparisonCardComponent):
-  # one card for the Edition's current catalog state, one per other known
-  # provider (info only), and one for the record that actually raised this
-  # decision (actionable — checkboxes on whatever's in payload["fields"]).
-  Card = Struct.new(:label, :meta, :proposed, :cover, :cover_selectable, :show_empty_cover, :fields, :identifiers, :info_note, keyword_init: true)
-  FieldRow = Struct.new(:name, :value, :chip, :selectable, keyword_init: true)
+  # Display shape for the 3-card review screen — one card for the Edition's
+  # current catalog state, one per other known provider (info only), and one
+  # for the record that actually raised this decision (actionable —
+  # checkboxes on whatever's in payload["fields"]). The structs are the
+  # component's: EditionReconciliation feeds the same component the same
+  # shapes (see docs/DESIGN_SYSTEM.md, "Comparison-review screen").
+  Card = Ui::ComparisonCardComponent::Card
+  FieldRow = Ui::ComparisonCardComponent::FieldRow
 
   # Display order for the fields any known provider can propose on an
   # Edition — mirrors the field set Enrichment::IsfdbEditionEnricher and

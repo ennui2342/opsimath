@@ -1,12 +1,21 @@
-<div class="flex flex-col overflow-hidden rounded-lg border bg-white dark:bg-gray-900 <%= @card.proposed ? "border-conflict-800 ring-1 ring-conflict-800 dark:border-conflict-200 dark:ring-conflict-200" : "border-gray-200 dark:border-gray-700" %>">
-  <div class="flex items-baseline justify-between gap-2 border-b px-4 py-3 <%= @card.proposed ? "border-conflict-800 bg-conflict-100 dark:border-conflict-200 dark:bg-conflict-900" : "border-gray-200 dark:border-gray-700" %>">
-    <span class="text-xs font-bold tracking-wide uppercase <%= @card.proposed ? "text-conflict-800 dark:text-conflict-200" : "text-gray-500 dark:text-gray-400" %>">
-      <%= @card.label %>
+<% ring = "border-conflict-800 ring-1 ring-conflict-800 dark:border-conflict-200 dark:ring-conflict-200" %>
+<% outer = @card.proposed ? ring : "border-gray-200 dark:border-gray-700" %>
+<% outer += " has-[:checked]:border-conflict-800 has-[:checked]:ring-1 has-[:checked]:ring-conflict-800 dark:has-[:checked]:border-conflict-200 dark:has-[:checked]:ring-conflict-200" if @card.select_name %>
+<div class="flex flex-col overflow-hidden rounded-lg border bg-white dark:bg-gray-900 <%= outer %>">
+  <% header = "flex items-center justify-between gap-2 border-b px-4 py-3 " + (@card.proposed ? "border-conflict-800 bg-conflict-100 dark:border-conflict-200 dark:bg-conflict-900" : "border-gray-200 dark:border-gray-700") %>
+  <%= content_tag(@card.select_name ? :label : :div, class: header + (@card.select_name ? " cursor-pointer" : "")) do %>
+    <span class="flex items-center gap-2">
+      <% if @card.select_name %>
+        <%= radio_button_tag @card.select_name, @card.select_value, @card.selected, class: "h-4 w-4 flex-shrink-0 border-gray-300" %>
+      <% end %>
+      <span class="text-xs font-bold tracking-wide uppercase <%= @card.proposed ? "text-conflict-800 dark:text-conflict-200" : "text-gray-500 dark:text-gray-400" %>">
+        <%= @card.label %>
+      </span>
     </span>
     <% if @card.meta %>
       <span class="text-xs whitespace-nowrap text-gray-400 dark:text-gray-500"><%= @card.meta.to_date.iso8601 %></span>
     <% end %>
-  </div>
+  <% end %>
 
   <% if @card.cover&.attached? %>
     <div class="flex flex-col items-center gap-2 px-4 pt-4">
@@ -18,6 +27,10 @@
           Apply this cover
         </label>
       <% end %>
+    </div>
+  <% elsif @card.cover_url.present? %>
+    <div class="flex justify-center px-4 pt-4">
+      <%= image_tag @card.cover_url, class: "h-40 w-auto rounded shadow", alt: "", loading: "lazy" %>
     </div>
   <% elsif @card.show_empty_cover %>
     <div class="flex justify-center px-4 pt-4">

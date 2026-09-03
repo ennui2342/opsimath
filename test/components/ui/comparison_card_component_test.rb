@@ -101,6 +101,28 @@ module Ui
       assert_no_text "No cover"
     end
 
+    test "renders a remote cover_url as an image when no attachment is present" do
+      card = Ui::ComparisonCardComponent::Card.new(
+        label: "Goodreads · incoming", cover_url: "https://example.com/cover.jpg", fields: []
+      )
+
+      render_inline(ComparisonCardComponent.new(card: card))
+
+      assert_selector "img[src='https://example.com/cover.jpg']"
+    end
+
+    test "a select_name card puts a radio in the header and takes the conflict ring when checked" do
+      card = Ui::ComparisonCardComponent::Card.new(
+        label: "Edition · owned", fields: [],
+        select_name: "target_edition_id", select_value: "42", selected: true
+      )
+
+      render_inline(ComparisonCardComponent.new(card: card))
+
+      assert_selector "label input[type=radio][name='target_edition_id'][value='42'][checked]"
+      assert_selector "div.has-\\[\\:checked\\]\\:ring-1"
+    end
+
     test "a selectable cover renders a checked 'Apply this cover' checkbox" do
       edition = Edition.create!
       edition.cover_image.attach(io: StringIO.new("bytes"), filename: "cover.jpg", content_type: "image/jpeg")

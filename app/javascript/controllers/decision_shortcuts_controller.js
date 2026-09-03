@@ -32,6 +32,6 @@ export default class extends Controller {
 
   isTypingTarget(element) {
     const tag = element.tagName
-    return tag === "INPUT" || tag === "TEXTAREA" || element.isContentEditable
+    return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || element.isContentEditable
   }
 }
