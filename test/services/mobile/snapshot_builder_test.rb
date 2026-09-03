@@ -60,7 +60,7 @@ module Mobile
       assert_nil editions.first["goodreads"]
     end
 
-    test "a retired edition is exported as a card but never lands in isbn_index" do
+    test "a retired edition is exported as a card and indexed against its own edition_id" do
       retired = Edition.create!(publisher: "Grafton UK")
       EditionContent.create!(work: @work, edition: retired)
       EditionIdentifier.create!(edition: retired, id_type: "isbn13", value: "9780586213872")
@@ -71,8 +71,10 @@ module Mobile
       rows = db.execute("SELECT publisher, disposition FROM editions WHERE entry_id = ? ORDER BY disposition", "work:#{@work.id}")
       assert_equal [ [ "Ace Books", "owned" ], [ "Grafton UK", "replaced" ] ], rows.map { |r| [ r["publisher"], r["disposition"] ] }
 
-      indexed = db.execute("SELECT isbn13 FROM isbn_index WHERE entry_id = ?", "work:#{@work.id}").map { |r| r["isbn13"] }
-      assert_equal [ "9780441569595" ], indexed # the retired printing's ISBN is absent
+      # scanning the retired printing resolves to the work with its own card matched
+      row = db.execute("SELECT entry_id, edition_id FROM isbn_index WHERE isbn13 = ?", "9780586213872").first
+      assert_equal "work:#{@work.id}", row["entry_id"]
+      assert_equal retired.id, row["edition_id"]
     end
 
     test "embeds the :thumb as a WebP BLOB, and caches it in MobileThumb" do

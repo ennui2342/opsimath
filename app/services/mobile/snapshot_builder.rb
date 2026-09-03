@@ -113,11 +113,12 @@ module Mobile
     end
 
     # Every ISBN this entry can be scanned by, folded to ISBN-13. A row
-    # with an edition_id is an edition you currently *own*; a null
-    # edition_id is a wishlist item or — for a work you own — one of the
-    # *other* printings ISFDB knows. A retired edition (`replaced`/`sold`)
-    # is shown as a card but never generates an index row: it's neither an
-    # owned exact match nor a "different edition you own" hint.
+    # with an edition_id points at an edition you have a record of — owned
+    # or retired (`replaced`/`sold`/…); the client resolves to the work
+    # and marks that edition's card with its disposition. A null
+    # edition_id is a wishlist item's own ISBN, or — for a work you own —
+    # one of the *other* printings ISFDB knows that you have no edition
+    # record for at all ("you own a different edition").
     def isbn_rows(entry)
       seen = Set.new
       rows = entry.editions.filter_map do |edition|
@@ -125,7 +126,7 @@ module Mobile
         next unless i13
 
         seen << i13
-        [ i13, entry.id, edition.id ] if edition.disposition == "owned"
+        [ i13, entry.id, edition.id ]
       end
 
       if entry.kind == "wishlist"

@@ -84,8 +84,8 @@ module Mobile
     # Every edition of this work that a copy has passed through — owned
     # ones plus the retired ones (`replaced`/`sold`/…), so the shop card
     # can show which printing you hold now and which you used to.
-    # `disposition` per edition carries that; only `owned` editions feed
-    # the exact-match `isbn_index` (see SnapshotBuilder#isbn_rows).
+    # `disposition` per edition carries that, and each edition (owned or
+    # retired) is scannable via `isbn_index` (see SnapshotBuilder#isbn_rows).
     # Owned first, then by id. A wishlisted-only work has no edition rows.
     def editions_of(work)
       work.editions

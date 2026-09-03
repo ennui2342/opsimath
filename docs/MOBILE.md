@@ -90,15 +90,18 @@ meta         version, generated_at
   work. `wishlisted` = a `WishlistItem` (matched to the work, or its own
   `kind='wishlist'` entry when unmatched — the only case today, see below).
 - `editions` carries retired printings too (a `replaced`/`sold` copy),
-  so a card can show *which* edition you hold now vs. used to — but only
-  an `owned` edition feeds `isbn_index`. A work appears at all only if
-  it's owned or wishlisted, so a purely-retired work never surfaces.
+  so a card can show *which* edition you hold now vs. used to. A work
+  appears at all only if it's owned or wishlisted, so a purely-retired
+  work never surfaces.
 - `search_*` are normalised (lowercased) for the client's fuzzy match.
 - `isbn_index` row shapes:
-  - `edition_id` set → an edition you currently own; a scan of it is an exact hit.
+  - `edition_id` set → an edition you have a record of (owned **or**
+    retired); a scan resolves to the work and marks that edition's card
+    with its disposition.
   - `edition_id` null, `kind='wishlist'` → the wishlist item's own ISBN.
   - `edition_id` null, `kind='work'` → one of the **other printings**
-    ISFDB knows for a work you own (you have it in a different edition).
+    ISFDB knows for a work you own, that you have *no* edition record for
+    (you have it in a different edition).
     An ISBN identifies an edition, not a printing, and publishers reuse
     it across printings *and* issue the same book with different ISBNs —
     so without this, scanning the paperback of a book you own in

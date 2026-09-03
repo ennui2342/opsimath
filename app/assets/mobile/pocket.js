@@ -240,9 +240,10 @@
 
   // A result: a work/wishlist header, then one full edition card per
   // printing a copy has passed through (docs/MOBILE.md) — each card
-  // carrying its own OWNED / REPLACED / … lozenge. Works carry no header
+  // carrying its own OWNED / REPLACED / … lozenge. Ownership lives on the
+  // cards; the only work-level status is WISHLIST. Works carry no header
   // cover (covers live on the edition cards); a wishlist item has no
-  // edition cards, so its cover and its WISHLIST lozenge sit on the head.
+  // edition cards, so its cover sits on the head.
   function entryHtml(row, note) {
     const eds = row.editions || [];
     const headThumb = eds.length === 0 ? blobUrl(row.thumb) : null;
@@ -254,7 +255,7 @@
           ${note ? `<div class="meta alt">${esc(note)}</div>` : ""}
           <div class="title">${esc(row.title)}${row.series ? ` <span class="meta">— ${esc(row.series)}${row.series_position ? " #" + esc(row.series_position) : ""}</span>` : ""}</div>
           <div class="meta">${esc(row.authors || "")}${row.year ? " · " + row.year : ""}</div>
-          ${eds.length === 0 && row.wishlisted ? `<span class="pill wish">WISHLIST</span>` : ""}
+          ${row.wishlisted ? `<span class="pill wish">WISHLIST</span>` : ""}
         </div>
       </div>
       ${eds.map((e) => editionCardHtml(e, row.matched && e.id === row.matched)).join("")}`;
