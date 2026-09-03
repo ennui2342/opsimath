@@ -147,4 +147,39 @@ class PendingDecisionTest < ActiveSupport::TestCase
 
     assert_nil pending.comparison_cards
   end
+
+  test "printing_choice_cards: a reference card plus one selectable card per ISFDB printing, first pre-picked" do
+    edition = Edition.create!(publisher: "Existing")
+    pending = PendingDecision.create!(kind: "enrichment_printing_choice", payload: {
+      "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "isbn" => "0586065504",
+      "candidates" => [
+        { "_isfdb_pub_id" => 35244, "publisher" => "HarperCollins (UK)", "publish_date" => "1993-10", "binding" => "pb", "page_count" => 464, "cover_url" => "https://x/a.jpg" },
+        { "_isfdb_pub_id" => 35246, "publisher" => "Triad Grafton", "publish_date" => "1986-05", "binding" => "pb", "page_count" => 464, "cover_url" => "https://x/b.jpg" }
+      ]
+    })
+
+    cards = pending.printing_choice_cards
+
+    assert_equal "Edition · in catalog", cards[:edition].label
+    assert_nil cards[:edition].select_name # reference only
+
+    first, second = cards[:candidates]
+    assert_equal "ISFDB · 1993 · HarperCollins (UK)", first.label
+    assert_equal "pub_id", first.select_name
+    assert_equal "35244", first.select_value
+    assert first.selected
+    assert_not first.fields_disabled
+    assert_equal "pub35244_", first.input_scope
+    assert(first.fields.all?(&:selectable))
+    assert_equal "Mass market", first.fields.find { |f| f.name == "format_detail" }.value
+    assert first.fields.any? { |f| f.name == "cover_image" } # applyable field, not an <img> preview
+    assert_nil first.cover_url
+
+    assert_not second.selected
+    assert second.fields_disabled
+  end
+
+  test "printing_choice_cards is nil for other kinds" do
+    assert_nil PendingDecision.new(kind: "enrichment_conflict").printing_choice_cards
+  end
 end

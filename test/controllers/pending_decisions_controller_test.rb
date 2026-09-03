@@ -132,4 +132,33 @@ class PendingDecisionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 2, work.readings.count
     assert_equal "accepted", pending.reload.status
   end
+
+  test "enrichment_printing_choice shows a card per printing with a radio, and accept commits the picked one" do
+    sign_in_as users(:one)
+    edition = Edition.create!(publisher: "Wrong On File")
+    work = Work.create!(title: "The Anubis Gates", literary_form: "novel")
+    EditionContent.create!(work: work, edition: edition)
+    pending = PendingDecision.create!(kind: "enrichment_printing_choice", payload: {
+      "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "isbn" => "0586065504",
+      "candidates" => [
+        { "_isfdb_pub_id" => 35244, "publisher" => "HarperCollins (UK)", "publish_date" => "1993-10", "binding" => "pb", "page_count" => 464, "cover_url" => nil },
+        { "_isfdb_pub_id" => 35246, "publisher" => "Triad Grafton", "publish_date" => "1986-05", "binding" => "pb", "page_count" => 464, "cover_url" => nil }
+      ]
+    })
+
+    get pending_decision_url(pending)
+    assert_response :success
+    assert_select "h1", text: "The Anubis Gates"
+    assert_select "input[type=radio][name='pub_id'][value=?][checked]", "35244"
+    assert_select "input[type=radio][name='pub_id'][value=?]", "35246"
+    assert_select "input[type=checkbox][name='fields[]'][value=publisher]"
+
+    post accept_pending_decision_url(pending),
+      params: { pub_id: "35246", fields: %w[publisher publish_date] }, as: :turbo_stream
+
+    assert_response :success
+    assert_equal "Triad Grafton", edition.reload.publisher
+    assert_equal "1986-05", edition.publish_date
+    assert_equal "accepted", pending.reload.status
+  end
 end

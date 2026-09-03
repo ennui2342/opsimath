@@ -1,0 +1,47 @@
+<% entity = pending_decision.entity %>
+<% cards = pending_decision.printing_choice_cards %>
+
+<div class="mb-4 flex flex-wrap items-center gap-2">
+  <%= render(Ui::BadgeComponent.new(text: pending_decision.kind, variant: :conflict)) %>
+</div>
+
+<h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
+  <%= entity.works.map(&:title).join(", ").presence || "Edition ##{entity.id}" %>
+</h1>
+<p class="text-sm text-gray-500 dark:text-gray-400">
+  <%= entity.works.flat_map { |w| w.work_contributors.where(role: "author").map { |wc| wc.contributor.name } }.uniq.join(", ").presence || "Unknown author" %>
+</p>
+<p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
+  ISBN <span class="font-mono"><%= pending_decision.payload["isbn"] %></span> matches
+  <%= cards[:candidates].size %> ISFDB printings — pick the one you own, then choose which details to apply.
+</p>
+
+<%= form_with url: accept_pending_decision_path(pending_decision, kind: kind_filter), method: :post,
+      data: { turbo_stream: true, decision_shortcuts_target: "accept",
+              controller: "printing-choice", action: "change->printing-choice#sync" } do %>
+  <div class="mb-6 grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
+    <%= render(Ui::ComparisonCardComponent.new(card: cards[:edition])) %>
+    <% cards[:candidates].each do |card| %>
+      <div data-printing-choice-target="card" data-printing-choice-key="<%= card.select_value %>">
+        <%= render(Ui::ComparisonCardComponent.new(card: card)) %>
+      </div>
+    <% end %>
+  </div>
+
+  <button type="submit" class="rounded-md bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600">
+    Accept (A)
+  </button>
+<% end %>
+
+<div class="mt-3 flex gap-3">
+  <%= button_to "Reject (R)", reject_pending_decision_path(pending_decision, kind: kind_filter),
+        method: :post, form: { data: { turbo_stream: true, decision_shortcuts_target: "reject" } },
+        class: "rounded-md bg-gray-200 px-4 py-2 font-medium text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600" %>
+  <%= link_to "Back to queue", pending_decisions_path(kind: kind_filter), class: "ml-auto self-center text-sm text-gray-500 hover:underline dark:text-gray-400" %>
+</div>
+
+<p class="mt-6 max-w-2xl text-xs text-gray-500 dark:text-gray-400">
+  Same ISBN, more than one printing in ISFDB — usually a later reissue under a
+  new publisher. Only the checked fields from the selected printing are applied;
+  rejecting leaves the edition as it is.
+</p>

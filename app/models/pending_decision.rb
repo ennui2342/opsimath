@@ -93,7 +93,43 @@ class PendingDecision < ApplicationRecord
     { edition: edition_card(record), others: other_providers.map { |p| provider_card(record, p) }, proposed: proposed_card(record, proposing_record) }
   end
 
+  # Display shape for the enrichment_printing_choice screen: the Edition's
+  # current state (reference), then one card per ISFDB printing that
+  # shares the ISBN. Each candidate card carries a radio in its header
+  # ("this is my printing") and per-field checkboxes; only the picked
+  # card's checkboxes submit (Stimulus printing-choice / #fields_disabled).
+  def printing_choice_cards
+    record = entity
+    return nil unless kind == "enrichment_printing_choice" && record.is_a?(Edition)
+
+    candidates = payload["candidates"] || []
+    { edition: edition_card(record), candidates: candidates.each_with_index.map { |c, i| candidate_card(c, first: i.zero?) } }
+  end
+
   private
+
+  # No cover preview: ISFDB's own cover URLs are wiki-hosted and
+  # Cloudflare-gate hotlinked <img> loads (see non_isbn_enrichment_dead_ends).
+  # The cover is still an applyable field — a checkbox row that, when
+  # checked, has commit_choice download and attach it on accept.
+  def candidate_card(candidate, first:)
+    pub_id = candidate["_isfdb_pub_id"].to_s
+    format, format_detail = Enrichment::IsfdbEditionEnricher::FORMAT_BY_PTYPE[candidate["binding"].to_s.downcase]
+
+    rows = {
+      "format" => format&.humanize, "format_detail" => format_detail&.humanize,
+      "publisher" => candidate["publisher"], "publish_date" => candidate["publish_date"],
+      "language" => candidate["language"], "page_count" => candidate["page_count"],
+      "cover_image" => ("ISFDB cover for this printing" if candidate["cover_url"].present?)
+    }.filter_map { |name, value| FieldRow.new(name: name, value: value, selectable: true) if value.present? }
+
+    Card.new(
+      label: [ "ISFDB", candidate["publish_date"].to_s[0, 4].presence, candidate["publisher"].presence ].compact.join(" · "),
+      fields: rows,
+      select_name: "pub_id", select_value: pub_id, selected: first,
+      input_scope: "pub#{pub_id}_", fields_disabled: !first
+    )
+  end
 
   def edition_card(record)
     fields = EDITION_FIELD_ORDER.map do |field|

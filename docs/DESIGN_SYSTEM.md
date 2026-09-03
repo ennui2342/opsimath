@@ -74,13 +74,22 @@ logic (`PendingDecision#comparison_cards`,
 | `identifiers` | `[[label, value], …]` mono footer |
 | `info_note` | small muted line at the card foot ("Reference only …") |
 | `select_name` / `select_value` / `selected` | turns the whole card header into a radio — picks this card among its siblings; a checked card takes the same conflict ring as `proposed` (pure CSS, `has-[:checked]:`) |
+| `input_scope` | id prefix for this card's checkboxes/radio, so N cards with the same field names don't collide (`"pub35244_"`) |
+| `fields_disabled` | render this card's checkboxes unchecked + disabled — a printing-choice card whose radio isn't the picked one; a Stimulus controller flips it as the radio changes |
 
-Two selection idioms, don't mix them on one card:
+Three selection idioms:
 
 - **Per-field checkboxes** (`FieldRow#selectable`) — "which of these values
-  do I want", `PendingDecision`. Submits `fields[]`.
+  do I want", `enrichment_conflict`. Submits `fields[]`.
 - **Whole-card radio** (`select_name`) — "which of these candidates is it",
   `EditionReconciliation`. Submits one value under `select_name`.
+- **Both, combined** — "which printing, *and* which of its fields":
+  `enrichment_printing_choice` (`PendingDecision#printing_choice_cards`).
+  Each candidate card has a header radio *and* per-field checkboxes;
+  `input_scope` keeps the ids distinct, `fields_disabled` +
+  `printing_choice_controller.js` keep only the picked card's checkboxes
+  live so the form never submits fields from a printing you didn't
+  choose.
 
 ### `Ui::EditionCardComponent`
 
@@ -141,7 +150,9 @@ Renders stored Markdown (reviews). Styling is the `.markdown` block in
 ### Comparison-review screen
 
 The shape for "here are N candidates, make one structural call." Used by
-`pending_decisions/_decision_comparison` and
+`pending_decisions/_decision_comparison`,
+`pending_decisions/_decision_printing_choice` (candidate ISFDB printings
+for a reused ISBN — radio + checkboxes per card) and
 `edition_reconciliations/_reconciliation`. A new review screen of this kind
 should be recognisably the same page:
 

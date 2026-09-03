@@ -179,6 +179,51 @@ module Enrichment
       assert_equal "rejected", pending.reload.status
     end
 
+    test "accepting an enrichment_printing_choice commits the picked printing's checked fields, no conflict gate" do
+      edition = Edition.create!(publisher: "Wrong On File")
+      pending = PendingDecision.create!(kind: "enrichment_printing_choice", payload: {
+        "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "isbn" => "0586065504",
+        "candidates" => [
+          { "_isfdb_pub_id" => 35244, "publisher" => "HarperCollins (UK)", "publish_date" => "1993-10", "binding" => "pb", "page_count" => 464, "cover_url" => nil },
+          { "_isfdb_pub_id" => 35246, "publisher" => "Triad Grafton", "publish_date" => "1986-05", "binding" => "pb", "page_count" => 464, "cover_url" => nil }
+        ]
+      })
+
+      PendingDecisionResolver.accept(pending, selected_fields: %w[publisher publish_date], pub_id: "35246")
+
+      edition.reload
+      assert_equal "Triad Grafton", edition.publisher
+      assert_equal "1986-05", edition.publish_date
+      assert_nil edition.page_count # not checked
+      assert_equal "isfdb", edition.field_sources["publisher"]
+      assert_equal "35246", edition.edition_identifiers.find_by(id_type: "isfdb").value
+      assert_equal "accepted", pending.reload.status
+      assert_empty PendingDecision.pending
+    end
+
+    test "rejecting an enrichment_printing_choice leaves the edition alone" do
+      edition = Edition.create!(publisher: "Untouched")
+      pending = PendingDecision.create!(kind: "enrichment_printing_choice", payload: {
+        "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb",
+        "candidates" => [ { "_isfdb_pub_id" => 1, "publisher" => "X", "binding" => "pb" } ]
+      })
+
+      PendingDecisionResolver.reject(pending)
+
+      assert_equal "Untouched", edition.reload.publisher
+      assert_equal "rejected", pending.reload.status
+    end
+
+    test "accepting an enrichment_printing_choice with an unknown pub_id raises" do
+      edition = Edition.create!
+      pending = PendingDecision.create!(kind: "enrichment_printing_choice", payload: {
+        "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb",
+        "candidates" => [ { "_isfdb_pub_id" => 1, "publisher" => "X", "binding" => "pb" } ]
+      })
+
+      assert_raises(ArgumentError) { PendingDecisionResolver.accept(pending, pub_id: "999") }
+    end
+
     test "a kind with no known automatic action only changes status, never touches an entity" do
       edition = Edition.create!(publisher: "St Martins Pr")
       pending = PendingDecision.create!(

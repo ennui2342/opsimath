@@ -6,7 +6,7 @@
   <%= content_tag(@card.select_name ? :label : :div, class: header + (@card.select_name ? " cursor-pointer" : "")) do %>
     <span class="flex items-center gap-2">
       <% if @card.select_name %>
-        <%= radio_button_tag @card.select_name, @card.select_value, @card.selected, class: "h-4 w-4 flex-shrink-0 border-gray-300" %>
+        <%= radio_button_tag @card.select_name, @card.select_value, @card.selected, id: "#{@card.input_scope}select_#{@card.select_value}", class: "h-4 w-4 flex-shrink-0 border-gray-300" %>
       <% end %>
       <span class="text-xs font-bold tracking-wide uppercase <%= @card.proposed ? "text-conflict-800 dark:text-conflict-200" : "text-gray-500 dark:text-gray-400" %>">
         <%= @card.label %>
@@ -23,14 +23,20 @@
             class: "rounded shadow #{"ring-2 ring-conflict-800 dark:ring-conflict-200" if @card.cover_selectable}", alt: "" %>
       <% if @card.cover_selectable %>
         <label class="flex items-center gap-1.5 text-xs font-semibold text-conflict-800 dark:text-conflict-200">
-          <%= check_box_tag "fields[]", "cover_image", true, id: "field_cover_image", checked: true, class: "h-4 w-4 rounded border-gray-300" %>
+          <%= check_box_tag "fields[]", "cover_image", field_checked, id: field_id("cover_image"), disabled: @card.fields_disabled, class: "h-4 w-4 rounded border-gray-300" %>
           Apply this cover
         </label>
       <% end %>
     </div>
   <% elsif @card.cover_url.present? %>
-    <div class="flex justify-center px-4 pt-4">
+    <div class="flex flex-col items-center gap-2 px-4 pt-4">
       <%= image_tag @card.cover_url, class: "h-40 w-auto rounded shadow", alt: "", loading: "lazy" %>
+      <% if @card.cover_selectable %>
+        <label class="flex items-center gap-1.5 text-xs font-semibold text-conflict-800 dark:text-conflict-200">
+          <%= check_box_tag "fields[]", "cover_image", field_checked, id: field_id("cover_image"), disabled: @card.fields_disabled, class: "h-4 w-4 rounded border-gray-300" %>
+          Apply this cover
+        </label>
+      <% end %>
     </div>
   <% elsif @card.show_empty_cover %>
     <div class="flex justify-center px-4 pt-4">
@@ -44,7 +50,7 @@
     <% @card.fields.each do |row| %>
       <div class="flex items-start gap-2 <%= "-mx-2 rounded-md border border-conflict-800 bg-conflict-100 px-2 py-1.5 dark:border-conflict-200 dark:bg-conflict-900" if row.selectable %>">
         <% if row.selectable %>
-          <%= check_box_tag "fields[]", row.name, true, id: "field_#{row.name}", checked: true, class: "mt-0.5 h-4 w-4 flex-shrink-0 rounded border-gray-300" %>
+          <%= check_box_tag "fields[]", row.name, field_checked, id: field_id(row.name), disabled: @card.fields_disabled, class: "mt-0.5 h-4 w-4 flex-shrink-0 rounded border-gray-300" %>
         <% end %>
         <div class="min-w-0 flex-1">
           <span class="block text-[10px] font-semibold tracking-wide text-gray-400 uppercase dark:text-gray-500"><%= row.name.to_s.humanize %></span>

@@ -105,10 +105,12 @@ class GoodreadsSyncJob < ApplicationJob
 
   def enrich_new_edition(edition)
     result = Enrichment::IsfdbEditionEnricher.enrich(edition)
-    return unless result.status == :success
+    return unless result.status.in?(%i[success needs_review])
 
     # A brand-new Edition has no prior history, so any PendingDecision
-    # found here was necessarily just raised by this exact call.
+    # found here (an enrichment_conflict, or an enrichment_printing_choice
+    # when the ISBN hit several ISFDB printings) was necessarily just
+    # raised by this exact call.
     PendingDecision.where(status: "pending")
                    .where("payload @> ?", { "entity_type" => "Edition", "entity_id" => edition.id }.to_json)
                    .find_each { |pending_decision| notify_enrichment_conflict(pending_decision, edition) }
@@ -132,6 +134,12 @@ class GoodreadsSyncJob < ApplicationJob
   end
 
   def conflict_summary(pending_decision)
+    if pending_decision.kind == "enrichment_printing_choice"
+      candidates = pending_decision.payload["candidates"] || []
+      return { "isbn" => pending_decision.payload["isbn"],
+               "printings" => candidates.map { |c| [ c["publish_date"].to_s[0, 4], c["publisher"] ].compact.join(" ") }.join(" · ") }
+    end
+
     pending_decision.field_diffs.each_with_object({}) do |diff, summary|
       summary[diff[:field]] = "#{diff[:current] || "(blank)"} → #{diff[:proposed]}"
     end

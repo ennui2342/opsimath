@@ -1162,6 +1162,37 @@ closed, both real production data problems, not theoretical:
   update to the enrichment should flow into the standard match/conflict
   workflow").
 
+### Addendum: a reused ISBN stops being a silent guess (`enrichment_printing_choice`)
+
+An ISBN can name more than one ISFDB publication — a reissue keeps the
+number (2026-08-10: 565 of 1,493 of the library's ISFDB-matched ISBNs hit
+this). `IsfdbEditionEnricher` used to pick one: the candidate whose
+publish year matched what was on file, else `candidates.first` (isfdb-
+adapter's most-recent-first order). The fallback is a guess — and it
+fires for *every* RSS-auto-created edition, which has no year on file
+(`book_published` is Work-level, never written to `Edition.publish_date`).
+Real miss (2026-09-03): The Anubis Gates edition 2032, ISBN `0586065504`
+→ two ISFDB pubs (HarperCollins UK 1993 / Triad Grafton 1986); with no
+year to disambiguate it took the 1993 one, wrong.
+
+Now `#resolve_candidate` only auto-picks when it's *certain* — exactly one
+candidate, or exactly one matching the known year. Anything else (no year
+on file, year matches none, year matches several) raises a new
+`PendingDecision` kind, **`enrichment_printing_choice`**: payload carries
+the raw candidate list verbatim (accept never re-hits the adapter), and
+`PendingDecision#printing_choice_cards` renders the Edition's current
+state plus one `Ui::ComparisonCardComponent` per candidate printing —
+each with a **radio in the header** ("this is the printing I own") *and*
+per-field **checkboxes** inside. `printing_choice_controller.js` keeps
+only the picked card's checkboxes live. Accept
+(`PendingDecisionResolver#accept_printing_choice` →
+`IsfdbEditionEnricher.commit_choice`) writes exactly the checked fields
+from the chosen printing straight onto the Edition — no `FieldApplier`
+conflict gate, since the reviewer already made the "which printing, which
+values" call in front of the full comparison. This is deliberately
+*upstream* of the field-level `enrichment_conflict` bundling: pick the
+right record first, then there's nothing left to dispute.
+
 ## Explicitly out of scope for this phase
 
 - ~~Any UI. Verification happens via Rails console...~~ **Superseded**: a

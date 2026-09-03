@@ -74,5 +74,37 @@ module Ui
       )
       render(ComparisonCardComponent.new(card: card))
     end
+
+    # enrichment_printing_choice: one ISFDB printing candidate — radio in
+    # the header AND per-field checkboxes (cover included as a plain row,
+    # no <img> preview). `fields_disabled` dims the unpicked printings.
+    def printing_choice_candidate
+      card = Ui::ComparisonCardComponent::Card.new(
+        label: "ISFDB · 1986 · Triad Grafton",
+        select_name: "pub_id", select_value: "35246", selected: true,
+        input_scope: "pub35246_", fields_disabled: false,
+        fields: [
+          Ui::ComparisonCardComponent::FieldRow.new(name: "format_detail", value: "Mass market", selectable: true),
+          Ui::ComparisonCardComponent::FieldRow.new(name: "publisher", value: "Triad Grafton", selectable: true),
+          Ui::ComparisonCardComponent::FieldRow.new(name: "publish_date", value: "1986-05", selectable: true),
+          Ui::ComparisonCardComponent::FieldRow.new(name: "page_count", value: 464, selectable: true),
+          Ui::ComparisonCardComponent::FieldRow.new(name: "cover_image", value: "ISFDB cover for this printing", selectable: true)
+        ]
+      )
+      render(ComparisonCardComponent.new(card: card))
+    end
+
+    def printing_choice_candidate_unpicked
+      card = Ui::ComparisonCardComponent::Card.new(
+        label: "ISFDB · 1993 · HarperCollins (UK)",
+        select_name: "pub_id", select_value: "35244", selected: false,
+        input_scope: "pub35244_", fields_disabled: true,
+        fields: [
+          Ui::ComparisonCardComponent::FieldRow.new(name: "publisher", value: "HarperCollins (UK)", selectable: true),
+          Ui::ComparisonCardComponent::FieldRow.new(name: "publish_date", value: "1993-10", selectable: true)
+        ]
+      )
+      render(ComparisonCardComponent.new(card: card))
+    end
   end
 end

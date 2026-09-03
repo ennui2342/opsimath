@@ -37,6 +37,16 @@ module Enrichment
       new(edition, client: client).enrich
     end
 
+    # Commit one specific ISFDB printing the reviewer picked in an
+    # enrichment_printing_choice decision, applying only the fields they
+    # checked. No FieldApplier / conflict gate — the human already made
+    # the "which printing, which values" call in front of the full
+    # comparison. `candidate_data` is a raw candidate hash straight out of
+    # the decision's payload (an un-mutated lookup_isbn result).
+    def self.commit_choice(edition, candidate_data, fields:)
+      new(edition, client: nil).commit_choice(candidate_data, fields)
+    end
+
     # Re-applies an already-fetched payload (an existing EnrichmentRecord's
     # raw_payload) without hitting isfdb-adapter again — the concrete use
     # case DATA_MODEL.md's EnrichmentRecord section calls out for keeping
@@ -60,7 +70,12 @@ module Enrichment
       candidates = @client.lookup_isbn(isbn)
       return Result.new(status: :skipped, message: "not found in isfdb mirror") if candidates.empty?
 
-      data = best_candidate(candidates)
+      data = resolve_candidate(candidates)
+      unless data
+        flag_printing_choice(candidates, isbn)
+        return Result.new(status: :needs_review, message: "#{candidates.size} isfdb printings share isbn #{isbn}")
+      end
+
       record_enrichment(data)
       reprocess(data)
 
@@ -75,7 +90,59 @@ module Enrichment
       backfill_isbn_identifiers(data)
     end
 
+    def commit_choice(data, fields)
+      wanted = fields.map(&:to_s)
+      @enrichment_record = record_enrichment(data) # provenance + the cover blob
+
+      attrs = candidate_fields(data).slice(*wanted)
+      if attrs.any?
+        @edition.update!(attrs.merge(field_sources: @edition.field_sources.merge(attrs.keys.index_with { "isfdb" })))
+      end
+
+      apply_choice_cover if wanted.include?("cover_image")
+      backfill_isfdb_identifier(data)
+      backfill_isbn_identifiers(data)
+    end
+
     private
+
+    # The Edition-column values one ISFDB candidate proposes — the same
+    # mapping record_enrichment captures, but returning only the ones fit
+    # to write straight onto the Edition (blank/unmapped dropped).
+    def candidate_fields(data)
+      format, format_detail = FORMAT_BY_PTYPE[data["binding"].to_s.downcase]
+      {
+        "publisher" => data["publisher"].presence,
+        "language" => data["language"].presence,
+        "page_count" => data["page_count"],
+        "publish_date" => (data["publish_date"] if data["publish_date"].to_s.match?(Edition::PUBLISH_DATE_FORMAT)),
+        "format" => format,
+        "format_detail" => format_detail
+      }.compact
+    end
+
+    def apply_choice_cover
+      return unless @enrichment_record&.cover_image&.attached?
+
+      @edition.cover_image.attach(@enrichment_record.cover_image.blob)
+      @edition.update!(field_sources: @edition.field_sources.merge("cover_image" => "isfdb"))
+    end
+
+    # One PendingDecision listing every ISFDB printing that shares this
+    # ISBN, for a human to pick the right one (radio) and choose which of
+    # its fields to apply (checkboxes) — see PendingDecision#printing_choice_cards.
+    # Raw candidates are stored verbatim so accept never re-hits the adapter.
+    # Deduped on (edition) like create_bundled_decision.
+    def flag_printing_choice(candidates, isbn)
+      payload = {
+        "entity_type" => "Edition", "entity_id" => @edition.id, "source" => "isfdb",
+        "isbn" => isbn, "candidates" => candidates
+      }
+      existing = PendingDecision.pending.where(kind: "enrichment_printing_choice")
+                                .where("payload @> ?", { "entity_type" => "Edition", "entity_id" => @edition.id }.to_json)
+                                .first
+      existing ? existing.update!(payload: payload) : PendingDecision.create!(kind: "enrichment_printing_choice", payload: payload)
+    end
 
     # Independent of whatever apply_fields later decides to fill/conflict/
     # hold back — this is "what ISFDB's fetch literally said," captured
@@ -255,24 +322,24 @@ module Enrichment
     # An ISBN isn't always unique to one ISFDB publication — a real,
     # common case for reprinted vintage SF (confirmed 2026-08-10: 565 of
     # 1,493 of opsimath's own ISFDB-matched ISBNs hit this). isfdb-adapter
-    # returns every candidate, most-recent-printing-first (its own
-    # single-result default, for callers that don't ask for `all`). Mark,
-    # 2026-08-10: rather than trust that "newest wins" default blindly,
-    # prefer whichever candidate's publish year already agrees with what's
-    # on file — that's real evidence of which specific printing this is,
-    # not a guess. Year-level only, not full EDTF precision ("year level
-    # matching overcomes any difference in resolution") — either side
-    # commonly knows only the year, and a year-only value shouldn't be
-    # penalized against a candidate that happens to also know the month.
-    # With no year on file yet (true for every RSS-auto-created edition —
-    # book_published is Work-level, never written to Edition.publish_date)
-    # or no candidate matching it, `candidates.first` reproduces
-    # isfdb-adapter's own default exactly.
-    def best_candidate(candidates)
-      known_year = @edition.publish_date.presence&.slice(0, 4)
-      return candidates.first unless known_year
+    # returns every candidate, most-recent-printing-first.
+    #
+    # Confident pick: exactly one candidate, OR exactly one whose publish
+    # year matches what's already on file (year-level, not full EDTF
+    # precision — either side commonly knows only the year). Anything else
+    # — no year on file (true for every RSS-auto-created edition), the
+    # year matching none, or the year matching several — returns nil, and
+    # `enrich` raises an enrichment_printing_choice decision rather than
+    # guessing which printing the collector actually holds. Mark,
+    # 2026-09-03: don't guess; show all the printings as cards.
+    def resolve_candidate(candidates)
+      return candidates.first if candidates.one?
 
-      candidates.find { |c| c["publish_date"].to_s.start_with?(known_year) } || candidates.first
+      known_year = @edition.publish_date.presence&.slice(0, 4)
+      return nil unless known_year
+
+      matches = candidates.select { |c| c["publish_date"].to_s.start_with?(known_year) }
+      matches.one? ? matches.first : nil
     end
 
     def substring_variant?(a, b)

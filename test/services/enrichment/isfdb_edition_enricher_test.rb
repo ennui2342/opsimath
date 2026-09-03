@@ -111,34 +111,79 @@ module Enrichment
       assert_equal 111_111, EnrichmentRecord.sole.raw_payload["_isfdb_pub_id"]
     end
 
-    test "with no publish_date on file yet, falls back to isfdb-adapter's own most-recent-first default" do
+    test "with no publish_date on file yet and multiple printings, raises an enrichment_printing_choice — doesn't guess" do
       # True for every RSS-auto-created edition — book_published is
       # Work-level, never written to Edition.publish_date.
       assert_nil @edition.publish_date
       newer_printing = DUNE_RESPONSE.merge(publisher: "Ace Books", publish_date: "2010", _isfdb_pub_id: 426_303)
       older_printing = DUNE_RESPONSE.merge(publisher: "New English Library", publish_date: "1985", _isfdb_pub_id: 111_111)
       stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ newer_printing, older_printing ].to_json)
-      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
 
-      IsfdbEditionEnricher.enrich(@edition, client: @client)
+      result = IsfdbEditionEnricher.enrich(@edition, client: @client)
 
-      assert_equal "Ace Books", @edition.reload.publisher
+      assert_equal :needs_review, result.status
+      assert_nil @edition.reload.publisher # nothing applied
+      assert_empty EnrichmentRecord.where(entity: @edition) # no fetch committed either
+
+      decision = PendingDecision.sole
+      assert_equal "enrichment_printing_choice", decision.kind
+      assert_equal @edition.id, decision.payload["entity_id"]
+      assert_equal "0441172717", decision.payload["isbn"]
+      assert_equal [ 426_303, 111_111 ], decision.payload["candidates"].map { |c| c["_isfdb_pub_id"] }
     end
 
-    test "when the known year matches no candidate, falls back to the most-recent-first default rather than raising" do
+    test "when the known year matches no candidate, raises an enrichment_printing_choice rather than guessing newest" do
       @edition.update!(publish_date: "1999") # doesn't match either candidate below
       newer_printing = DUNE_RESPONSE.merge(publisher: "Ace Books", publish_date: "2010", _isfdb_pub_id: 426_303)
       older_printing = DUNE_RESPONSE.merge(publisher: "New English Library", publish_date: "1985", _isfdb_pub_id: 111_111)
       stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ newer_printing, older_printing ].to_json)
+
+      result = IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal :needs_review, result.status
+      assert_equal "enrichment_printing_choice", PendingDecision.sole.kind
+    end
+
+    test "the same ISBN matching several printings but only one for the known year still resolves automatically" do
+      @edition.update!(publish_date: "1985")
+      a = DUNE_RESPONSE.merge(publisher: "Ace Books", publish_date: "2010", _isfdb_pub_id: 426_303)
+      b = DUNE_RESPONSE.merge(publisher: "New English Library", publish_date: "1985", _isfdb_pub_id: 111_111)
+      c = DUNE_RESPONSE.merge(publisher: "Gollancz", publish_date: "2021", _isfdb_pub_id: 222_222)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ c, a, b ].to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
 
       result = IsfdbEditionEnricher.enrich(@edition, client: @client)
 
-      # publish_date itself is a genuine conflict (1999 vs 2010) and holds
-      # the whole fetch back for review — but which candidate got proposed
-      # is still observable via the EnrichmentRecord's own raw_payload.
       assert_equal :success, result.status
-      assert_equal 426_303, EnrichmentRecord.sole.raw_payload["_isfdb_pub_id"]
+      assert_equal "New English Library", @edition.reload.publisher
+      assert_empty PendingDecision.where(kind: "enrichment_printing_choice")
+    end
+
+    test "re-enriching a still-ambiguous edition refreshes the same printing-choice decision, not a second one" do
+      a = DUNE_RESPONSE.merge(publisher: "Ace Books", publish_date: "2010", _isfdb_pub_id: 426_303)
+      b = DUNE_RESPONSE.merge(publisher: "New English Library", publish_date: "1985", _isfdb_pub_id: 111_111)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ a, b ].to_json)
+
+      2.times { IsfdbEditionEnricher.enrich(@edition, client: @client) }
+
+      assert_equal 1, PendingDecision.where(kind: "enrichment_printing_choice").count
+    end
+
+    test "commit_choice applies only the checked fields from the chosen candidate, no conflict gate" do
+      @edition.update!(publisher: "Wrong Publisher On File") # would normally be a conflict
+      chosen = DUNE_RESPONSE.merge(publisher: "New English Library", publish_date: "1985", page_count: 412, _isfdb_pub_id: 111_111)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "cover-bytes", headers: { "Content-Type" => "image/jpeg" })
+
+      IsfdbEditionEnricher.commit_choice(@edition, chosen.deep_stringify_keys, fields: %w[publisher page_count cover_image])
+
+      @edition.reload
+      assert_equal "New English Library", @edition.publisher # overwritten, no PendingDecision
+      assert_equal 412, @edition.page_count
+      assert_nil @edition.publish_date # not checked -> not applied
+      assert_equal "isfdb", @edition.field_sources["publisher"]
+      assert @edition.cover_image.attached?
+      assert_empty PendingDecision.all
+      assert_equal "111111", @edition.edition_identifiers.find_by(id_type: "isfdb").value
     end
 
     test "reprocess re-applies an already-fetched payload without a new EnrichmentRecord or network call" do

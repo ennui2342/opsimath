@@ -25,16 +25,17 @@ module Enrichment
   # PendingDecision#status, never mutating an entity it doesn't
   # understand.
   class PendingDecisionResolver
-    def self.accept(pending_decision, selected_fields: nil) = new(pending_decision).accept(selected_fields)
+    def self.accept(pending_decision, selected_fields: nil, pub_id: nil) = new(pending_decision).accept(selected_fields, pub_id:)
     def self.reject(pending_decision) = new(pending_decision).reject
 
     def initialize(pending_decision)
       @pending_decision = pending_decision
     end
 
-    def accept(selected_fields = nil)
+    def accept(selected_fields = nil, pub_id: nil)
       case @pending_decision.kind
       when "reread_conflict" then accept_reread_conflict
+      when "enrichment_printing_choice" then accept_printing_choice(selected_fields, pub_id)
       else accept_enrichment(selected_fields)
       end
       @pending_decision.update!(status: "accepted", resolved_at: Time.current, payload: @pending_decision.payload)
@@ -58,6 +59,21 @@ module Enrichment
       return unless work && edition
 
       Reading.create!(work: work, edition: edition, status: "reading", date_started: @pending_decision.payload["date_started"])
+    end
+
+    # Accept = "this ISFDB printing (pub_id) is the one I own — apply the
+    # fields I checked." No conflict gate: the reviewer picked both the
+    # printing and the values in front of the full comparison. `pub_id`
+    # comes from the radio in the chosen card's header.
+    def accept_printing_choice(selected_fields, pub_id)
+      record = @pending_decision.entity
+      return unless record
+
+      candidate = (@pending_decision.payload["candidates"] || []).find { |c| c["_isfdb_pub_id"].to_s == pub_id.to_s }
+      raise ArgumentError, "no ISFDB candidate #{pub_id.inspect} in decision #{@pending_decision.id}" unless candidate
+
+      fields = selected_fields.presence || %w[format format_detail publisher publish_date language page_count cover_image]
+      Enrichment::IsfdbEditionEnricher.commit_choice(record, candidate, fields: fields)
     end
 
     def accept_enrichment(selected_fields)

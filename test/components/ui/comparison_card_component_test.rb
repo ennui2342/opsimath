@@ -123,6 +123,32 @@ module Ui
       assert_selector "div.has-\\[\\:checked\\]\\:ring-1"
     end
 
+    test "input_scope namespaces the checkbox ids so sibling cards don't collide" do
+      card = Ui::ComparisonCardComponent::Card.new(
+        label: "ISFDB · 1986", input_scope: "pub35246_", select_name: "pub_id", select_value: "35246", selected: true,
+        fields: [ Ui::ComparisonCardComponent::FieldRow.new(name: "publisher", value: "Triad Grafton", selectable: true) ]
+      )
+
+      render_inline(ComparisonCardComponent.new(card: card))
+
+      assert_selector "input[type=checkbox][name='fields[]'][value=publisher]#pub35246_field_publisher"
+      assert_selector "input[type=radio][name='pub_id'][value='35246']#pub35246_select_35246"
+    end
+
+    test "fields_disabled renders the card's checkboxes unchecked and disabled" do
+      card = Ui::ComparisonCardComponent::Card.new(
+        label: "ISFDB · 1993", input_scope: "pub1_", fields_disabled: true,
+        cover_url: "https://x/c.jpg", cover_selectable: true,
+        fields: [ Ui::ComparisonCardComponent::FieldRow.new(name: "publisher", value: "HarperCollins", selectable: true) ]
+      )
+
+      render_inline(ComparisonCardComponent.new(card: card))
+
+      assert_selector "input[type=checkbox][value=publisher][disabled]"
+      assert_no_selector "input[type=checkbox][value=publisher][checked]"
+      assert_selector "input[type=checkbox][value=cover_image][disabled]" # cover checkbox on the cover_url branch too
+    end
+
     test "a selectable cover renders a checked 'Apply this cover' checkbox" do
       edition = Edition.create!
       edition.cover_image.attach(io: StringIO.new("bytes"), filename: "cover.jpg", content_type: "image/jpeg")
