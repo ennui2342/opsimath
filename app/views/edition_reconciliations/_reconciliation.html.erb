@@ -1,93 +1,54 @@
-<div id="edition_reconciliation" class="w-full max-w-4xl">
+<div id="edition_reconciliation" class="w-full max-w-5xl" data-controller="decision-shortcuts">
   <% if reconciliation %>
-    <% item = reconciliation.feed_item %>
+    <% cards = reconciliation.comparison_cards %>
     <% authors = reconciliation.work.work_contributors.select { |wc| wc.role == "author" }.map { |wc| wc.contributor.name }.join(", ") %>
 
-    <div class="mb-4">
-      <%= render(Ui::BadgeComponent.new(text: "#{reconciliation.shelf} · edition reconciliation", variant: :conflict)) %>
+    <div class="mb-4 flex flex-wrap items-center gap-2">
+      <%= render(Ui::BadgeComponent.new(text: "edition reconciliation", variant: :conflict)) %>
+      <%= render(Ui::BadgeComponent.new(text: reconciliation.shelf, variant: :default)) %>
     </div>
     <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100"><%= reconciliation.work.title %></h1>
-    <p class="mb-6 text-sm text-gray-500 dark:text-gray-400"><%= authors.presence || "Unknown author" %></p>
+    <p class="mb-4 text-sm text-gray-500 dark:text-gray-400"><%= authors.presence || "Unknown author" %></p>
 
     <%= form_with url: resolve_edition_reconciliation_path(reconciliation), method: :post,
-          data: { turbo_stream: true } do |f| %>
-      <div class="mb-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
-
-        <%# --- incoming feed row --- %>
-        <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-          <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Incoming from Goodreads</h2>
-          <div class="flex gap-3">
-            <% if item.book_image_url.present? %>
-              <%= image_tag item.book_image_url, alt: "", class: "h-24 w-16 flex-none rounded object-cover" %>
-            <% end %>
-            <dl class="min-w-0 space-y-1 text-sm">
-              <div><dt class="inline text-gray-500 dark:text-gray-400">book id</dt> <dd class="inline"><%= item.goodreads_book_id %></dd></div>
-              <div><dt class="inline text-gray-500 dark:text-gray-400">isbn</dt> <dd class="inline"><%= item.isbn.presence || "—" %></dd></div>
-              <div><dt class="inline text-gray-500 dark:text-gray-400">read</dt> <dd class="inline"><%= item.user_read_at.presence || "—" %></dd></div>
-              <div><dt class="inline text-gray-500 dark:text-gray-400">rating</dt> <dd class="inline"><%= item.user_rating.presence || "—" %></dd></div>
-              <% if item.user_review.present? %><div class="text-gray-500 dark:text-gray-400">has a review</div><% end %>
-            </dl>
-          </div>
-        </div>
-
-        <%# --- your editions --- %>
-        <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-          <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Your editions of this book</h2>
-          <div class="space-y-2">
-            <% reconciliation.candidate_editions.each_with_index do |edition, i| %>
-              <% isbn = edition.edition_identifiers.find { |x| x.id_type == "isbn13" }&.value %>
-              <% read = edition.readings.any? %>
-              <label class="flex cursor-pointer items-start gap-2 rounded border border-gray-200 p-2 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800">
-                <%= f.radio_button :target_edition_id, edition.id, checked: i.zero?, class: "mt-1" %>
-                <span>
-                  <span class="font-medium text-gray-900 dark:text-gray-100">
-                    <%= [ edition.format, edition.format_detail, edition.publisher, edition.publish_date ].compact_blank.join(" · ").presence || "Edition ##{edition.id}" %>
-                  </span>
-                  <span class="block text-gray-500 dark:text-gray-400"><%= isbn || "no isbn" %><%= " · read" if read %></span>
-                </span>
-              </label>
-            <% end %>
-          </div>
-        </div>
+          data: { turbo_stream: true, decision_shortcuts_target: "accept" } do |f| %>
+      <div class="mb-6 grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
+        <%= render(Ui::ComparisonCardComponent.new(card: cards[:incoming])) %>
+        <% cards[:editions].each do |card| %>
+          <%= render(Ui::ComparisonCardComponent.new(card: card)) %>
+        <% end %>
       </div>
 
-      <div class="flex flex-wrap items-center gap-3">
-        <button type="submit" name="resolution" value="relink"
-          class="rounded-md bg-gray-800 px-4 py-2 font-medium text-white hover:bg-gray-700 dark:bg-gray-200 dark:text-gray-900 dark:hover:bg-white">
-          Relink to selected
-        </button>
-        <button type="submit" name="resolution" value="change_edition"
-          class="rounded-md bg-amber-600 px-4 py-2 font-medium text-white hover:bg-amber-700">
-          Change edition &rarr; new
-        </button>
-        <button type="submit" name="resolution" value="add_edition"
-          class="rounded-md bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700">
-          Add as new edition
-        </button>
-        <span class="inline-flex items-center gap-2">
-          <button type="submit" name="resolution" value="unowned_read"
-            class="rounded-md bg-sky-600 px-4 py-2 font-medium text-white hover:bg-sky-700">
-            Unowned read
-          </button>
-          <%= f.select :source, %w[library borrowed other], {}, class: "rounded-md border-gray-300 py-1 text-sm dark:bg-gray-800 dark:border-gray-600" %>
-        </span>
-      </div>
+      <fieldset class="mb-5">
+        <legend class="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">Resolution</legend>
+        <div class="space-y-1.5">
+          <% EditionReconciliation::RESOLUTION_CHOICES.each_with_index do |(value, label, hint), i| %>
+            <label class="flex items-baseline gap-2 text-sm">
+              <%= f.radio_button :resolution, value, checked: i.zero?, class: "mt-0.5 h-4 w-4 flex-shrink-0 border-gray-300" %>
+              <span>
+                <span class="font-medium text-gray-900 dark:text-gray-100"><%= label %></span>
+                <span class="text-gray-500 dark:text-gray-400">— <%= hint %></span>
+                <% if value == "unowned_read" %>
+                  <%= f.select :source, %w[library borrowed other], {},
+                        class: "ml-1 rounded-md border-gray-300 py-0.5 text-sm dark:border-gray-600 dark:bg-gray-800" %>
+                <% end %>
+              </span>
+            </label>
+          <% end %>
+        </div>
+      </fieldset>
+
+      <button type="submit" class="rounded-md bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600">
+        Apply (A)
+      </button>
     <% end %>
 
     <div class="mt-3 flex gap-3">
-      <%= button_to "Reject", resolve_edition_reconciliation_path(reconciliation, resolution: "rejected"),
-            method: :post, form: { data: { turbo_stream: true } },
+      <%= button_to "Reject (R)", resolve_edition_reconciliation_path(reconciliation, resolution: "rejected"),
+            method: :post, form: { data: { turbo_stream: true, decision_shortcuts_target: "reject" } },
             class: "rounded-md bg-gray-200 px-4 py-2 font-medium text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600" %>
       <%= link_to "Back to queue", edition_reconciliations_path, class: "ml-auto self-center text-sm text-gray-500 hover:underline dark:text-gray-400" %>
     </div>
-
-    <p class="mt-6 max-w-2xl text-xs text-gray-500 dark:text-gray-400">
-      <strong>Relink</strong> — same book, Goodreads changed its edition id.
-      <strong>Change edition</strong> — you swapped your copy; the old one is kept as <em>replaced</em>.
-      <strong>Add as new edition</strong> — you now own this alongside what you had.
-      <strong>Unowned read</strong> — a library / borrowed / subscription read; no copy added.
-      A past reading always stays on the edition it happened in.
-    </p>
   <% else %>
     <%= render "all_done" %>
   <% end %>

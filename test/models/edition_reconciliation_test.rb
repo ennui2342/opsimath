@@ -50,6 +50,28 @@ class EditionReconciliationTest < ActiveSupport::TestCase
     assert_equal [ @ed1.id, @ed2.id ], build.candidate_editions.map(&:id)
   end
 
+  test "comparison_cards: an incoming (proposed) card plus one selectable card per edition" do
+    Copy.create!(edition: @ed1, disposition: "owned")
+    Reading.create!(work: @work, edition: @ed1, status: "completed", source: "owned_copy")
+    cards = build("feed_item" => {
+      "goodreads_book_id" => "999", "title" => "Crossfire", "isbn" => "0812564022",
+      "user_read_at" => "2024-01-05", "book_image_url" => "https://example.com/c.jpg"
+    }).comparison_cards
+
+    assert cards[:incoming].proposed
+    assert_equal "https://example.com/c.jpg", cards[:incoming].cover_url
+    assert_equal "0812564022", cards[:incoming].fields.find { |f| f.name == "isbn" }.value
+
+    assert_equal 2, cards[:editions].size
+    owned = cards[:editions].first
+    assert_equal "Edition · owned · read", owned.label
+    assert_equal "target_edition_id", owned.select_name
+    assert_equal @ed1.id.to_s, owned.select_value
+    assert owned.selected
+    assert_equal "Edition · catalog", cards[:editions].last.label
+    assert_not cards[:editions].last.selected
+  end
+
   test "status and resolution enums" do
     rec = build
     assert rec.pending?

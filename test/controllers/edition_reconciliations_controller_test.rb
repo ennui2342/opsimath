@@ -35,9 +35,11 @@ class EditionReconciliationsControllerTest < ActionDispatch::IntegrationTest
     get edition_reconciliation_url(@rec)
 
     assert_response :success
-    assert_select "body", /Incoming from Goodreads/
+    assert_select "body", /Goodreads · incoming/
     assert_select "body", /1343099/
     assert_select "input[type=radio][name='target_edition_id'][value=?]", @edition.id.to_s
+    assert_select "input[type=radio][name='resolution'][value='relink'][checked]"
+    assert_select "select[name='source']"
   end
 
   test "resolve relink applies and advances via turbo stream" do

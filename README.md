@@ -50,6 +50,11 @@ into it. Use it for a hands-on pass on a change before pushing to
   sync design: the first real feature being built, ahead of any UI.
 - [`docs/MOBILE.md`](docs/MOBILE.md) — spec for the offline, read-only
   shop-lookup PWA, and the server-side constraints it imposes now.
+- [`docs/UI_PRINCIPLES.md`](docs/UI_PRINCIPLES.md) — why the frontend is
+  shaped the way it is; the reasoning a new screen gets checked against.
+- [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) — the concrete tokens,
+  components, and screen skeletons that reasoning has produced; the
+  checklist a new screen runs against.
 
 ## Stack
 

@@ -9,6 +9,12 @@ and the whole point of writing this down now is to let the design
 system grow as its own thing, the same reason `INTEGRATIONS.md` split
 off rather than growing inside `DATA_MODEL.md`/`PHILOSOPHY.md`.
 
+The concrete output of these principles — the actual tokens, components,
+screen skeletons, and a pre-merge checklist — lives in
+[`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md). This document is the reasoning;
+that one is what to copy. Build a screen against the checklist there, and
+come back here when the checklist doesn't settle a question.
+
 ## What this is
 
 opsimath had zero UI beyond the Rails 8 auth scaffold until the
