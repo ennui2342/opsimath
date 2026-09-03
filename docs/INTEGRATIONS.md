@@ -810,10 +810,16 @@ Every case the existing pipelines handled with a Discord alert becomes a
 `kind: unmatched_shelf_entry` (no confident match, review manually),
 `kind: possible_duplicate_work` (matches more than one existing `Work`
 ambiguously), and a new one this design surfaces —
-`kind: reread_conflict` (a `currently-reading` event fires while a
-`Reading` for that work is already open — genuinely ambiguous: duplicate
-event, a forgotten-to-close previous read, or an intentional reread
-starting before the last one's paperwork caught up).
+`kind: reread_conflict` (a `currently-reading` event fires for an edition
+that *already has a completed `Reading`* and none open — genuinely
+ambiguous: deliberate reread, a misclick, or a stale shelf status
+resurfacing on a resync, with no date on the item to tell them apart.
+Scoped to the matched edition, not the work — 2026-09-04: a
+`currently-reading` event landing on an edition with no reading of its
+own is an unambiguous new read, even when another edition of the same
+work was read before, so `ShelfSync#currently_reading` just opens the
+`Reading`. This is the common shape after an `EditionReconciliation`
+`change_edition`: read the old printing, acquired and started a new one.)
 
 ### Addendum: edition-level reconciliation
 

@@ -224,7 +224,7 @@ module Goodreads
       assert_not outcome.changed
     end
 
-    test "currently-reading flags reread_conflict instead of guessing when the work was already read" do
+    test "currently-reading flags reread_conflict when *this* edition was already read" do
       work = Work.create!(title: "Neuromancer", literary_form: "novel")
       edition = Edition.create!
       EditionContent.create!(work: work, edition: edition)
@@ -238,6 +238,27 @@ module Goodreads
       pending = PendingDecision.where(kind: "reread_conflict").last
       assert_equal "953070", pending.payload["goodreads_book_id"]
       assert_equal "2026-08-03", pending.payload["date_started"] # carried forward for PendingDecisionResolver to act on
+    end
+
+    test "currently-reading on a *different* edition than the completed read just opens a new Reading — no conflict" do
+      # The EditionReconciliation change_edition case: read the old printing,
+      # acquired a new one, now reading that. Unambiguous new read.
+      work = Work.create!(title: "Downbelow Station", literary_form: "novel")
+      old_edition = Edition.create!(publisher: "Mandarin")
+      new_edition = Edition.create!(publisher: "DAW Books")
+      EditionContent.create!(work: work, edition: old_edition)
+      EditionContent.create!(work: work, edition: new_edition)
+      EditionIdentifier.create!(edition: new_edition, id_type: "goodreads", value: "953070")
+      Reading.create!(work: work, edition: old_edition, status: "completed", date_finished: Date.new(2015, 1, 1))
+
+      outcome = ShelfSync.sync(fixture_item("read", "953070"), "currently-reading", {})
+
+      assert_empty PendingDecision.where(kind: "reread_conflict")
+      new_reading = work.readings.where(edition: new_edition).sole
+      assert_equal "reading", new_reading.status
+      assert_equal "completed", work.readings.find_by(edition: old_edition).status # first read untouched
+      assert_equal new_reading, outcome.entity
+      assert outcome.changed
     end
 
     test "read closes the real open Neuromancer Reading — the confirmed genuine reread" do

@@ -107,12 +107,17 @@ module Goodreads
         # cataloged.created is false (a just-created Work can't already
         # have an open Reading), so changed is always false here.
         Outcome.new(entity: edition, payload: {}, edition: edition, created: cataloged.created, changed: false)
-      elsif work.readings.exists?(status: "completed")
-        # Already read before, no open Reading, and currently-reading just
-        # fired again — genuinely ambiguous (intentional reread vs a
-        # forgotten-to-close mixup), don't guess. date_started carried in
-        # `extra` so PendingDecisionResolver can open a real Reading if
-        # this does turn out to be a genuine reread.
+      elsif work.readings.exists?(status: "completed", edition: edition)
+        # *This* edition is already marked read, no open Reading, and
+        # currently-reading just fired for it — genuinely ambiguous
+        # (deliberate reread vs. a misclick or a stale shelf status
+        # resurfacing on a resync), and a currently-reading item carries
+        # no date to tell them apart, so don't guess. A completed reading
+        # on a *different* edition of the work doesn't reach here:
+        # currently-reading landing on an edition with no reading of its
+        # own is an unambiguous new read — a fresh copy, or the edition
+        # just swapped via EditionReconciliation — and the else branch
+        # opens it. date_started carried in `extra` for the resolver.
         pd = flag_pending("reread_conflict", work: work, edition: edition, extra: { "date_started" => @item.user_date_added })
         Outcome.new(entity: pd, payload: {}, edition: edition, created: cataloged.created, changed: cataloged.created)
       else
