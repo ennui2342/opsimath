@@ -36,6 +36,8 @@ module Mobile
         year          INTEGER,
         isbn10        TEXT,
         isbn13        TEXT,
+        isfdb         TEXT,
+        goodreads     TEXT,
         thumb         BLOB
       );
       CREATE INDEX idx_editions_entry ON editions (entry_id);
@@ -95,10 +97,11 @@ module Mobile
 
       entry.editions.each do |edition|
         db.execute(
-          "INSERT INTO editions VALUES (?,?,?,?,?,?,?,?,?)",
+          "INSERT INTO editions VALUES (?,?,?,?,?,?,?,?,?,?,?)",
           [
             edition.id, entry.id, edition.format, edition.format_detail, edition.publisher,
-            edition.year&.to_i, edition.isbn10, edition.isbn13, blob(thumbs["edition:#{edition.id}"])
+            edition.year&.to_i, edition.isbn10, edition.isbn13, edition.isfdb, edition.goodreads,
+            blob(thumbs["edition:#{edition.id}"])
           ]
         )
       end

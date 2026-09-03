@@ -82,6 +82,47 @@ Two selection idioms, don't mix them on one card:
 - **Whole-card radio** (`select_name`) — "which of these candidates is it",
   `EditionReconciliation`. Submits one value under `select_name`.
 
+### `Ui::EditionCardComponent`
+
+One edition (a printing), laid out the same way everywhere it appears —
+`app/components/ui/edition_card_component.rb`, `initialize(edition:)`. The
+shape:
+
+```
+┌────────┬─────────────────────────────────┐
+│ [cover]│  Mass market            ← bold  │   format_detail → format → "Edition"
+│  h-32  │  Grafton · 1988 · 471 pages      │   publisher · year · pages, blanks dropped
+│  or a  │                                  │
+│ dashed │  ISBN-13 9780…  ISBN-10 0586…    │   mono footer, EditionIdentifier order
+│  "No   │  ISFDB 12345↗  Goodreads 1343↗   │   ISFDB/Goodreads linked, ISBNs plain
+│ cover" │                                  │
+└────────┴─────────────────────────────────┘
+```
+
+- Cover keeps the page's existing size (`h-32` on the web work page); a
+  missing cover gets the same dashed **"No cover"** placeholder
+  `ComparisonCardComponent` uses, so a grid of edition cards aligns.
+- The identifier footer is the **same treatment** as
+  `ComparisonCardComponent`'s (`flex flex-wrap`, mono, `text-xs`,
+  `<b>label</b> value`). Order and labels come from
+  `EditionIdentifier::DISPLAY_ORDER` / `#label`; a link appears only when
+  `EditionIdentifier#external_url` is non-nil (ISFDB, Goodreads) — ISBNs
+  are deliberately unlinked (no single right destination).
+
+**This layout is shared with the pocket app** (`docs/MOBILE.md`), which
+can't use a ViewComponent — it builds cards in plain JS
+(`pocket.js` `editionCardHtml` / `idFooter`) against CSS classes in
+`pocket.css` (`.edition`, `.edition .fmt`, `.edition .ids`). The two
+implementations track this one spec: same format→publisher→ids hierarchy,
+same identifier order, same ISFDB/Goodreads-only linking. `pocket.js`'s
+`ID_URL` map mirrors `EditionIdentifier::EXTERNAL_URL_BY_TYPE`; keep them
+in step. The snapshot carries the ids per edition
+(`Mobile::SnapshotBuilder` `editions` table: `isbn10/isbn13/isfdb/goodreads`).
+
+When you change the edition layout, change it in both places (or write
+down why they diverge) — same rule as `feedback_goodreads_path_parity`
+for the sync paths.
+
 ### `Ui::MarkdownComponent`
 
 Renders stored Markdown (reviews). Styling is the `.markdown` block in

@@ -25,7 +25,7 @@ module Mobile
       keyword_init: true
     )
     Edition = Struct.new(
-      :id, :format, :format_detail, :publisher, :year, :isbn10, :isbn13, :has_cover,
+      :id, :format, :format_detail, :publisher, :year, :isbn10, :isbn13, :isfdb, :goodreads, :has_cover,
       keyword_init: true
     )
     Result = Struct.new(:entries, keyword_init: true)
@@ -90,7 +90,7 @@ module Mobile
     end
 
     def build_edition(edition)
-      isbns = isbn_pair(edition.edition_identifiers)
+      ids = edition.edition_identifiers.each_with_object({}) { |i, h| h[i.id_type] = i.value }
 
       Edition.new(
         id: edition.id,
@@ -98,8 +98,10 @@ module Mobile
         format_detail: edition.format_detail,
         publisher: edition.publisher.presence,
         year: edition.publish_date&.slice(0, 4),
-        isbn10: isbns[:isbn10],
-        isbn13: isbns[:isbn13],
+        isbn10: ids["isbn10"],
+        isbn13: ids["isbn13"],
+        isfdb: ids["isfdb"],
+        goodreads: ids["goodreads"],
         has_cover: edition.cover_image.attached?
       )
     end
@@ -120,12 +122,6 @@ module Mobile
           has_cover: item.cover_image.attached?,
           editions: []
         )
-      end
-    end
-
-    def isbn_pair(identifiers)
-      identifiers.each_with_object({}) do |ident, pair|
-        pair[ident.id_type.to_sym] = ident.value if %w[isbn10 isbn13].include?(ident.id_type)
       end
     end
 

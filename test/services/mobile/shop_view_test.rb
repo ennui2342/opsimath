@@ -17,6 +17,8 @@ module Mobile
       EditionContent.create!(work:, edition:)
       EditionIdentifier.create!(edition:, id_type: "isbn10", value: "0441569595")
       EditionIdentifier.create!(edition:, id_type: "isbn13", value: "9780441569595")
+      EditionIdentifier.create!(edition:, id_type: "isfdb", value: "55210")
+      EditionIdentifier.create!(edition:, id_type: "goodreads", value: "22623")
       edition.cover_image.attach(io: StringIO.new(PNG), filename: "c.png", content_type: "image/png")
       Copy.create!(edition:, disposition: "owned")
 
@@ -37,6 +39,8 @@ module Mobile
       assert_equal "1984", ed.year
       assert_equal "0441569595", ed.isbn10
       assert_equal "9780441569595", ed.isbn13
+      assert_equal "55210", ed.isfdb
+      assert_equal "22623", ed.goodreads
       assert ed.has_cover
     end
 

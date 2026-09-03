@@ -51,6 +51,13 @@
   const esc = (s) =>
     String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
+  // Snake-case enum value -> display text, matching Rails' String#humanize
+  // closely enough for format/format_detail ("mass_market" -> "Mass market").
+  const humanize = (s) => {
+    const t = String(s == null ? "" : s).replace(/_/g, " ").trim();
+    return t ? t[0].toUpperCase() + t.slice(1) : t;
+  };
+
   // A raw string -> ISBN-13, or null. Accepts an ISBN-13 as-is and converts a
   // 10-digit ISBN (matches lib/isbn.rb's to_13: 978 prefix, recomputed check).
   const toIsbn13 = (raw) => {
@@ -136,7 +143,7 @@
 
   // --- queries -------------------------------------------------------
   function editionsOf(entryId) {
-    const es = db.prepare("SELECT id, format, format_detail, publisher, year, thumb FROM editions WHERE entry_id = ?");
+    const es = db.prepare("SELECT id, format, format_detail, publisher, year, isbn10, isbn13, isfdb, goodreads, thumb FROM editions WHERE entry_id = ?");
     es.bind([entryId]);
     const out = [];
     while (es.step()) out.push(es.getAsObject());
@@ -184,21 +191,60 @@
   const blobUrl = (bytes) =>
     bytes && bytes.length ? URL.createObjectURL(new Blob([bytes], { type: "image/webp" })) : null;
 
-  function cardHtml(row, note) {
-    const eds = row.editions || [];
-    const thumb = blobUrl((eds.find((e) => e.thumb) || {}).thumb || row.thumb);
-    const fmt = (e) => [e.format_detail || e.format, e.publisher, e.year].filter(Boolean).join(" · ");
-    const pill = row.owned ? ["owned", "OWNED"] : ["wish", "WISHLIST"];
+  // The one linkable-id map, mirroring EditionIdentifier::EXTERNAL_URL_BY_TYPE.
+  // ISBNs deliberately don't link (no single right destination).
+  const ID_URL = {
+    isfdb: (v) => `https://www.isfdb.org/cgi-bin/pl.cgi?${encodeURIComponent(v)}`,
+    goodreads: (v) => `https://www.goodreads.com/book/show/${encodeURIComponent(v)}`,
+  };
 
-    return `
+  // The mono identifier footer — same shape as Ui::EditionCardComponent on
+  // the web (docs/DESIGN_SYSTEM.md "Edition card").
+  function idFooter(e) {
+    const items = [
+      ["ISBN-13", e.isbn13, null],
+      ["ISBN-10", e.isbn10, null],
+      ["ISFDB", e.isfdb, e.isfdb && ID_URL.isfdb(e.isfdb)],
+      ["Goodreads", e.goodreads, e.goodreads && ID_URL.goodreads(e.goodreads)],
+    ].filter(([, v]) => v);
+    if (!items.length) return "";
+    return `<div class="ids">${items
+      .map(([label, v, url]) =>
+        `<span><b>${label}</b> ${url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(v)}</a>` : esc(v)}</span>`)
+      .join("")}</div>`;
+  }
+
+  function editionCardHtml(e, matched) {
+    const thumb = blobUrl(e.thumb);
+    return `<div class="edition${matched ? " matched" : ""}">
       ${thumb ? `<img src="${thumb}" alt="">` : `<div class="noimg">?</div>`}
       <div class="body">
-        ${note ? `<div class="meta alt">${esc(note)}</div>` : ""}
-        <div class="title">${esc(row.title)}${row.series ? ` <span class="meta">— ${esc(row.series)}${row.series_position ? " #" + esc(row.series_position) : ""}</span>` : ""}</div>
-        <div class="meta">${esc(row.authors || "")}${row.year ? " · " + row.year : ""}</div>
-        <span class="pill ${pill[0]}">${pill[1]}</span>
-        ${eds.length ? `<div class="editions">${eds.map((e) => `<div class="${row.matched && e.id === row.matched ? "matched" : ""}">${esc(fmt(e))}${row.matched && e.id === row.matched ? " · matched" : ""}</div>`).join("")}</div>` : ""}
-      </div>`;
+        <div class="fmt">${esc(humanize(e.format_detail || e.format) || "Edition")}${matched ? ` <span class="meta">· matched</span>` : ""}</div>
+        ${[e.publisher, e.year].filter(Boolean).length ? `<div class="meta">${esc([e.publisher, e.year].filter(Boolean).join(" · "))}</div>` : ""}
+        ${idFooter(e)}
+      </div>
+    </div>`;
+  }
+
+  // A result: a work/wishlist header, then one full edition card per owned
+  // printing (docs/MOBILE.md). Works carry no header cover — their covers
+  // live on the edition cards; a wishlist item's only cover sits on the head.
+  function entryHtml(row, note) {
+    const eds = row.editions || [];
+    const pill = row.owned ? ["owned", "OWNED"] : ["wish", "WISHLIST"];
+    const headThumb = eds.length === 0 ? blobUrl(row.thumb) : null;
+
+    return `
+      <div class="head">
+        ${eds.length === 0 ? (headThumb ? `<img src="${headThumb}" alt="">` : `<div class="noimg">?</div>`) : ""}
+        <div class="body">
+          ${note ? `<div class="meta alt">${esc(note)}</div>` : ""}
+          <div class="title">${esc(row.title)}${row.series ? ` <span class="meta">— ${esc(row.series)}${row.series_position ? " #" + esc(row.series_position) : ""}</span>` : ""}</div>
+          <div class="meta">${esc(row.authors || "")}${row.year ? " · " + row.year : ""}</div>
+          <span class="pill ${pill[0]}">${pill[1]}</span>
+        </div>
+      </div>
+      ${eds.map((e) => editionCardHtml(e, row.matched && e.id === row.matched)).join("")}`;
   }
 
   function el(cls, html) {
@@ -216,10 +262,10 @@
   function render(rows) {
     clearResults();
     els.empty.hidden = rows.length > 0 || norm(els.q.value) === "";
-    for (const row of rows) els.results.appendChild(el("card", cardHtml(row)));
+    for (const row of rows) els.results.appendChild(el("entry", entryHtml(row)));
   }
 
-  // A single-ISBN result (from a scan or a typed ISBN): one card, or NEITHER.
+  // A single-ISBN result (from a scan or a typed ISBN): one entry, or NEITHER.
   function renderLookup(code, row) {
     clearResults();
     els.empty.hidden = true;
@@ -227,14 +273,16 @@
       // A work-level hit with no matched edition = you own a *different*
       // printing than the one just scanned.
       const note = row.kind === "work" && !row.matched ? "you own a different edition:" : null;
-      els.results.appendChild(el("card", cardHtml(row, note)));
+      els.results.appendChild(el("entry", entryHtml(row, note)));
     } else {
-      els.results.appendChild(el("card neither", `
-        <div class="noimg">✕</div>
-        <div class="body">
-          <div class="title">Not in your collection</div>
-          <div class="meta">${esc(code)} — not owned, not on your wishlist</div>
-          <span class="pill neither">NEITHER</span>
+      els.results.appendChild(el("entry neither", `
+        <div class="head">
+          <div class="noimg">✕</div>
+          <div class="body">
+            <div class="title">Not in your collection</div>
+            <div class="meta">${esc(code)} — not owned, not on your wishlist</div>
+            <span class="pill neither">NEITHER</span>
+          </div>
         </div>`));
     }
   }

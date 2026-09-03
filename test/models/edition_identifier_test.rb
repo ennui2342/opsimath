@@ -14,4 +14,16 @@ class EditionIdentifierTest < ActiveSupport::TestCase
 
     assert_nil isbn.external_url
   end
+
+  test "label uses the canonical display name, falling back to the upcased type" do
+    assert_equal "ISBN-13", EditionIdentifier.new(id_type: "isbn13").label
+    assert_equal "ISFDB", EditionIdentifier.new(id_type: "isfdb").label
+    assert_equal "ASIN", EditionIdentifier.new(id_type: "asin").label
+  end
+
+  test "for_display orders ISBNs first, then linkable ids, then the rest" do
+    ids = %w[goodreads asin isbn10 isfdb isbn13].map { |t| EditionIdentifier.new(id_type: t, value: "x") }
+
+    assert_equal %w[isbn13 isbn10 isfdb goodreads asin], EditionIdentifier.for_display(ids).map(&:id_type)
+  end
 end
