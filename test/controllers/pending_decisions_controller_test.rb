@@ -141,10 +141,11 @@ class PendingDecisionsControllerTest < ActionDispatch::IntegrationTest
     pending = PendingDecision.create!(kind: "enrichment_printing_choice", payload: {
       "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "isbn" => "0586065504",
       "candidates" => [
-        { "_isfdb_pub_id" => 35244, "publisher" => "HarperCollins (UK)", "publish_date" => "1993-10", "binding" => "pb", "page_count" => 464, "cover_url" => nil },
-        { "_isfdb_pub_id" => 35246, "publisher" => "Triad Grafton", "publish_date" => "1986-05", "binding" => "pb", "page_count" => 464, "cover_url" => nil }
+        { "_isfdb_pub_id" => 35244, "publisher" => "HarperCollins (UK)", "publish_date" => "1993-10", "binding" => "pb", "page_count" => 464 },
+        { "_isfdb_pub_id" => 35246, "publisher" => "Triad Grafton", "publish_date" => "1986-05", "binding" => "pb", "page_count" => 464 }
       ]
     })
+    pending.candidate_covers.attach(io: StringIO.new("cover"), filename: "35246.jpg", content_type: "image/jpeg")
 
     get pending_decision_url(pending)
     assert_response :success
@@ -152,6 +153,7 @@ class PendingDecisionsControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[type=radio][name='pub_id'][value=?][checked]", "35244"
     assert_select "input[type=radio][name='pub_id'][value=?]", "35246"
     assert_select "input[type=checkbox][name='fields[]'][value=publisher]"
+    assert_select "img" # the 1986 printing's downloaded cover
 
     post accept_pending_decision_url(pending),
       params: { pub_id: "35246", fields: %w[publisher publish_date] }, as: :turbo_stream

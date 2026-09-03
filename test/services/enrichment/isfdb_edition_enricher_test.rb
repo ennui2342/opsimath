@@ -115,9 +115,10 @@ module Enrichment
       # True for every RSS-auto-created edition — book_published is
       # Work-level, never written to Edition.publish_date.
       assert_nil @edition.publish_date
-      newer_printing = DUNE_RESPONSE.merge(publisher: "Ace Books", publish_date: "2010", _isfdb_pub_id: 426_303)
-      older_printing = DUNE_RESPONSE.merge(publisher: "New English Library", publish_date: "1985", _isfdb_pub_id: 111_111)
+      newer_printing = DUNE_RESPONSE.merge(publisher: "Ace Books", publish_date: "2010", _isfdb_pub_id: 426_303, cover_url: "https://isfdb.org/covers/a.jpg")
+      older_printing = DUNE_RESPONSE.merge(publisher: "New English Library", publish_date: "1985", _isfdb_pub_id: 111_111, cover_url: "https://isfdb.org/covers/b.jpg")
       stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ newer_printing, older_printing ].to_json)
+      stub_request(:get, %r{https://isfdb\.org/covers/}).to_return(status: 200, body: "img", headers: { "Content-Type" => "image/jpeg" })
 
       result = IsfdbEditionEnricher.enrich(@edition, client: @client)
 
@@ -130,6 +131,7 @@ module Enrichment
       assert_equal @edition.id, decision.payload["entity_id"]
       assert_equal "0441172717", decision.payload["isbn"]
       assert_equal [ 426_303, 111_111 ], decision.payload["candidates"].map { |c| c["_isfdb_pub_id"] }
+      assert_equal %w[111111 426303].sort, decision.candidate_covers.map { |a| a.filename.base }.sort # one per printing
     end
 
     test "when the known year matches no candidate, raises an enrichment_printing_choice rather than guessing newest" do
@@ -137,6 +139,7 @@ module Enrichment
       newer_printing = DUNE_RESPONSE.merge(publisher: "Ace Books", publish_date: "2010", _isfdb_pub_id: 426_303)
       older_printing = DUNE_RESPONSE.merge(publisher: "New English Library", publish_date: "1985", _isfdb_pub_id: 111_111)
       stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ newer_printing, older_printing ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "img", headers: { "Content-Type" => "image/jpeg" })
 
       result = IsfdbEditionEnricher.enrich(@edition, client: @client)
 
@@ -163,10 +166,12 @@ module Enrichment
       a = DUNE_RESPONSE.merge(publisher: "Ace Books", publish_date: "2010", _isfdb_pub_id: 426_303)
       b = DUNE_RESPONSE.merge(publisher: "New English Library", publish_date: "1985", _isfdb_pub_id: 111_111)
       stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ a, b ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "img", headers: { "Content-Type" => "image/jpeg" })
 
       2.times { IsfdbEditionEnricher.enrich(@edition, client: @client) }
 
       assert_equal 1, PendingDecision.where(kind: "enrichment_printing_choice").count
+      assert_equal 2, PendingDecision.sole.candidate_covers.count # not re-attached on the second pass
     end
 
     test "commit_choice applies only the checked fields from the chosen candidate, no conflict gate" do

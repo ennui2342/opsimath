@@ -76,19 +76,22 @@ module Ui
     end
 
     # enrichment_printing_choice: one ISFDB printing candidate — radio in
-    # the header AND per-field checkboxes (cover included as a plain row,
-    # no <img> preview). `fields_disabled` dims the unpicked printings.
+    # the header AND per-field checkboxes, its downloaded cover shown as an
+    # <img> with an "Apply this cover" box. `fields_disabled` dims the
+    # unpicked printings.
     def printing_choice_candidate
+      edition = Edition.create!
+      edition.cover_image.attach(io: StringIO.new(PNG_BYTES), filename: "triad.png", content_type: "image/png")
       card = Ui::ComparisonCardComponent::Card.new(
         label: "ISFDB · 1986 · Triad Grafton",
+        cover: edition.cover_image, cover_selectable: true,
         select_name: "pub_id", select_value: "35246", selected: true,
         input_scope: "pub35246_", fields_disabled: false,
         fields: [
           Ui::ComparisonCardComponent::FieldRow.new(name: "format_detail", value: "Mass market", selectable: true),
           Ui::ComparisonCardComponent::FieldRow.new(name: "publisher", value: "Triad Grafton", selectable: true),
           Ui::ComparisonCardComponent::FieldRow.new(name: "publish_date", value: "1986-05", selectable: true),
-          Ui::ComparisonCardComponent::FieldRow.new(name: "page_count", value: 464, selectable: true),
-          Ui::ComparisonCardComponent::FieldRow.new(name: "cover_image", value: "ISFDB cover for this printing", selectable: true)
+          Ui::ComparisonCardComponent::FieldRow.new(name: "page_count", value: 464, selectable: true)
         ]
       )
       render(ComparisonCardComponent.new(card: card))

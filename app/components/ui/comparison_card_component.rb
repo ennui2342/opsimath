@@ -46,5 +46,16 @@ module Ui
 
     def field_id(name) = "#{@card.input_scope}field_#{name}"
     def field_checked = !@card.fields_disabled
+
+    # `cover` is a `has_one_attached` proxy (Edition / EnrichmentRecord
+    # cover_image) or a single `ActiveStorage::Attachment` picked out of a
+    # `has_many_attached` (PendingDecision#candidate_cover) — normalise the
+    # "is there an image" check and the thumbnail variant across both.
+    def cover_present?
+      cover = @card.cover
+      cover.respond_to?(:attached?) ? cover.attached? : cover.present?
+    end
+
+    def cover_thumb = @card.cover.variant(resize_to_limit: [ 108, 162 ])
   end
 end

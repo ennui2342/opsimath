@@ -43,8 +43,8 @@ module Enrichment
     # the "which printing, which values" call in front of the full
     # comparison. `candidate_data` is a raw candidate hash straight out of
     # the decision's payload (an un-mutated lookup_isbn result).
-    def self.commit_choice(edition, candidate_data, fields:)
-      new(edition, client: nil).commit_choice(candidate_data, fields)
+    def self.commit_choice(edition, candidate_data, fields:, cover_blob: nil)
+      new(edition, client: nil).commit_choice(candidate_data, fields, cover_blob)
     end
 
     # Re-applies an already-fetched payload (an existing EnrichmentRecord's
@@ -90,16 +90,16 @@ module Enrichment
       backfill_isbn_identifiers(data)
     end
 
-    def commit_choice(data, fields)
+    def commit_choice(data, fields, cover_blob = nil)
       wanted = fields.map(&:to_s)
-      @enrichment_record = record_enrichment(data) # provenance + the cover blob
+      @enrichment_record = record_enrichment(data) # provenance + a fresh cover blob
 
       attrs = candidate_fields(data).slice(*wanted)
       if attrs.any?
         @edition.update!(attrs.merge(field_sources: @edition.field_sources.merge(attrs.keys.index_with { "isfdb" })))
       end
 
-      apply_choice_cover if wanted.include?("cover_image")
+      apply_choice_cover(cover_blob) if wanted.include?("cover_image")
       backfill_isfdb_identifier(data)
       backfill_isbn_identifiers(data)
     end
@@ -121,18 +121,24 @@ module Enrichment
       }.compact
     end
 
-    def apply_choice_cover
-      return unless @enrichment_record&.cover_image&.attached?
+    # Prefer the blob record_enrichment just downloaded (also now on the
+    # isfdb EnrichmentRecord, for standing provenance); fall back to the
+    # one already downloaded onto the PendingDecision at raise time if the
+    # URL has since gone stale.
+    def apply_choice_cover(fallback_blob = nil)
+      blob = (@enrichment_record.cover_image.blob if @enrichment_record&.cover_image&.attached?) || fallback_blob
+      return unless blob
 
-      @edition.cover_image.attach(@enrichment_record.cover_image.blob)
+      @edition.cover_image.attach(blob)
       @edition.update!(field_sources: @edition.field_sources.merge("cover_image" => "isfdb"))
     end
 
     # One PendingDecision listing every ISFDB printing that shares this
     # ISBN, for a human to pick the right one (radio) and choose which of
     # its fields to apply (checkboxes) — see PendingDecision#printing_choice_cards.
-    # Raw candidates are stored verbatim so accept never re-hits the adapter.
-    # Deduped on (edition) like create_bundled_decision.
+    # Raw candidates are stored verbatim so accept never re-hits the adapter;
+    # each candidate's cover is downloaded now so the review screen shows
+    # real images. Deduped on (edition) like create_bundled_decision.
     def flag_printing_choice(candidates, isbn)
       payload = {
         "entity_type" => "Edition", "entity_id" => @edition.id, "source" => "isfdb",
@@ -141,7 +147,21 @@ module Enrichment
       existing = PendingDecision.pending.where(kind: "enrichment_printing_choice")
                                 .where("payload @> ?", { "entity_type" => "Edition", "entity_id" => @edition.id }.to_json)
                                 .first
-      existing ? existing.update!(payload: payload) : PendingDecision.create!(kind: "enrichment_printing_choice", payload: payload)
+      decision = existing || PendingDecision.new(kind: "enrichment_printing_choice")
+      decision.update!(payload: payload)
+      attach_candidate_covers(decision, candidates)
+      decision
+    end
+
+    def attach_candidate_covers(decision, candidates)
+      have = decision.candidate_covers.map { |a| a.filename.base }
+      candidates.each do |candidate|
+        pub_id = candidate["_isfdb_pub_id"].to_s
+        next if have.include?(pub_id)
+
+        data = HasCoverImage.fetch_image(candidate["cover_url"])
+        decision.candidate_covers.attach(**data.merge(filename: "#{pub_id}.jpg")) if data
+      end
     end
 
     # Independent of whatever apply_fields later decides to fill/conflict/

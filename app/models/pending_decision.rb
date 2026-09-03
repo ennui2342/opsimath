@@ -3,6 +3,17 @@ class PendingDecision < ApplicationRecord
 
   validates :kind, presence: true
 
+  # enrichment_printing_choice only: each candidate ISFDB printing's cover,
+  # downloaded server-side at raise time (ISFDB's wiki cover URLs
+  # Cloudflare-gate hotlinked <img> loads) and keyed by pub id
+  # ("<pub_id>.jpg"), so the review screen shows real images — same as the
+  # enrichment_conflict flow's EnrichmentRecord cover. Purged on resolve.
+  has_many_attached :candidate_covers
+
+  def candidate_cover(pub_id)
+    candidate_covers.find { |attachment| attachment.filename.base == pub_id.to_s }
+  end
+
   # Display shape for the 3-card review screen — one card for the Edition's
   # current catalog state, one per other known provider (info only), and one
   # for the record that actually raised this decision (actionable —
@@ -108,24 +119,21 @@ class PendingDecision < ApplicationRecord
 
   private
 
-  # No cover preview: ISFDB's own cover URLs are wiki-hosted and
-  # Cloudflare-gate hotlinked <img> loads (see non_isbn_enrichment_dead_ends).
-  # The cover is still an applyable field — a checkbox row that, when
-  # checked, has commit_choice download and attach it on accept.
   def candidate_card(candidate, first:)
     pub_id = candidate["_isfdb_pub_id"].to_s
     format, format_detail = Enrichment::IsfdbEditionEnricher::FORMAT_BY_PTYPE[candidate["binding"].to_s.downcase]
+    cover = candidate_cover(pub_id)
 
     rows = {
       "format" => format&.humanize, "format_detail" => format_detail&.humanize,
       "publisher" => candidate["publisher"], "publish_date" => candidate["publish_date"],
-      "language" => candidate["language"], "page_count" => candidate["page_count"],
-      "cover_image" => ("ISFDB cover for this printing" if candidate["cover_url"].present?)
+      "language" => candidate["language"], "page_count" => candidate["page_count"]
     }.filter_map { |name, value| FieldRow.new(name: name, value: value, selectable: true) if value.present? }
 
     Card.new(
       label: [ "ISFDB", candidate["publish_date"].to_s[0, 4].presence, candidate["publisher"].presence ].compact.join(" · "),
       fields: rows,
+      cover: cover, cover_selectable: cover.present?,
       select_name: "pub_id", select_value: pub_id, selected: first,
       input_scope: "pub#{pub_id}_", fields_disabled: !first
     )

@@ -153,10 +153,11 @@ class PendingDecisionTest < ActiveSupport::TestCase
     pending = PendingDecision.create!(kind: "enrichment_printing_choice", payload: {
       "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "isbn" => "0586065504",
       "candidates" => [
-        { "_isfdb_pub_id" => 35244, "publisher" => "HarperCollins (UK)", "publish_date" => "1993-10", "binding" => "pb", "page_count" => 464, "cover_url" => "https://x/a.jpg" },
-        { "_isfdb_pub_id" => 35246, "publisher" => "Triad Grafton", "publish_date" => "1986-05", "binding" => "pb", "page_count" => 464, "cover_url" => "https://x/b.jpg" }
+        { "_isfdb_pub_id" => 35244, "publisher" => "HarperCollins (UK)", "publish_date" => "1993-10", "binding" => "pb", "page_count" => 464 },
+        { "_isfdb_pub_id" => 35246, "publisher" => "Triad Grafton", "publish_date" => "1986-05", "binding" => "pb", "page_count" => 464 }
       ]
     })
+    pending.candidate_covers.attach(io: StringIO.new("cover-a"), filename: "35244.jpg", content_type: "image/jpeg")
 
     cards = pending.printing_choice_cards
 
@@ -172,11 +173,12 @@ class PendingDecisionTest < ActiveSupport::TestCase
     assert_equal "pub35244_", first.input_scope
     assert(first.fields.all?(&:selectable))
     assert_equal "Mass market", first.fields.find { |f| f.name == "format_detail" }.value
-    assert first.fields.any? { |f| f.name == "cover_image" } # applyable field, not an <img> preview
-    assert_nil first.cover_url
+    assert first.cover_selectable # its downloaded cover renders as an <img> + checkbox
+    assert_equal "35244.jpg", first.cover.filename.to_s
 
     assert_not second.selected
     assert second.fields_disabled
+    assert_not second.cover_selectable # no cover downloaded for this printing
   end
 
   test "printing_choice_cards is nil for other kinds" do

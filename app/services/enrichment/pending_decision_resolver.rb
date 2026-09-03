@@ -42,6 +42,7 @@ module Enrichment
     end
 
     def reject
+      @pending_decision.candidate_covers.purge_later if @pending_decision.candidate_covers.attached?
       @pending_decision.update!(status: "rejected", resolved_at: Time.current)
     end
 
@@ -73,7 +74,10 @@ module Enrichment
       raise ArgumentError, "no ISFDB candidate #{pub_id.inspect} in decision #{@pending_decision.id}" unless candidate
 
       fields = selected_fields.presence || %w[format format_detail publisher publish_date language page_count cover_image]
-      Enrichment::IsfdbEditionEnricher.commit_choice(record, candidate, fields: fields)
+      Enrichment::IsfdbEditionEnricher.commit_choice(
+        record, candidate, fields: fields, cover_blob: @pending_decision.candidate_cover(pub_id)&.blob
+      )
+      @pending_decision.candidate_covers.purge_later if @pending_decision.candidate_covers.attached?
     end
 
     def accept_enrichment(selected_fields)

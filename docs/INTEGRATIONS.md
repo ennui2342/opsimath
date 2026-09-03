@@ -1183,8 +1183,13 @@ the raw candidate list verbatim (accept never re-hits the adapter), and
 `PendingDecision#printing_choice_cards` renders the Edition's current
 state plus one `Ui::ComparisonCardComponent` per candidate printing —
 each with a **radio in the header** ("this is the printing I own") *and*
-per-field **checkboxes** inside. `printing_choice_controller.js` keeps
-only the picked card's checkboxes live. Accept
+per-field **checkboxes** inside, including the printing's cover as a real
+`<img>` (every candidate's cover is downloaded server-side at raise time
+into `PendingDecision#candidate_covers` — a `has_many_attached` keyed by
+pub id — same as the `enrichment_conflict` flow, since ISFDB's own wiki
+cover URLs Cloudflare-gate a browser hotlink).
+`printing_choice_controller.js` keeps only the picked card's checkboxes
+live. Accept
 (`PendingDecisionResolver#accept_printing_choice` →
 `IsfdbEditionEnricher.commit_choice`) writes exactly the checked fields
 from the chosen printing straight onto the Edition — no `FieldApplier`

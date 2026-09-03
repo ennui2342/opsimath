@@ -17,9 +17,9 @@
     <% end %>
   <% end %>
 
-  <% if @card.cover&.attached? %>
+  <% if cover_present? %>
     <div class="flex flex-col items-center gap-2 px-4 pt-4">
-      <%= image_tag @card.cover.variant(resize_to_limit: [ 108, 162 ]),
+      <%= image_tag cover_thumb,
             class: "rounded shadow #{"ring-2 ring-conflict-800 dark:ring-conflict-200" if @card.cover_selectable}", alt: "" %>
       <% if @card.cover_selectable %>
         <label class="flex items-center gap-1.5 text-xs font-semibold text-conflict-800 dark:text-conflict-200">
@@ -29,14 +29,8 @@
       <% end %>
     </div>
   <% elsif @card.cover_url.present? %>
-    <div class="flex flex-col items-center gap-2 px-4 pt-4">
+    <div class="flex justify-center px-4 pt-4">
       <%= image_tag @card.cover_url, class: "h-40 w-auto rounded shadow", alt: "", loading: "lazy" %>
-      <% if @card.cover_selectable %>
-        <label class="flex items-center gap-1.5 text-xs font-semibold text-conflict-800 dark:text-conflict-200">
-          <%= check_box_tag "fields[]", "cover_image", field_checked, id: field_id("cover_image"), disabled: @card.fields_disabled, class: "h-4 w-4 rounded border-gray-300" %>
-          Apply this cover
-        </label>
-      <% end %>
     </div>
   <% elsif @card.show_empty_cover %>
     <div class="flex justify-center px-4 pt-4">

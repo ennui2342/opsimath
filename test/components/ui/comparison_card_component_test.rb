@@ -135,10 +135,12 @@ module Ui
       assert_selector "input[type=radio][name='pub_id'][value='35246']#pub35246_select_35246"
     end
 
-    test "fields_disabled renders the card's checkboxes unchecked and disabled" do
+    test "fields_disabled renders the card's checkboxes (fields and cover) unchecked and disabled" do
+      edition = Edition.create!
+      edition.cover_image.attach(io: StringIO.new("bytes"), filename: "c.png", content_type: "image/png")
       card = Ui::ComparisonCardComponent::Card.new(
         label: "ISFDB · 1993", input_scope: "pub1_", fields_disabled: true,
-        cover_url: "https://x/c.jpg", cover_selectable: true,
+        cover: edition.cover_image, cover_selectable: true,
         fields: [ Ui::ComparisonCardComponent::FieldRow.new(name: "publisher", value: "HarperCollins", selectable: true) ]
       )
 
@@ -146,7 +148,18 @@ module Ui
 
       assert_selector "input[type=checkbox][value=publisher][disabled]"
       assert_no_selector "input[type=checkbox][value=publisher][checked]"
-      assert_selector "input[type=checkbox][value=cover_image][disabled]" # cover checkbox on the cover_url branch too
+      assert_selector "input[type=checkbox][value=cover_image][disabled]"
+    end
+
+    test "cover works from a single has_many_attached ActiveStorage::Attachment, not just a has_one proxy" do
+      pd = PendingDecision.create!(kind: "enrichment_printing_choice", payload: {})
+      pd.candidate_covers.attach(io: StringIO.new("bytes"), filename: "35246.jpg", content_type: "image/png")
+      card = Ui::ComparisonCardComponent::Card.new(label: "ISFDB · 1986", cover: pd.candidate_cover("35246"), cover_selectable: true, fields: [])
+
+      render_inline(ComparisonCardComponent.new(card: card))
+
+      assert_selector "img"
+      assert_selector "input[type=checkbox][value=cover_image]"
     end
 
     test "a selectable cover renders a checked 'Apply this cover' checkbox" do
