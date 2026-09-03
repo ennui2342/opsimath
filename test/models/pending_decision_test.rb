@@ -184,4 +184,19 @@ class PendingDecisionTest < ActiveSupport::TestCase
   test "printing_choice_cards is nil for other kinds" do
     assert_nil PendingDecision.new(kind: "enrichment_conflict").printing_choice_cards
   end
+
+  test "display_title uses the Edition's work titles, or the payload title, or a placeholder" do
+    work = Work.create!(title: "Marrow", literary_form: "novel")
+    edition = Edition.create!
+    EditionContent.create!(work:, edition:)
+    on_edition = PendingDecision.create!(kind: "enrichment_conflict", payload: {
+      "entity_type" => "Edition", "entity_id" => edition.id, "fields" => [ "publisher" ], "source" => "isfdb"
+    })
+    assert_equal "Marrow", on_edition.display_title
+
+    from_payload = PendingDecision.new(kind: "reread_conflict", payload: { "title" => "Downbelow Station" })
+    assert_equal "Downbelow Station", from_payload.display_title
+
+    assert_equal "Untitled reread_conflict", PendingDecision.new(kind: "reread_conflict", payload: {}).display_title
+  end
 end

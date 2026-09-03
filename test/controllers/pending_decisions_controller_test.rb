@@ -32,6 +32,18 @@ class PendingDecisionsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a", text: /The Gold Coast/
   end
 
+  test "index labels an entity-less kind (reread_conflict) from the payload title, not 'unknown entity'" do
+    sign_in_as users(:one)
+    PendingDecision.create!(kind: "reread_conflict", payload: {
+      "title" => "Downbelow Station", "author_name" => "C.J. Cherryh", "work_id" => 1, "edition_id" => 2, "date_started" => "2026-09-03"
+    })
+
+    get pending_decisions_url
+
+    assert_select "a", text: /Downbelow Station/
+    assert_select "body", { text: /Unknown entity/, count: 0 }
+  end
+
   test "show renders the field diff for the entity" do
     sign_in_as users(:one)
 

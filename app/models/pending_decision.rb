@@ -33,10 +33,22 @@ class PendingDecision < ApplicationRecord
 
   # entity_type/entity_id live inside the jsonb payload, not real
   # columns — so this is a plain lookup, not a Rails polymorphic
-  # association. Every kind's payload carries them today (see
-  # Enrichment::SourceRecorder).
+  # association. The enrichment kinds carry them; the Goodreads-sync
+  # kinds (reread_conflict, possible_duplicate_work) don't — they point
+  # at a work/edition by loose id and carry a plain `title` instead.
   def entity
     payload["entity_type"]&.constantize&.find_by(id: payload["entity_id"])
+  end
+
+  # A one-line label for the review-queue list — the book this decision
+  # is about, whatever its kind. Falls back through: the entity Edition's
+  # work titles, the payload's own `title` (Goodreads-sync kinds), then a
+  # generic placeholder.
+  def display_title
+    record = entity
+    return record.works.map(&:title).join(", ").presence || "Edition ##{record.id}" if record.is_a?(Edition)
+
+    payload["title"].presence || "Untitled #{kind}"
   end
 
   # Display-shaped view derived live from payload["fields"] (a plain
