@@ -191,7 +191,11 @@ not just accepting the count:
   noise (`"Newcon Press"` vs `"NewCon Press"`, `"Pan/Ballantine"` vs
   `"Pan / Ballantine"`) — a real `FieldApplier` comparison gap, fixed by
   normalizing (case/whitespace/punctuation-insensitive) before deciding
-  something changed. Of the remaining 521 substring-containing pairs, 442
+  something changed. (2026-09-04: that normalization stripped `&` but
+  not the word `and`, so `"Faber & Faber"` vs `"Faber and Faber"` still
+  read as a conflict — `normalize_name` now collapses both connectors.
+  A 3-PD tail on the prod backlog; the same gap would have kept
+  recurring.) Of the remaining 521 substring-containing pairs, 442
   (85%) were plain generic-suffix variants (`"Tor Books"` vs `"Tor"`,
   `"DAW"` vs `"DAW Books"`) and 79 (15%) carried a territory qualifier
   (`"Orbit"` vs `"Orbit (US)"`, `"Roc"` vs `"Roc UK"`) that `PHILOSOPHY.md`

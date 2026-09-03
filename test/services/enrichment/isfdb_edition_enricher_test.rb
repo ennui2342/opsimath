@@ -231,6 +231,17 @@ module Enrichment
       assert_equal 0, PendingDecision.count
     end
 
+    test "'&' and the word 'and' are the same connector — no conflict, no change" do
+      @edition.update!(publisher: "Faber & Faber")
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE.merge(publisher: "Faber and Faber") ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal "Faber & Faber", @edition.reload.publisher # untouched — treated as identical
+      assert_equal 0, PendingDecision.count
+    end
+
     test "the shorter side of a generic-suffix variant is left alone — already the more complete form" do
       @edition.update!(publisher: "DAW Books")
       stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE.merge(publisher: "DAW") ].to_json)

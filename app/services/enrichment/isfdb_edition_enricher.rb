@@ -367,8 +367,12 @@ module Enrichment
       na != nb && (na.include?(nb) || nb.include?(na))
     end
 
+    # "&" and the word "and" are the same connector — "Faber & Faber" and
+    # "Faber and Faber" are one publisher. Collapse both before stripping
+    # punctuation, else the surviving "and" letters break the match
+    # ("faberfaber" vs "faberandfaber").
     def normalize_name(value)
-      value.to_s.downcase.gsub(/[^a-z0-9]/, "")
+      value.to_s.downcase.gsub(/\s*&\s*|\s+and\s+/, " ").gsub(/[^a-z0-9]/, "")
     end
 
     # publish_date is an EDTF string (see Edition::PUBLISH_DATE_FORMAT),
