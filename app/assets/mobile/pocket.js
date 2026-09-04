@@ -161,7 +161,7 @@
     const binds = terms.flatMap((t) => ["%" + t + "%", "%" + t + "%", "%" + t + "%"]);
 
     const stmt = db.prepare(
-      `SELECT id, kind, title, subtitle, authors, series, series_position, year, owned, wishlisted, thumb
+      `SELECT id, kind, title, subtitle, authors, series, series_position, year, owned, wishlisted, isbn10, isbn13, thumb
        FROM entries WHERE ${where} ORDER BY title LIMIT 40`
     );
     stmt.bind(binds);
@@ -176,7 +176,7 @@
   function byIsbn(ean) {
     const stmt = db.prepare(
       `SELECT e.id, e.kind, e.title, e.authors, e.series, e.series_position, e.year,
-              e.owned, e.wishlisted, e.thumb, i.edition_id AS matched
+              e.owned, e.wishlisted, e.isbn10, e.isbn13, e.thumb, i.edition_id AS matched
        FROM isbn_index i JOIN entries e ON e.id = i.entry_id WHERE i.isbn13 = ?
        ORDER BY (i.edition_id IS NULL), (e.owned = 0) LIMIT 1`
     );
@@ -224,11 +224,13 @@
   };
 
   // Reading.status -> lozenge, mirrors Ui::EditionCardComponent#reading_badge
-  // on the web (docs/DESIGN_SYSTEM.md, "Edition card") — "success"/"default"
-  // are the same two variant names, not new colors: .pill.success and
-  // .pill.default alias the existing owned/other tokens (pocket.css).
+  // on the web (docs/DESIGN_SYSTEM.md, "Edition card") — "info"/"accent"
+  // are the exact same variant names Ui::BadgeComponent uses, added
+  // 2026-09-04 so Read/Reading stop colliding with Owned's green
+  // (.pill.info blue, .pill.accent purple — pocket.css) and DNF/TBR's
+  // neutral gray respectively.
   const READING = {
-    reading: ["default", "READING"], read: ["success", "READ"],
+    reading: ["accent", "READING"], read: ["info", "READ"],
     dnf: ["default", "DNF"], tbr: ["default", "TBR"],
   };
 
@@ -258,26 +260,43 @@
     </div>`;
   }
 
-  // A result: a work/wishlist header, then one full edition card per
-  // printing a copy has passed through (docs/MOBILE.md) — each card
-  // carrying its own OWNED / REPLACED / … lozenge. Ownership lives on the
-  // cards; the only work-level status is WISHLIST. Works carry no header
-  // cover (covers live on the edition cards); a wishlist item has no
-  // edition cards, so its cover sits on the head.
+  // A pure wishlist entry (no editions at all — see docs, "is a wishlist
+  // item connected to an edition?": no) gets the same card shape as an
+  // edition — same size/left-aligned image — but there's no
+  // publisher/year/pages to headline with, so the WISHLIST lozenge takes
+  // that line's place instead, right-aligned rather than stacked below an
+  // empty headline. `idFooter` reuses the exact same footer an edition
+  // card uses; a wishlist item only ever has isbn10/isbn13 to offer (no
+  // isfdb/goodreads at entry level), which idFooter already renders fine
+  // with nothing to link.
+  function wishlistCardHtml(row) {
+    const thumb = blobUrl(row.thumb);
+    return `<div class="edition wishlist-card">
+      ${thumb ? `<img src="${thumb}" alt="">` : `<div class="noimg">?</div>`}
+      <div class="body">
+        <div class="pills"><span class="pill wish">WISHLIST</span></div>
+        ${idFooter(row)}
+      </div>
+    </div>`;
+  }
+
+  // A result: a plain-text head (title/series/author — no image; a work
+  // and a wishlist item are laid out identically here), then one full
+  // card per printing a copy has passed through (docs/MOBILE.md), or —
+  // for a pure wishlist entry with no editions — one wishlistCardHtml
+  // instead. A work that's *also* wishlisted (you own one printing but
+  // still want another) keeps the compact inline WISHLIST lozenge here in
+  // the head, since it already gets real edition cards below.
   function entryHtml(row, note) {
     const eds = row.editions || [];
-    const headThumb = eds.length === 0 ? blobUrl(row.thumb) : null;
+    const wishlistOnly = row.wishlisted && eds.length === 0;
 
     return `
-      <div class="head">
-        ${eds.length === 0 ? (headThumb ? `<img src="${headThumb}" alt="">` : `<div class="noimg">?</div>`) : ""}
-        <div class="body">
-          ${note ? `<div class="meta alt">${esc(note)}</div>` : ""}
-          <div class="title">${esc(row.title)}${row.series ? ` <span class="meta">— ${esc(row.series)}${row.series_position ? " #" + esc(row.series_position) : ""}</span>` : ""}</div>
-          <div class="meta">${esc(row.authors || "")}${row.year ? " · " + row.year : ""}</div>
-          ${row.wishlisted ? `<span class="pill wish">WISHLIST</span>` : ""}
-        </div>
-      </div>
+      ${note ? `<div class="meta alt">${esc(note)}</div>` : ""}
+      <div class="title">${esc(row.title)}${row.series ? ` <span class="meta">— ${esc(row.series)}${row.series_position ? " #" + esc(row.series_position) : ""}</span>` : ""}</div>
+      <div class="meta">${esc(row.authors || "")}${row.year ? " · " + row.year : ""}</div>
+      ${row.wishlisted && !wishlistOnly ? `<span class="pill wish">WISHLIST</span>` : ""}
+      ${wishlistOnly ? wishlistCardHtml(row) : ""}
       ${eds.map((e) => editionCardHtml(e, row.matched && e.id === row.matched)).join("")}`;
   }
 

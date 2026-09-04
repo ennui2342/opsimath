@@ -19,5 +19,17 @@ module Ui
 
       assert_selector "span.bg-conflict-100.text-conflict-800"
     end
+
+    test "info variant uses blue — distinct from success's green" do
+      render_inline(BadgeComponent.new(text: "Read", variant: :info))
+
+      assert_selector "span.bg-blue-100.text-blue-800"
+    end
+
+    test "accent variant uses purple — distinct from default's gray" do
+      render_inline(BadgeComponent.new(text: "Reading", variant: :accent))
+
+      assert_selector "span.bg-purple-100.text-purple-800"
+    end
   end
 end

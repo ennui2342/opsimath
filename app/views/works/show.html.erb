@@ -42,9 +42,16 @@
     <h2 class="mt-8 mb-3 text-xl font-semibold text-gray-900 dark:text-gray-100">Reading history</h2>
     <ul class="divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
       <% @work.readings.order(date_started: :desc).each do |reading| %>
+        <% # Same color convention as Ui::EditionCardComponent#reading_badge —
+           # :info (completed), :accent (still open), :default otherwise. %>
+        <% reading_variant = case reading.status
+           when "completed" then :info
+           when "reading", "paused" then :accent
+           else :default
+           end %>
         <li class="flex items-center justify-between px-4 py-3 text-sm">
           <span>
-            <%= render(Ui::BadgeComponent.new(text: reading.status, variant: reading.status == "completed" ? :success : :default)) %>
+            <%= render(Ui::BadgeComponent.new(text: reading.status, variant: reading_variant)) %>
             <%= reading.date_started %> &ndash; <%= reading.date_finished %>
           </span>
           <span class="text-gray-500 dark:text-gray-400"><%= reading.rating ? "#{reading.rating}★" : nil %></span>

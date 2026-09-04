@@ -46,7 +46,11 @@ unit test — principle 5. Reach for one of these before writing a bare
 ### `Ui::BadgeComponent`
 
 A small labelled pill. `text:` + `variant:` (`:default` grey, `:conflict`
-amber, `:success` green). Genre/subject/tag chips on the book page;
+amber, `:success` green, `:info` blue, `:accent` purple — the last two
+added 2026-09-04 so a reading-status fact never collides in color with an
+ownership one: `:info` "Read" reads distinctly from `:success` "Owned"
+now, and `:accent` "Reading" from `:default`'s neutral DNF/TBR).
+Genre/subject/tag chips on the book page;
 kind/shelf/status markers on the review queues. Stack multiple in a
 `flex flex-wrap gap-2` row (e.g. a `:conflict` "edition reconciliation" next
 to a `:default` shelf name).
@@ -132,9 +136,10 @@ shape:
   other: `ownership_badge` (`Owned` `:success` for an edition with an
   owned `Copy`, else the retired disposition `:default` from
   `Copy::DISPOSITION_LABELS`, nil for a catalogue-only edition) and
-  `reading_badge` (`Reading` for an open or paused `Reading`, else `Read`
-  `:success` for any completed one, else `DNF`, else `TBR` — nil only
-  when the edition has *neither* a copy nor a reading, so a bare
+  `reading_badge` (`Reading` `:accent` for an open or paused `Reading`,
+  else `Read` `:info` for any completed one, else `DNF` `:default`, else
+  `TBR` `:default` — nil only when the edition has *neither* a copy nor a
+  reading, so a bare
   never-owned alternate doesn't claim a false "TBR" intent).
 - **`detail_line`** (muted, was the old top line) — `format_line` (as
   before: `format_detail` → `format` → `"Edition"`) plus the ISFDB cover
@@ -155,16 +160,31 @@ in step for the 2026-09-04 reorg (headline promotion, reading-status
 lozenges, cover artist) the same day — `pocket.js`'s `READING` map mirrors
 the web's `reading_badge` precedence (reading/paused > completed > dnf >
 default tbr; `Mobile::ShopView#reading_status_of` computes it server-side
-since sql.js has no Reading table to query from), and `.pill.success` /
-`.pill.default` alias the existing owned/other color tokens rather than
-introducing new ones. Order and ISFDB/Goodreads-only linking stay in sync
-already: `pocket.js`'s `ID_URL` map mirrors
-`EditionIdentifier::EXTERNAL_URL_BY_TYPE` and its `DISPOSITION` map
-mirrors `Copy::DISPOSITION_LABELS`. The snapshot carries per edition:
-`format`, `format_detail`, `publisher`, `year`, `page_count`,
-`disposition`, `cover_artist`, `reading_status`,
+since sql.js has no Reading table to query from), and, since a follow-up
+pass the same day, its `["info", "READ"]` / `["accent", "READING"]` pairs
+use the exact same variant names as `Ui::BadgeComponent` — `.pill.info` /
+`.pill.accent` in `pocket.css` are genuinely new colors (blue/purple),
+not aliases of an existing token, matching the web fix below. Order and
+ISFDB/Goodreads-only linking stay in sync already: `pocket.js`'s `ID_URL`
+map mirrors `EditionIdentifier::EXTERNAL_URL_BY_TYPE` and its
+`DISPOSITION` map mirrors `Copy::DISPOSITION_LABELS`. The snapshot
+carries per edition: `format`, `format_detail`, `publisher`, `year`,
+`page_count`, `disposition`, `cover_artist`, `reading_status`,
 `isbn10/isbn13/isfdb/goodreads` (`Mobile::SnapshotBuilder` `editions`
 table).
+
+A pure wishlist entry (no editions at all) gets the identical card shape
+too, as of the same follow-up pass — `pocket.js`'s `wishlistCardHtml`,
+same size/left-aligned image as an edition's, no side indent on either
+anymore. It just has nothing to headline with (no publisher/year/pages
+for something you don't own yet), so the WISHLIST lozenge sits where the
+headline line would be, right-aligned rather than stacked below an empty
+one — and the ids footer now shows too (`entries.isbn10`/`isbn13`, always
+in the snapshot schema but not actually selected by `pocket.js`'s
+queries until this pass). A work that's *also* wishlisted (you own one
+printing but still want another) keeps the small inline WISHLIST lozenge
+next to its title instead — it already has real edition cards below, so a
+whole second pseudo-card would be noise.
 
 When you change the edition layout, change it in both places (or write
 down why they diverge) — same rule as `feedback_goodreads_path_parity`

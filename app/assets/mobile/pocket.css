@@ -11,6 +11,14 @@
   --wish-bg: #fef3c7;
   --none: #6b7280;
   --none-bg: #e5e7eb;
+  /* Read / Reading, added 2026-09-04 — Tailwind's blue/purple-800/100,
+     matching Ui::BadgeComponent's :info/:accent variants on the web
+     exactly, so a reading fact never collides in color with owned's
+     green or DNF/TBR's neutral gray. */
+  --info: #1e40af;
+  --info-bg: #dbeafe;
+  --accent: #6b21a8;
+  --accent-bg: #f3e8ff;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -25,6 +33,10 @@
     --wish-bg: #78350f;
     --none: #9ca3af;
     --none-bg: #1f2937;
+    --info: #bfdbfe;
+    --info-bg: #1e3a8a;
+    --accent: #e9d5ff;
+    --accent-bg: #581c87;
   }
 }
 
@@ -76,6 +88,10 @@ main { padding: 0 1rem 3rem; }
 }
 .entry:first-child { border-top: none; }
 
+/* .head only remains for the scanned-and-not-found "NEITHER" state's own
+   inline markup below — every real entry (work or wishlist) now renders
+   title/series/author as plain text with no image, per .entry .title/
+   .meta directly below, so an entry never needs this flex-row shape. */
 .entry .head { display: flex; gap: 0.85rem; }
 .entry .head > img, .entry .head > .noimg {
   width: 56px;
@@ -85,39 +101,43 @@ main { padding: 0 1rem 3rem; }
   border-radius: 0.3rem;
   background: var(--card);
 }
-.noimg { display: flex; align-items: center; justify-content: center; color: var(--muted); }
-.entry .head > .noimg { font-size: 1.4rem; }
+.noimg { display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 1.4rem; }
 .entry .body { min-width: 0; flex: 1; }
 .entry .title { font-weight: 600; }
 .entry .meta { font-size: 0.85rem; color: var(--muted); margin-top: 0.15rem; }
 .entry .meta.alt { color: var(--owned); font-weight: 600; margin-top: 0; margin-bottom: 0.15rem; }
 .entry.neither .noimg { color: var(--none); }
 
-/* One printing a copy has passed through — same shape as
+/* One printing a copy has passed through, or (.wishlist-card) the one
+   pseudo-card a pure wishlist entry gets in its place — same shape as
    Ui::EditionCardComponent on the web (headline / lozenges / detail line
    reorg brought in step 2026-09-04 — see docs/DESIGN_SYSTEM.md's own note
-   on keeping the two from drifting further). */
+   on keeping the two from drifting further). Same image size as .head's
+   (above) and no side indent, so every card in the list — work editions
+   and a bare wishlist item alike — lines up on the same left edge
+   (2026-09-04, Mark: bring the wishlist card in line with the others). */
 .edition {
   display: flex;
   gap: 0.7rem;
   margin-top: 0.6rem;
-  padding-left: 0.85rem;
-  border-left: 2px solid var(--line);
 }
 .edition > img, .edition > .noimg {
-  width: 44px;
-  height: 66px;
+  width: 56px;
+  height: 84px;
   flex: none;
   object-fit: cover;
-  border-radius: 0.25rem;
+  border-radius: 0.3rem;
   background: var(--card);
-  font-size: 1.1rem;
 }
 .edition .headline { font-weight: 600; font-size: 0.9rem; }
 .edition.matched .headline { color: var(--owned); }
 .edition .meta { font-size: 0.8rem; color: var(--muted); margin-top: 0.15rem; }
 .edition .pills { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.35rem; }
 .edition .pills .pill { margin-top: 0; }
+/* A wishlist card's pills row is the first thing in .body — no headline
+   above it to separate from, and nothing to put on its left, so it sits
+   flush at the top and right-aligned instead of stacked-below-left. */
+.wishlist-card .pills { justify-content: flex-end; margin-top: 0; }
 .edition .ids {
   display: flex;
   flex-wrap: wrap;
@@ -139,9 +159,11 @@ main { padding: 0 1rem 3rem; }
   font-weight: 700;
   letter-spacing: 0.04em;
 }
-.pill.owned, .pill.success { color: var(--owned); background: var(--owned-bg); }
+.pill.owned { color: var(--owned); background: var(--owned-bg); }
 .pill.wish { color: var(--wish); background: var(--wish-bg); }
 .pill.neither, .pill.other, .pill.default { color: var(--none); background: var(--none-bg); }
+.pill.info { color: var(--info); background: var(--info-bg); }
+.pill.accent { color: var(--accent); background: var(--accent-bg); }
 
 /* --- barcode scanner overlay --- */
 #scanner {

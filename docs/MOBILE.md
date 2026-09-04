@@ -224,8 +224,17 @@ snapshot is still fully functional.
     line above the title; the matched card is marked. `pocket.js`'s
     `editionCardHtml` / `idFooter` are the JS twin of
     `Ui::EditionCardComponent`.
-  - **On wishlist** — amber; the wishlist entry with its own cover and a
-    WISHLIST lozenge on the header (it has no edition cards).
+  - **On wishlist** — amber; a work header (title / series / author, no
+    year — a wishlist item carries no publish date at all) followed by
+    one card in the same shape an edition card uses (`pocket.js`'s
+    `wishlistCardHtml`, 2026-09-04): same size, left-aligned cover, and
+    since there's no publisher/year/pages to headline with, the WISHLIST
+    lozenge sits where the headline line would be, right-aligned, with
+    the isbn10/isbn13 identifier footer underneath (a wishlist item
+    carries no isfdb/goodreads id to show at that level). A work you
+    already own one printing of but still wishlist another edition of
+    keeps the compact inline lozenge next to its title instead — it
+    already has real edition cards below.
   - **Neither** — grey; "not in the collection or wishlist".
 
 The scan UX is the make-or-break — see "To validate" below.

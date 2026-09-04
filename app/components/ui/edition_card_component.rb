@@ -59,12 +59,18 @@ module Ui
     # claim an intent you don't have). An open (or paused) reading wins
     # over a past completed one, which wins over a DNF; with a copy or a
     # reading on file but none of those, it's TBR.
+    #
+    # :accent (Reading) / :info (Read) — deliberately not :default/:success:
+    # this is a reading fact, not an ownership one, and :success is
+    # ownership_badge's own color for "Owned" — the two used to collide
+    # visually right next to each other on the same card. DNF/TBR stay
+    # :default (nothing currently happening).
     def reading_badge
       return nil if @edition.copies.empty? && @edition.readings.empty?
 
       statuses = @edition.readings.map(&:status)
-      return [ "Reading", :default ] if statuses.intersect?(%w[reading paused])
-      return [ "Read", :success ] if statuses.include?("completed")
+      return [ "Reading", :accent ] if statuses.intersect?(%w[reading paused])
+      return [ "Read", :info ] if statuses.include?("completed")
       return [ "DNF", :default ] if statuses.include?("dnf")
 
       [ "TBR", :default ]

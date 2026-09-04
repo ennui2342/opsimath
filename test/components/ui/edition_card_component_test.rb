@@ -89,13 +89,13 @@ module Ui
       Copy.create!(edition: mid_reread, disposition: "owned")
       Reading.create!(work:, edition: mid_reread, status: "completed", source: "owned_copy")
       Reading.create!(work:, edition: mid_reread, status: "reading", source: "owned_copy")
-      assert_equal [ "Reading", :default ], card(mid_reread).reading_badge
+      assert_equal [ "Reading", :accent ], card(mid_reread).reading_badge
 
       finished = Edition.create!
       EditionContent.create!(work:, edition: finished)
       Copy.create!(edition: finished, disposition: "owned")
       Reading.create!(work:, edition: finished, status: "completed", source: "owned_copy")
-      assert_equal [ "Read", :success ], card(finished).reading_badge
+      assert_equal [ "Read", :info ], card(finished).reading_badge
 
       abandoned = Edition.create!
       EditionContent.create!(work:, edition: abandoned)
@@ -110,7 +110,7 @@ module Ui
       EditionContent.create!(work:, edition: library_read)
       Reading.create!(work:, edition: library_read, status: "completed", source: "library")
 
-      assert_equal [ "Read", :success ], card(library_read).reading_badge
+      assert_equal [ "Read", :info ], card(library_read).reading_badge
       assert_nil card(library_read).ownership_badge # no copy — not "mine" in the ownership sense
 
       assert_nil card(Edition.create!).reading_badge # nothing to say about a bare alternate
@@ -123,7 +123,7 @@ module Ui
       Copy.create!(edition:, disposition: "owned")
       Reading.create!(work:, edition:, status: "completed", source: "owned_copy")
 
-      assert_equal [ [ "Owned", :success ], [ "Read", :success ] ], card(edition).status_badges
+      assert_equal [ [ "Owned", :success ], [ "Read", :info ] ], card(edition).status_badges
       assert_equal [], card(Edition.create!).status_badges
     end
 
