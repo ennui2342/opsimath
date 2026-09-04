@@ -232,7 +232,11 @@ class PendingDecisionsControllerTest < ActionDispatch::IntegrationTest
     rec = build_edition_reconciliation(work, edition)
     other = build_edition_reconciliation(work, edition, "goodreads_book_id" => "222")
 
-    post resolve_pending_decision_url(rec),
+    # kind: scopes the advance to the same queue filter the reconciliation
+    # screen itself always carries (kind_filter) — without it, "next"
+    # means "next across every kind," and @pending (created in this test
+    # class's own setup, before either of these) would legitimately win.
+    post resolve_pending_decision_url(rec, kind: "edition_reconciliation"),
       params: { resolution: "relink", target_edition_id: edition.id },
       as: :turbo_stream
 

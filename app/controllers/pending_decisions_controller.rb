@@ -2,13 +2,22 @@
 # screen's job is fast, repeated decisions, so accept/reject respond
 # with a Turbo Stream swapping straight to the next pending decision
 # in place, not a full page redirect back to the index.
+#
+# Every `.order(:created_at, ...)` here carries `:id` as a tiebreaker —
+# found live in CI (2026-09-04): several PendingDecisions created in
+# rapid succession within one request/test can land on the same
+# `created_at` timestamp, and Postgres doesn't fall back to insertion
+# order for a tied sort with no secondary key — `order(:created_at)`
+# alone advanced to a different pending decision than the one actually
+# next, nondeterministically. `:id` is monotonic with insertion here, so
+# it's a correct, cheap tiebreaker.
 class PendingDecisionsController < ApplicationController
   before_action :set_pending_decision, only: [ :show, :accept, :reject, :resolve ]
 
   def index
     @kind = params[:kind].presence
     @kind_counts = PendingDecision.pending.group(:kind).count
-    scope = PendingDecision.pending.order(:created_at)
+    scope = PendingDecision.pending.order(:created_at, :id)
     scope = scope.where(kind: @kind) if @kind
     @pending_decisions = scope
   end
@@ -51,7 +60,7 @@ class PendingDecisionsController < ApplicationController
 
   def advance
     @kind = params[:kind].presence
-    next_scope = PendingDecision.pending.order(:created_at)
+    next_scope = PendingDecision.pending.order(:created_at, :id)
     next_scope = next_scope.where(kind: @kind) if @kind
     @next_decision = next_scope.first
 
