@@ -37,6 +37,20 @@ class IsfdbEnrichmentJobTest < ActiveSupport::TestCase
     assert_not_nil job_item.run_id
   end
 
+  test "force: true re-fetches an edition that already has an isfdb EnrichmentRecord" do
+    already_enriched = Edition.create!(format: "paperback")
+    EditionIdentifier.create!(edition: already_enriched, id_type: "isbn10", value: "0441172717")
+    EnrichmentRecord.create!(entity: already_enriched, provider: "isfdb", external_id: "old", fetched_at: 1.week.ago, raw_payload: {})
+
+    stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE ].to_json)
+
+    counts = IsfdbEnrichmentJob.perform_now(force: true)
+
+    assert_equal 1, counts.success
+    assert_requested(:get, "#{BASE_URL}/isbn/0441172717?all=true")
+    assert_equal "Ace Books", already_enriched.reload.publisher
+  end
+
   test "records a failed JobItem without raising when isfdb-adapter errors" do
     edition = Edition.create!(format: "paperback")
     EditionIdentifier.create!(edition: edition, id_type: "isbn10", value: "0441172717")

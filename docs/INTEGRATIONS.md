@@ -82,9 +82,16 @@ only if real friction shows up using it here, not speculatively.
 
 **Built as `IsfdbEnrichmentJob`** (`Isfdb::Client`,
 `Enrichment::FieldApplier`, `Enrichment::IsfdbEditionEnricher`; triggered
-via `bin/rails isfdb:enrich_editions`). A few things only became clear by
-actually building this and checking the live mirror directly (read-only
-queries through the running adapter pod, not guessed):
+via `bin/rails isfdb:enrich_editions`). `IsfdbEnrichmentJob.perform_now(force:
+true)` (`bin/rails isfdb:reenrich_editions`) re-fetches an edition even
+when it already has an isfdb `EnrichmentRecord` — the ordinary task only
+picks up editions no one's tried yet, so a change that only reaches an
+edition on its next real fetch (a new field, or a looser apply rule like
+`CoverApplier`'s `authoritative:` cover trust, 2026-09-04) needs the
+forced sweep to actually reach the existing library rather than only
+newly-catalogued editions. A few things only became clear by actually
+building this and checking the live mirror directly (read-only queries
+through the running adapter pod, not guessed):
 
 - **`isfdb-adapter` had no external route at all before this** — ClusterIP
   only, no `Ingress`, despite `isfdb-adapter.k8s.ecafe.org` already

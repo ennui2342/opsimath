@@ -4,4 +4,10 @@ namespace :isfdb do
     counts = IsfdbEnrichmentJob.perform_now
     puts counts
   end
+
+  desc "Re-fetch every ISBN-bearing Edition from isfdb-adapter, including ones already enriched — for a change that only reaches an edition on its next real fetch (a new field, a looser apply rule)"
+  task reenrich_editions: :environment do
+    counts = IsfdbEnrichmentJob.perform_now(force: true)
+    puts counts
+  end
 end
