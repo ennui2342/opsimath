@@ -20,7 +20,7 @@ module Mobile
       :kind,             # "work" | "wishlist"
       :title, :subtitle, :authors, :series, :series_position, :original_year,
       :owned, :wishlisted,
-      :isbn10, :isbn13, :has_cover, # entry-level — set only for kind "wishlist"
+      :isbn10, :isbn13, :goodreads, :has_cover, # entry-level — set only for kind "wishlist"
       :editions,                    # [Edition] — set only for kind "work"
       keyword_init: true
     )
@@ -154,6 +154,7 @@ module Mobile
           wishlisted: true,
           isbn10: item.external_ids["isbn10"],
           isbn13: item.external_ids["isbn13"],
+          goodreads: item.external_ids["goodreads"],
           has_cover: item.cover_image.attached?,
           editions: []
         )

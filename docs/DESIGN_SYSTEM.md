@@ -179,12 +179,21 @@ same size/left-aligned image as an edition's, no side indent on either
 anymore. It just has nothing to headline with (no publisher/year/pages
 for something you don't own yet), so the WISHLIST lozenge sits where the
 headline line would be, right-aligned rather than stacked below an empty
-one — and the ids footer now shows too (`entries.isbn10`/`isbn13`, always
-in the snapshot schema but not actually selected by `pocket.js`'s
-queries until this pass). A work that's *also* wishlisted (you own one
-printing but still want another) keeps the small inline WISHLIST lozenge
-next to its title instead — it already has real edition cards below, so a
-whole second pseudo-card would be noise.
+one — and the ids footer now shows too: `entries.isbn10`/`isbn13` were
+always in the snapshot schema but not actually selected by `pocket.js`'s
+queries until this pass, and `entries.goodreads` is new outright (a
+wishlist item's `WishlistItem.external_ids["goodreads"]`, entry-level
+same as the isbns — `Mobile::ShopView::Entry#goodreads`, "wishlist" kind
+only; a work's own editions carry their own). No `isfdb` id, though —
+genuinely never exists until the item is fulfilled and actually matched.
+`.edition`'s default cross-axis stretch also had to be overridden to
+`center` for `.wishlist-card` specifically: a normal edition's body
+content is about as tall as its cover, but a wishlist card's is often
+just the one lozenge, so stretch left it pinned to the top looking
+disconnected from the image. A work that's *also* wishlisted (you own
+one printing but still want another) keeps the small inline WISHLIST
+lozenge next to its title instead — it already has real edition cards
+below, so a whole second pseudo-card would be noise.
 
 When you change the edition layout, change it in both places (or write
 down why they diverge) — same rule as `feedback_goodreads_path_parity`

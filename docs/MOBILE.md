@@ -75,7 +75,8 @@ entries      id ("work:<id>" | "wishlist:<id>"), kind, title, subtitle,
              authors, series, series_position, year,
              owned, wishlisted, thumb,
              search_title, search_author, search_series,
-             isbn10, isbn13          -- entry-level: kind='wishlist' only
+             isbn10, isbn13, goodreads  -- entry-level: kind='wishlist' only (no isfdb —
+                                        --   nothing's been matched yet)
 editions     entry_id, format, format_detail, publisher, year,
              page_count, disposition, cover_artist, reading_status,
              isbn10, isbn13, isfdb, goodreads, thumb
@@ -230,9 +231,9 @@ snapshot is still fully functional.
     `wishlistCardHtml`, 2026-09-04): same size, left-aligned cover, and
     since there's no publisher/year/pages to headline with, the WISHLIST
     lozenge sits where the headline line would be, right-aligned, with
-    the isbn10/isbn13 identifier footer underneath (a wishlist item
-    carries no isfdb/goodreads id to show at that level). A work you
-    already own one printing of but still wishlist another edition of
+    the isbn10/isbn13/goodreads identifier footer underneath (a wishlist
+    item carries no isfdb id — it hasn't been matched to anything yet).
+    A work you already own one printing of but still wishlist another edition of
     keeps the compact inline lozenge next to its title instead — it
     already has real edition cards below.
   - **Neither** — grey; "not in the collection or wishlist".

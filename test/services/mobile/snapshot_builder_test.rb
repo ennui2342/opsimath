@@ -16,7 +16,7 @@ module Mobile
       Copy.create!(edition: @edition, disposition: "owned")
 
       @wishlist = WishlistItem.create!(title: "Vagabonds", author_name: "Hao Jingfang",
-                                       external_ids: { "isbn13" => "9781534422087", "isbn10" => "1534422080" })
+                                       external_ids: { "isbn13" => "9781534422087", "isbn10" => "1534422080", "goodreads" => "49454725" })
     end
 
     def build_and_open
@@ -44,6 +44,7 @@ module Mobile
       wl = db.execute("SELECT * FROM entries WHERE kind = 'wishlist'").first
       assert_equal "Vagabonds", wl["title"]
       assert_equal "9781534422087", wl["isbn13"]
+      assert_equal "49454725", wl["goodreads"]
       assert_equal 1, wl["wishlisted"]
     end
 

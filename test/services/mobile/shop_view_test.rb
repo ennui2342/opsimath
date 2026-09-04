@@ -115,7 +115,7 @@ module Mobile
       assert_empty entry.editions
     end
 
-    test "an unmatched wishlist entry becomes a kind-wishlist entry with ISBNs from external_ids" do
+    test "an unmatched wishlist entry becomes a kind-wishlist entry with ISBNs and a goodreads id from external_ids" do
       WishlistItem.create!(
         title: "Vagabonds", author_name: "Hao Jingfang",
         external_ids: { "goodreads" => "49454725", "isbn10" => "1534422080", "isbn13" => "9781534422087" }
@@ -129,6 +129,7 @@ module Mobile
       assert_not entry.owned
       assert_equal "1534422080", entry.isbn10
       assert_equal "9781534422087", entry.isbn13
+      assert_equal "49454725", entry.goodreads
       assert_empty entry.editions
     end
 

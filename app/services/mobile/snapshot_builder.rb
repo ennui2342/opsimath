@@ -23,6 +23,7 @@ module Mobile
         thumb           BLOB,
         isbn10          TEXT,
         isbn13          TEXT,
+        goodreads       TEXT,
         search_title    TEXT NOT NULL,
         search_author   TEXT,
         search_series   TEXT
@@ -89,12 +90,12 @@ module Mobile
 
     def write_entry(db, entry, thumbs)
       db.execute(
-        "INSERT INTO entries VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO entries VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         [
           entry.id, entry.kind, entry.title, entry.subtitle,
           entry.authors.join(", ").presence, entry.series, entry.series_position,
           entry.original_year, bool(entry.owned), bool(entry.wishlisted),
-          blob(thumbs[entry.id]), entry.isbn10, entry.isbn13,
+          blob(thumbs[entry.id]), entry.isbn10, entry.isbn13, entry.goodreads,
           norm(entry.title), norm(entry.authors.join(" ")), norm(entry.series)
         ]
       )

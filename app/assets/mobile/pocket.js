@@ -161,7 +161,7 @@
     const binds = terms.flatMap((t) => ["%" + t + "%", "%" + t + "%", "%" + t + "%"]);
 
     const stmt = db.prepare(
-      `SELECT id, kind, title, subtitle, authors, series, series_position, year, owned, wishlisted, isbn10, isbn13, thumb
+      `SELECT id, kind, title, subtitle, authors, series, series_position, year, owned, wishlisted, isbn10, isbn13, goodreads, thumb
        FROM entries WHERE ${where} ORDER BY title LIMIT 40`
     );
     stmt.bind(binds);
@@ -176,7 +176,7 @@
   function byIsbn(ean) {
     const stmt = db.prepare(
       `SELECT e.id, e.kind, e.title, e.authors, e.series, e.series_position, e.year,
-              e.owned, e.wishlisted, e.isbn10, e.isbn13, e.thumb, i.edition_id AS matched
+              e.owned, e.wishlisted, e.isbn10, e.isbn13, e.goodreads, e.thumb, i.edition_id AS matched
        FROM isbn_index i JOIN entries e ON e.id = i.entry_id WHERE i.isbn13 = ?
        ORDER BY (i.edition_id IS NULL), (e.owned = 0) LIMIT 1`
     );
@@ -266,9 +266,9 @@
   // publisher/year/pages to headline with, so the WISHLIST lozenge takes
   // that line's place instead, right-aligned rather than stacked below an
   // empty headline. `idFooter` reuses the exact same footer an edition
-  // card uses; a wishlist item only ever has isbn10/isbn13 to offer (no
-  // isfdb/goodreads at entry level), which idFooter already renders fine
-  // with nothing to link.
+  // card uses; a wishlist item never has an isfdb id (nothing's been
+  // matched yet), but does carry isbn10/isbn13 and a goodreads id, which
+  // idFooter already renders fine given only some of the fields it knows.
   function wishlistCardHtml(row) {
     const thumb = blobUrl(row.thumb);
     return `<div class="edition wishlist-card">

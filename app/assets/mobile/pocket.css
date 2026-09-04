@@ -138,6 +138,14 @@ main { padding: 0 1rem 3rem; }
    above it to separate from, and nothing to put on its left, so it sits
    flush at the top and right-aligned instead of stacked-below-left. */
 .wishlist-card .pills { justify-content: flex-end; margin-top: 0; }
+/* .edition's default align-items (stretch) pins .body to the *top* of
+   the image's full height — fine when the body's own content (headline +
+   pills + meta + ids) is about that tall anyway, but a wishlist card's
+   content is often just the one pill (sometimes plus an isbn line), so
+   stretch left it floating at the top with visible dead space below,
+   disconnected from the image next to it. Center the (usually short)
+   content block against the image instead. */
+.wishlist-card { align-items: center; }
 .edition .ids {
   display: flex;
   flex-wrap: wrap;
