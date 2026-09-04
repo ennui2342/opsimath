@@ -26,8 +26,10 @@ class PendingDecision < ApplicationRecord
   # Display order for the fields any known provider can propose on an
   # Edition — mirrors the field set Enrichment::IsfdbEditionEnricher and
   # Enrichment::SourceRecorder callers actually populate. cover_image is
-  # handled separately (an attachment, not a plain field).
-  EDITION_FIELD_ORDER = %w[format format_detail publisher publish_date language page_count].freeze
+  # handled separately (an attachment, not a plain field). cover_artist is
+  # ISFDB-only (Goodreads never proposes it) — joined "First, Second" when
+  # ISFDB credits more than one.
+  EDITION_FIELD_ORDER = %w[format format_detail publisher cover_artist publish_date language page_count].freeze
 
   ID_TYPE_LABELS = { "isbn10" => "ISBN-10", "isbn13" => "ISBN-13", "isfdb" => "ISFDB", "goodreads" => "Goodreads" }.freeze
 
@@ -138,7 +140,8 @@ class PendingDecision < ApplicationRecord
 
     rows = {
       "format" => format&.humanize, "format_detail" => format_detail&.humanize,
-      "publisher" => candidate["publisher"], "publish_date" => candidate["publish_date"],
+      "publisher" => candidate["publisher"], "cover_artist" => Array(candidate["cover_artists"]).join(", ").presence,
+      "publish_date" => candidate["publish_date"],
       "language" => candidate["language"], "page_count" => candidate["page_count"]
     }.filter_map { |name, value| FieldRow.new(name: name, value: value, selectable: true) if value.present? }
 

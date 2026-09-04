@@ -4,17 +4,27 @@ module Ui
   class EditionCardComponentTest < ViewComponent::TestCase
     PNG = Base64.decode64("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
 
+    test "headline joins publisher, year (from the EDTF date) and page count, dropping blanks" do
+      edition = Edition.new(publisher: "Gollancz", publish_date: "1987-05", page_count: 471)
+      assert_equal "Gollancz · 1987 · 471 pages", card(edition).headline
+
+      assert_equal "Orbit", card(Edition.new(publisher: "Orbit")).headline
+    end
+
+    test "headline falls back to format_line when there's no publisher/date/pages at all" do
+      assert_equal "Hardcover", card(Edition.new(format: "hardcover")).headline
+      assert_equal "Edition", card(Edition.new).headline
+    end
+
     test "format line prefers format_detail, then format, then a generic fallback" do
       assert_equal "Mass market", card(Edition.new(format_detail: "mass_market", format: "paperback")).format_line
       assert_equal "Hardcover", card(Edition.new(format: "hardcover")).format_line
       assert_equal "Edition", card(Edition.new).format_line
     end
 
-    test "meta line joins publisher, year (from the EDTF date) and page count, dropping blanks" do
-      edition = Edition.new(publisher: "Gollancz", publish_date: "1987-05", page_count: 471)
-      assert_equal "Gollancz · 1987 · 471 pages", card(edition).meta_line
-
-      assert_equal "Orbit", card(Edition.new(publisher: "Orbit")).meta_line
+    test "detail_line is format plus the ISFDB cover artist, dropping either when blank" do
+      assert_equal "Mass market · Bruce Pennington", card(Edition.new(format_detail: "mass_market", cover_artist: "Bruce Pennington")).detail_line
+      assert_equal "Hardcover", card(Edition.new(format: "hardcover")).detail_line
     end
 
     test "renders the identifier footer in canonical order, linking only ISFDB and Goodreads" do
@@ -47,24 +57,74 @@ module Ui
       assert_equal %w[Goodreads], rows[1].all("b").map(&:text)
     end
 
-    test "status badge reads Owned for an owned copy, the disposition otherwise, nothing for a catalogue-only edition" do
+    test "ownership_badge reads Owned for an owned copy, the disposition otherwise, nothing for a catalogue-only edition" do
       owned = Edition.create!
       Copy.create!(edition: owned, disposition: "owned")
-      assert_equal [ "Owned", :success ], EditionCardComponent.new(edition: owned).status_badge
+      assert_equal [ "Owned", :success ], card(owned).ownership_badge
 
       replaced = Edition.create!
       Copy.create!(edition: replaced, disposition: "replaced")
-      assert_equal [ "Replaced", :default ], EditionCardComponent.new(edition: replaced).status_badge
+      assert_equal [ "Replaced", :default ], card(replaced).ownership_badge
 
-      assert_nil EditionCardComponent.new(edition: Edition.create!).status_badge
+      assert_nil card(Edition.create!).ownership_badge
     end
 
-    test "an owned copy wins the badge over a retired one on the same edition" do
+    test "an owned copy wins the ownership badge over a retired one on the same edition" do
       edition = Edition.create!
       Copy.create!(edition:, disposition: "replaced")
       Copy.create!(edition:, disposition: "owned")
 
-      assert_equal [ "Owned", :success ], EditionCardComponent.new(edition:).status_badge
+      assert_equal [ "Owned", :success ], card(edition).ownership_badge
+    end
+
+    test "reading_badge: open (or paused) beats completed beats dnf, and TBR when there's a copy/reading but no completed status" do
+      work = Work.create!(title: "T", literary_form: "novel")
+
+      owned_unread = Edition.create!
+      Copy.create!(edition: owned_unread, disposition: "owned")
+      assert_equal [ "TBR", :default ], card(owned_unread).reading_badge
+
+      mid_reread = Edition.create!
+      EditionContent.create!(work:, edition: mid_reread)
+      Copy.create!(edition: mid_reread, disposition: "owned")
+      Reading.create!(work:, edition: mid_reread, status: "completed", source: "owned_copy")
+      Reading.create!(work:, edition: mid_reread, status: "reading", source: "owned_copy")
+      assert_equal [ "Reading", :default ], card(mid_reread).reading_badge
+
+      finished = Edition.create!
+      EditionContent.create!(work:, edition: finished)
+      Copy.create!(edition: finished, disposition: "owned")
+      Reading.create!(work:, edition: finished, status: "completed", source: "owned_copy")
+      assert_equal [ "Read", :success ], card(finished).reading_badge
+
+      abandoned = Edition.create!
+      EditionContent.create!(work:, edition: abandoned)
+      Copy.create!(edition: abandoned, disposition: "owned")
+      Reading.create!(work:, edition: abandoned, status: "dnf", source: "owned_copy")
+      assert_equal [ "DNF", :default ], card(abandoned).reading_badge
+    end
+
+    test "reading_badge shows on an unowned library read, and is nil for a catalogue-only edition with no copy and no reading" do
+      work = Work.create!(title: "T", literary_form: "novel")
+      library_read = Edition.create!
+      EditionContent.create!(work:, edition: library_read)
+      Reading.create!(work:, edition: library_read, status: "completed", source: "library")
+
+      assert_equal [ "Read", :success ], card(library_read).reading_badge
+      assert_nil card(library_read).ownership_badge # no copy — not "mine" in the ownership sense
+
+      assert_nil card(Edition.create!).reading_badge # nothing to say about a bare alternate
+    end
+
+    test "status_badges combines ownership and reading, in that order, skipping whichever is nil" do
+      work = Work.create!(title: "T", literary_form: "novel")
+      edition = Edition.create!
+      EditionContent.create!(work:, edition:)
+      Copy.create!(edition:, disposition: "owned")
+      Reading.create!(work:, edition:, status: "completed", source: "owned_copy")
+
+      assert_equal [ [ "Owned", :success ], [ "Read", :success ] ], card(edition).status_badges
+      assert_equal [], card(Edition.create!).status_badges
     end
 
     test "shows a dashed placeholder when no cover is attached" do
@@ -112,7 +172,7 @@ module Ui
       assert_no_selector "[data-action*='cover-picker']"
     end
 
-    test "right-click cover picker rolls out a panel in place (not a <dialog>), one card per source cover" do
+    test "right-click cover picker rolls out a panel in place (not a <dialog>), one large cover per source" do
       edition = Edition.create!
       edition.cover_image.attach(io: StringIO.new(PNG), filename: "current.png", content_type: "image/png")
       isfdb = EnrichmentRecord.create!(entity: edition, provider: "isfdb", external_id: "1", fetched_at: Time.current, raw_payload: {}, fields: {})

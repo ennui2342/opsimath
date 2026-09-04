@@ -135,6 +135,7 @@ A specific printing/format, containing one or more works.
 | `duration_seconds` | audiobooks |
 | `language` | |
 | `cover_image` | an Active Storage attachment, not a bare URL — the image is downloaded and kept, not hotlinked. Consistent with `EnrichmentRecord`'s "keep what was fetched" ethos (principle 10): an ISFDB/OpenLibrary/Wikidata cover URL can and does go stale or disappear over time, and re-fetching later isn't guaranteed to find the same image again |
+| `cover_artist` | free text, `"First, Second"` joined when ISFDB credits more than one. ISFDB-only — genuinely edition-level data (cover art is credited per publication, via ISFDB's own `pub_content`/`COVERART`-title/`canonical_author` chain, confirmed live against the mirror 2026-09-04), unlike everything else `Enrichment::IsfdbEditionEnricher` derives from the title record. Goodreads never proposes it. The `variant_of_edition_id` note above anticipated this column before it existed |
 | `description` | edition-specific blurb/jacket copy, if it differs from the work's |
 | `field_sources` | optional map, same pattern as `Work.field_sources` |
 

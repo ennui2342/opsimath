@@ -107,23 +107,38 @@ shape:
 
 ```
 ┌────────┬─────────────────────────────────┐
-│ [cover]│  Mass market   [Owned]  ← bold  │   format_detail → format → "Edition"
-│  h-32  │  Grafton · 1988 · 471 pages      │   publisher · year · pages, blanks dropped
-│  or a  │                                  │
-│ dashed │  ISBN-13 9780…  ISBN-10 0586…    │   row 1 — ISBNs, plain
-│  "No   │  ISFDB 12345↗  Goodreads 1343↗   │   row 2 — linkable ids
+│ [cover]│  Grafton · 1988 · 471 pages ← bold │  headline: publisher · year · pages
+│  h-32  │                                  │   (falls back to format_line if blank)
+│  or a  │  [Owned]  [Read]                 │   lozenges: ownership, then reading status
+│ dashed │                                  │
+│  "No   │  Mass market · Bruce Pennington │   detail_line, muted: format · cover artist
 │ cover" │                                  │
+│        │  ISBN-13 9780…  ISBN-10 0586…    │   row 1 — ISBNs, plain
+│        │  ISFDB 12345↗  Goodreads 1343↗   │   row 2 — linkable ids
 └────────┴─────────────────────────────────┘
 ```
 
 - Cover keeps the page's existing size (`h-32` on the web work page); a
   missing cover gets the same dashed **"No cover"** placeholder
   `ComparisonCardComponent` uses, so a grid of edition cards aligns.
-- **Status lozenge** next to the format line — `Owned` (`:success` /
-  green) for an edition with an owned `Copy`, otherwise the retired
-  disposition (`Replaced` / `Sold` / … as `:default` / grey, from
-  `Copy::DISPOSITION_LABELS`); nothing for a catalogue-only edition (no
-  copy). An owned copy wins if an edition has both.
+- **`headline`** (bold, top line) is what most distinguishes one printing
+  from another — `publisher · year · pages`. **2026-09-04: promoted above
+  the format line** (Mark's call — format is secondary once you're
+  comparing your own printings against each other). Falls back to
+  `format_line` when there's nothing else yet, so the headline is never
+  blank.
+- **Lozenge row**, `status_badges` — up to two, independent of each
+  other: `ownership_badge` (`Owned` `:success` for an edition with an
+  owned `Copy`, else the retired disposition `:default` from
+  `Copy::DISPOSITION_LABELS`, nil for a catalogue-only edition) and
+  `reading_badge` (`Reading` for an open or paused `Reading`, else `Read`
+  `:success` for any completed one, else `DNF`, else `TBR` — nil only
+  when the edition has *neither* a copy nor a reading, so a bare
+  never-owned alternate doesn't claim a false "TBR" intent).
+- **`detail_line`** (muted, was the old top line) — `format_line` (as
+  before: `format_detail` → `format` → `"Edition"`) plus the ISFDB cover
+  artist when known (`Edition#cover_artist`, joined `"First, Second"` for
+  multiple credits) — `"Mass market · Bruce Pennington"`.
 - The identifier footer is **two mono rows** — ISBNs on the first, the
   linkable ids (`ISFDB`, `Goodreads`) on the second — so it wraps
   predictably instead of interleaving. Order and labels come from
@@ -134,15 +149,18 @@ shape:
 **This layout is shared with the pocket app** (`docs/MOBILE.md`), which
 can't use a ViewComponent — it builds cards in plain JS
 (`pocket.js` `editionCardHtml` / `idFooter`) against CSS classes in
-`pocket.css` (`.edition`, `.edition .fmt`, `.edition .ids`). The two
-implementations track this one spec: same format→lozenge→meta→ids
-hierarchy, same identifier order + two-row split, same
-ISFDB/Goodreads-only linking. `pocket.js`'s `ID_URL` map mirrors
-`EditionIdentifier::EXTERNAL_URL_BY_TYPE` and its `DISPOSITION` map
-mirrors `Copy::DISPOSITION_LABELS`; keep them in step. The snapshot
+`pocket.css` (`.edition`, `.edition .fmt`, `.edition .ids`). **The pocket
+app has not yet been updated for the 2026-09-04 reorg** (headline
+promotion, reading-status lozenges, cover artist) — it still shows the
+pre-reorg format→lozenge→meta hierarchy. Bring it in step next time
+either side of this layout changes, per `feedback_goodreads_path_parity`'s
+same rule for the sync paths — don't let the two drift further. Order and
+ISFDB/Goodreads-only linking stay in sync already: `pocket.js`'s
+`ID_URL` map mirrors `EditionIdentifier::EXTERNAL_URL_BY_TYPE` and its
+`DISPOSITION` map mirrors `Copy::DISPOSITION_LABELS`. The snapshot
 carries per edition: `format_detail`, `page_count`, `disposition`,
 `isbn10/isbn13/isfdb/goodreads` (`Mobile::SnapshotBuilder` `editions`
-table).
+table) — no `cover_artist` there yet either.
 
 When you change the edition layout, change it in both places (or write
 down why they diverge) — same rule as `feedback_goodreads_path_parity`
@@ -262,6 +280,27 @@ active one in `conflict`.
 Turbo-Stream target. `rounded-lg border border-dashed border-gray-300 p-8
 text-center`, a `text-lg font-medium` line, a muted sub-line, a "Back to
 queue" link.
+
+## Flash messages
+
+`layouts/application.html.erb` renders `notice`/`alert` as a full-width
+bar directly under the header, above `<main>` — plain Rails flash, no
+Turbo Stream (it only ever appears after a real page redirect: a
+`PendingDecisionsController`/`EditionReconciliationsController` invalid
+resolution, or `EditionMetadataController#update`'s "Updated Cover image,
+Publisher." summary). Two variants, one per Rails key:
+
+| key | classes | when |
+|---|---|---|
+| `notice` | `border-green-200 bg-green-50 text-green-800` (dark: `border-green-900 bg-green-950 text-green-200`) | a successful action |
+| `alert` | `border-conflict-200 bg-conflict-100 text-conflict-800` (dark: `border-conflict-900 bg-conflict-900 text-conflict-200`) | something needs the reviewer's attention — reuses the `conflict` token, same as everywhere else a "needs a look" state shows up |
+
+**This is app-wide chrome, not a screen concern** — a controller sets
+`notice:`/`alert:` on `redirect_to` and gets the banner for free; no view
+needs to know it exists. Added 2026-09-04 alongside `EditionMetadataController`
+— before this, `flash` was set in a couple of places (`EditionReconciliationsController`'s
+invalid-resolution `alert`) but never actually rendered anywhere, a
+pre-existing gap.
 
 ## Button roles
 

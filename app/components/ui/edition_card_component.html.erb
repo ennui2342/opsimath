@@ -23,7 +23,7 @@
             <%= button_to edition_metadata_path(@edition), method: :patch,
                   params: { field_picks: [ "#{record.provider}:cover_image" ] },
                   class: "block rounded border-2 border-transparent p-0 hover:border-conflict-800 dark:hover:border-conflict-200" do %>
-              <%= image_tag record.cover_image.variant(resize_to_limit: [ 72, 108 ]), class: "rounded", alt: record.provider %>
+              <%= image_tag record.cover_image.variant(resize_to_limit: [ 160, 240 ]), class: "rounded", alt: record.provider %>
               <span class="mt-1 block text-center text-[10px] text-gray-500 dark:text-gray-400"><%= record.provider.humanize %></span>
             <% end %>
           <% end %>
@@ -33,15 +33,18 @@
   </div>
 
   <div class="flex min-w-0 flex-1 flex-col gap-1">
-    <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-      <p class="font-medium text-gray-900 dark:text-gray-100"><%= format_line %></p>
-      <% if (badge = status_badge) %>
-        <%= render(Ui::BadgeComponent.new(text: badge.first, variant: badge.last)) %>
-      <% end %>
-    </div>
+    <p class="font-medium text-gray-900 dark:text-gray-100"><%= headline %></p>
 
-    <% if meta_line.present? %>
-      <p class="text-sm text-gray-500 dark:text-gray-400"><%= meta_line %></p>
+    <% if status_badges.any? %>
+      <div class="flex flex-wrap items-center gap-1.5">
+        <% status_badges.each do |text, variant| %>
+          <%= render(Ui::BadgeComponent.new(text: text, variant: variant)) %>
+        <% end %>
+      </div>
+    <% end %>
+
+    <% if detail_line.present? %>
+      <p class="text-sm text-gray-500 dark:text-gray-400"><%= detail_line %></p>
     <% end %>
 
     <% if isbn_identifiers.any? || link_identifiers.any? %>

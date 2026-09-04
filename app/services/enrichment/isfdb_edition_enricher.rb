@@ -113,6 +113,7 @@ module Enrichment
       format, format_detail = FORMAT_BY_PTYPE[data["binding"].to_s.downcase]
       {
         "publisher" => data["publisher"].presence,
+        "cover_artist" => cover_artist(data),
         "language" => data["language"].presence,
         "page_count" => data["page_count"],
         "publish_date" => (data["publish_date"] if data["publish_date"].to_s.match?(Edition::PUBLISH_DATE_FORMAT)),
@@ -184,6 +185,7 @@ module Enrichment
       format, format_detail = FORMAT_BY_PTYPE[data["binding"].to_s.downcase]
       fields = {
         publisher: data["publisher"],
+        cover_artist: cover_artist(data),
         language: data["language"],
         page_count: data["page_count"],
         publish_date: data["publish_date"],
@@ -232,6 +234,7 @@ module Enrichment
     def apply_fields(data)
       plans = [
         plan_publisher(data["publisher"]),
+        FieldApplier.plan(@edition, :cover_artist, cover_artist(data), "isfdb"),
         FieldApplier.plan(@edition, :language, data["language"], "isfdb"),
         FieldApplier.plan(@edition, :page_count, data["page_count"], "isfdb"),
         plan_publish_date(data["publish_date"]),
@@ -240,6 +243,15 @@ module Enrichment
       ]
 
       SourceRecorder.integrate(plans, entity: @edition, provider: "isfdb")
+    end
+
+    # ISFDB credits cover art per-publication (COVERART title linked via
+    # pub_content, its own canonical_author) — genuinely edition-level,
+    # unlike everything else the adapter derives from the title. Goodreads
+    # never proposes this field. Joined "First, Second" when more than one
+    # artist is credited (real: dust-jacket art + photography, etc).
+    def cover_artist(data)
+      Array(data["cover_artists"]).join(", ").presence
     end
 
     # Confirmed against real PendingDecision data: of 521 publisher

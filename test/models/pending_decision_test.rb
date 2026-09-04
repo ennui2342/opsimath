@@ -153,7 +153,7 @@ class PendingDecisionTest < ActiveSupport::TestCase
     pending = PendingDecision.create!(kind: "enrichment_printing_choice", payload: {
       "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "isbn" => "0586065504",
       "candidates" => [
-        { "_isfdb_pub_id" => 35244, "publisher" => "HarperCollins (UK)", "publish_date" => "1993-10", "binding" => "pb", "page_count" => 464 },
+        { "_isfdb_pub_id" => 35244, "publisher" => "HarperCollins (UK)", "publish_date" => "1993-10", "binding" => "pb", "page_count" => 464, "cover_artists" => [ "Richard Clifton-Dey" ] },
         { "_isfdb_pub_id" => 35246, "publisher" => "Triad Grafton", "publish_date" => "1986-05", "binding" => "pb", "page_count" => 464 }
       ]
     })
@@ -175,6 +175,7 @@ class PendingDecisionTest < ActiveSupport::TestCase
     assert_equal "Mass market", first.fields.find { |f| f.name == "format_detail" }.value
     assert first.cover_selectable # its downloaded cover renders as an <img> + checkbox
     assert_equal "35244.jpg", first.cover.filename.to_s
+    assert_equal "Richard Clifton-Dey", first.fields.find { |f| f.name == "cover_artist" }.value
 
     assert_not second.selected
     assert second.fields_disabled

@@ -95,6 +95,28 @@ module Enrichment
       assert_equal "isfdb", @edition.field_sources["cover_image"]
     end
 
+    test "cover_artists (edition-level, ISFDB-only) fills cover_artist, joining multiple credited artists" do
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(
+        status: 200, body: [ DUNE_RESPONSE.merge(cover_artists: [ "Sara Wood", "Jim Tierney" ]) ].to_json
+      )
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal "Sara Wood, Jim Tierney", @edition.reload.cover_artist
+      assert_equal "isfdb", @edition.field_sources["cover_artist"]
+      assert_equal "Sara Wood, Jim Tierney", EnrichmentRecord.sole.fields["cover_artist"]
+    end
+
+    test "no cover_artists in the response leaves cover_artist blank, not an error" do
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_nil @edition.reload.cover_artist
+    end
+
     test "when an isbn matches multiple isfdb publications, prefers the one whose year matches what's already on file" do
       @edition.update!(publish_date: "1985") # real evidence for which printing this is
       older_printing = DUNE_RESPONSE.merge(publisher: "New English Library", publish_date: "1985", _isfdb_pub_id: 111_111)
@@ -189,6 +211,15 @@ module Enrichment
       assert @edition.cover_image.attached?
       assert_empty PendingDecision.all
       assert_equal "111111", @edition.edition_identifiers.find_by(id_type: "isfdb").value
+    end
+
+    test "commit_choice can pick cover_artist like any other field" do
+      chosen = DUNE_RESPONSE.merge(cover_artists: [ "John Schoenherr" ], _isfdb_pub_id: 111_111)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      IsfdbEditionEnricher.commit_choice(@edition, chosen.deep_stringify_keys, fields: %w[cover_artist])
+
+      assert_equal "John Schoenherr", @edition.reload.cover_artist
     end
 
     test "reprocess re-applies an already-fetched payload without a new EnrichmentRecord or network call" do

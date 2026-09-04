@@ -10,7 +10,7 @@ module Enrichment
       )
       EnrichmentRecord.create!(
         entity: edition, provider: "isfdb", external_id: "2", fetched_at: 1.hour.ago,
-        raw_payload: {}, fields: { "publisher" => "Ace Books", "language" => "eng" }
+        raw_payload: {}, fields: { "publisher" => "Ace Books", "language" => "eng", "cover_artist" => "John Schoenherr" }
       )
 
       cards = EditionMetadataCards.build(edition)
@@ -30,7 +30,8 @@ module Enrichment
       assert_equal [ "publisher" ], goodreads.fields.map(&:name) # only fields this source actually has
 
       isfdb = cards[:sources].find { |c| c.label.start_with?("Isfdb") }
-      assert_equal %w[publisher language], isfdb.fields.map(&:name)
+      assert_equal %w[publisher cover_artist language], isfdb.fields.map(&:name)
+      assert_equal "John Schoenherr", isfdb.fields.find { |f| f.name == "cover_artist" }.value
     end
 
     test "a source's fields are limited to what it actually has, and only an attached cover is offered" do

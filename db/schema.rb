@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_02_212457) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_04_144117) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -136,6 +136,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_02_212457) do
   end
 
   create_table "editions", force: :cascade do |t|
+    t.string "cover_artist"
     t.datetime "created_at", null: false
     t.text "description"
     t.integer "duration_seconds"
