@@ -40,14 +40,33 @@ module Enrichment
   # difference" ceiling and comfortably below most confirmed "same photo"
   # scores — genuinely ambiguous or lower-confidence cases still fall
   # through to a real conflict, same as the sidecar being unreachable does.
+  #
+  # `authoritative: true` skips all of the above and always fills on a
+  # byte difference — for a caller that has already confidently resolved
+  # *which specific printing* this cover belongs to, not just "a cover
+  # from a source we trust." IsfdbEditionEnricher is the one caller that
+  # can say that: its own `enrich` only ever reaches this method after
+  # #resolve_candidate has picked exactly one ISFDB pub for the edition's
+  # ISBN (never a guess among several reprints — that case raises
+  # enrichment_printing_choice instead and never calls this at all). At
+  # that point a differing cover isn't a candidate ambiguity to sanity-
+  # check — it's simply this printing's real cover, which should win
+  # outright over whatever's attached (often a Goodreads user's photo of
+  # a different printing, or no cover at all). Mark, 2026-09-04: "be more
+  # relaxed about auto-accepting an ISBN-matched ISFDB cover" — the
+  # per-edition cog + right-click cover picker (docs/DESIGN_SYSTEM.md)
+  # was built first as the manual fix path for when this trust turns out
+  # to be wrong. Goodreads (no per-printing resolution to anchor on)
+  # keeps the full gate.
   module CoverApplier
     SAME_THRESHOLD = 0.2
     MIN_INLIERS = 350
 
-    def self.plan(record, proposed, source, client: CoverCompareClient.new)
+    def self.plan(record, proposed, source, authoritative: false, client: CoverCompareClient.new)
       return FieldApplier::Plan.new(action: :skipped) unless proposed&.attached?
       return FieldApplier::Plan.new(record: record, field: :cover_image, action: :fill, value: proposed.blob, source: source) unless record.cover_image.attached?
       return FieldApplier::Plan.new(action: :unchanged) if proposed.blob.checksum == record.cover_image.blob.checksum
+      return FieldApplier::Plan.new(record: record, field: :cover_image, action: :fill, value: proposed.blob, source: source) if authoritative
       return FieldApplier::Plan.new(action: :unchanged) if visually_same?(record.cover_image, proposed, client)
 
       FieldApplier::Plan.new(record: record, field: :cover_image, action: :conflict, source: source)

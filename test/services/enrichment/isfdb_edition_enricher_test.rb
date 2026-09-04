@@ -448,26 +448,23 @@ module Enrichment
       assert_equal "Ace Books", @edition.publisher
     end
 
-    test "a cover that differs from the one already attached, with no other field disagreeing, still bundles into an edition mismatch" do
+    test "a cover that differs from the one already attached fills outright — isbn already confidently resolved this exact printing" do
       @edition.cover_image.attach(io: StringIO.new("old-cover-bytes"), filename: "old.jpg", content_type: "image/jpeg")
-      @edition.update!(field_sources: { "cover_image" => "isfdb" }) # already ISFDB-confirmed — worth protecting
+      @edition.update!(field_sources: { "cover_image" => "isfdb" })
       stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE ].to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "new-cover-bytes-from-isfdb", headers: { "Content-Type" => "image/jpeg" })
 
       IsfdbEditionEnricher.enrich(@edition, client: @client)
       @edition.reload
 
-      assert_equal "old-cover-bytes", @edition.cover_image.download # untouched pending review
-      # isfdb's own proposal lives on its EnrichmentRecord regardless —
-      # no separate staging slot needed to compare/accept it later.
-      record = EnrichmentRecord.sole
-      assert_equal "new-cover-bytes-from-isfdb", record.cover_image.download
-
-      decision = PendingDecision.where(kind: "enrichment_conflict").sole
-      # publisher/language/page_count/publish_date/format_detail ride
-      # along too — a cover conflict means the whole match is in
-      # question, so even their blank-destination fills are held back.
-      assert_equal %w[publisher language page_count publish_date format_detail cover_image], decision.payload["fields"]
+      # No candidate ambiguity at this point (a reused isbn would have
+      # raised enrichment_printing_choice instead of ever reaching here)
+      # — so a differing cover is just this printing's real cover,
+      # applied like any other fill, same as publisher/language/etc.
+      assert_equal "new-cover-bytes-from-isfdb", @edition.cover_image.download
+      assert_equal "isfdb", @edition.field_sources["cover_image"]
+      assert_equal "Ace Books", @edition.publisher
+      assert_equal 0, PendingDecision.count
     end
 
     test "a cover that's byte-identical to the one already attached is a no-op, not noise" do
@@ -483,12 +480,12 @@ module Enrichment
       assert_equal 0, PendingDecision.count
     end
 
-    test "a Goodreads-sourced cover that genuinely differs from ISFDB's is a real conflict, not silently replaced" do
-      # Policy simplified deliberately (Mark, 2026-08-08): no per-source
-      # trust hierarchy — a populated cover always goes to review on any
-      # byte difference, regardless of which two sources are involved.
-      # Expected to raise real conflict volume until a genuine image
-      # similarity check exists; that's a follow-up, not a regression.
+    test "isfdb's cover replaces a Goodreads-sourced cover outright, on the strength of the isbn match — not a general trust hierarchy" do
+      # CoverApplier's byte/visual-compare-then-conflict gate is still the
+      # rule for everyone else (see cover_applier_test.rb) — this is
+      # IsfdbEditionEnricher specifically asserting `authoritative: true`,
+      # earned by its own isbn-confident candidate resolution, not ISFDB
+      # simply outranking Goodreads.
       @edition.cover_image.attach(io: StringIO.new("goodreads-cover-bytes"), filename: "gr.jpg", content_type: "image/jpeg")
       @edition.update!(field_sources: { "cover_image" => "goodreads" })
       stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ DUNE_RESPONSE ].to_json)
@@ -497,10 +494,9 @@ module Enrichment
       IsfdbEditionEnricher.enrich(@edition, client: @client)
       @edition.reload
 
-      assert_equal "goodreads-cover-bytes", @edition.cover_image.download # untouched pending review
-      assert_equal "goodreads", @edition.field_sources["cover_image"]
-      decision = PendingDecision.where(kind: "enrichment_conflict").sole
-      assert_includes decision.payload["fields"], "cover_image"
+      assert_equal "new-cover-bytes-from-isfdb", @edition.cover_image.download
+      assert_equal "isfdb", @edition.field_sources["cover_image"]
+      assert_equal 0, PendingDecision.count
     end
 
     test "a cover conflict co-occurring with a real field conflict bundles into one mismatch with both entries" do

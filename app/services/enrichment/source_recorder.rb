@@ -78,8 +78,27 @@ module Enrichment
         create_bundled_decision(plans.select { |p| %i[fill refine conflict].include?(p.action) }, entity: entity, provider: provider)
       else
         plans.select { |p| %i[fill refine].include?(p.action) }.each { |p| commit_plan(p) }
+        resolve_stale_conflict(entity: entity, provider: provider)
       end
     end
+
+    # A fetch that commits cleanly here might be re-processing an entity
+    # that already has an *older* enrichment_conflict decision sitting in
+    # the queue from a previous, genuinely-conflicting fetch (or from a
+    # since-loosened rule — CoverApplier's `authoritative:` cover trust,
+    # 2026-09-04, is exactly this: yesterday's cover byte-difference
+    # conflict is today's silent fill). Leaving that old decision pending
+    # would ask a human to review a disagreement that no longer exists —
+    # its fields already match what's now on file. Close it the same way
+    # a human accepting it would (status: "accepted"), not silently
+    # delete it — the record of what was proposed and resolved stays.
+    def self.resolve_stale_conflict(entity:, provider:)
+      existing = PendingDecision.pending.where(kind: "enrichment_conflict")
+                                 .where("payload @> ?", { entity_type: entity.class.name, entity_id: entity.id, source: provider }.to_json)
+                                 .first
+      existing&.update!(status: "accepted", resolved_at: Time.current)
+    end
+    private_class_method :resolve_stale_conflict
 
     # :fill and :refine commit identically (write the value, record
     # field_sources) — the distinction only matters to the caller

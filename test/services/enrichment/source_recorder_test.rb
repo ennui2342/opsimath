@@ -76,6 +76,35 @@ module Enrichment
       assert_equal 2, PendingDecision.where(kind: "enrichment_conflict").count
     end
 
+    test "a fetch that no longer conflicts resolves a stale enrichment_conflict decision left over from an earlier, genuinely-conflicting fetch" do
+      # Not just a hypothetical: CoverApplier's `authoritative:` cover
+      # trust (2026-09-04) means a fetch that used to bundle into review
+      # purely over a cover byte difference now commits cleanly — this
+      # is what keeps that outcome from leaving a stale, already-moot
+      # decision sitting in the queue forever.
+      edition = Edition.create!(publisher: "Berkley Windhover")
+
+      SourceRecorder.record(entity: edition, provider: "isfdb", external_id: "1", raw_payload: {}, fields: { publisher: "Ace Books" })
+      decision = PendingDecision.where(kind: "enrichment_conflict").sole
+
+      edition.update!(publisher: "Ace Books") # resolved via some other route in the meantime
+      SourceRecorder.record(entity: edition, provider: "isfdb", external_id: "2", raw_payload: {}, fields: { publisher: "Ace Books" })
+
+      assert_equal "accepted", decision.reload.status
+      assert_not_nil decision.resolved_at
+    end
+
+    test "a still-genuine conflict on re-fetch leaves the pending decision alone" do
+      edition = Edition.create!(publisher: "Berkley Windhover")
+
+      SourceRecorder.record(entity: edition, provider: "isfdb", external_id: "1", raw_payload: {}, fields: { publisher: "Ace Books" })
+      decision = PendingDecision.where(kind: "enrichment_conflict").sole
+
+      SourceRecorder.record(entity: edition, provider: "isfdb", external_id: "2", raw_payload: {}, fields: { publisher: "Ace Books" })
+
+      assert_equal "pending", decision.reload.status
+    end
+
     test "a cover conflict bundles into the same enrichment_conflict decision as any other field — proves Goodreads and ISFDB now share one mechanism" do
       edition = Edition.create!
       edition.cover_image.attach(io: StringIO.new("isfdb-bytes"), filename: "old.jpg", content_type: "image/jpeg")

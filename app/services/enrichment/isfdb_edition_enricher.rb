@@ -448,8 +448,19 @@ module Enrichment
     # (see PendingDecisionResolver#apply_cover). The actual fill/conflict
     # decision is shared with every other cover-proposing source — see
     # CoverApplier.
+    #
+    # authoritative: true — by the time apply_fields/plan_cover runs, this
+    # data is always for a specific, ISBN-confidently-resolved ISFDB pub
+    # (enrich bails out entirely without an isbn identifier, and defers to
+    # enrichment_printing_choice instead of calling this at all when more
+    # than one pub shares that isbn — see #resolve_candidate). So a byte
+    # difference here is never "which printing is this," only "ISFDB's
+    # real cover for this exact printing differs from what's on file" —
+    # safe to trust outright rather than routing through the visual-
+    # compare-then-conflict gate CoverApplier otherwise applies. Mark,
+    # 2026-09-04.
     def plan_cover
-      CoverApplier.plan(@edition, enrichment_record&.cover_image, "isfdb")
+      CoverApplier.plan(@edition, enrichment_record&.cover_image, "isfdb", authoritative: true)
     end
   end
 end

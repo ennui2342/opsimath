@@ -77,6 +77,29 @@ module Enrichment
       assert_equal :conflict, plan.action
     end
 
+    test "authoritative: true fills on a genuine difference, bypassing the visual-compare gate entirely" do
+      edition = Edition.create!
+      edition.cover_image.attach(io: StringIO.new("isfdb-bytes"), filename: "old.jpg", content_type: "image/jpeg")
+      proposed = attached_cover("goodreads-bytes")
+      spy_client = FakeCompareClient.new(ratio: 0.9) # would answer "same" if asked — asserting it's never asked
+
+      plan = CoverApplier.plan(edition, proposed, "isfdb", authoritative: true, client: spy_client)
+
+      assert_equal :fill, plan.action
+      assert_equal "isfdb", plan.source
+      assert_equal proposed.blob, plan.value
+    end
+
+    test "authoritative: true is still unchanged on a byte-identical cover — nothing to overwrite" do
+      edition = Edition.create!
+      edition.cover_image.attach(io: StringIO.new("same-bytes"), filename: "old.jpg", content_type: "image/jpeg")
+      proposed = attached_cover("same-bytes")
+
+      plan = CoverApplier.plan(edition, proposed, "isfdb", authoritative: true)
+
+      assert_equal :unchanged, plan.action
+    end
+
     test "plans skipped when nothing is proposed" do
       edition = Edition.create!
 
