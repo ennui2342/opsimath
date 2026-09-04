@@ -254,8 +254,8 @@ class PendingDecision < ApplicationRecord
     end
     identifiers = record.edition_identifiers.map { |i| [ ID_TYPE_LABELS.fetch(i.id_type, i.id_type.upcase), i.value ] }
 
-    Card.new(label: "Edition · in catalog", proposed: false, cover: record.cover_image, cover_selectable: false,
-             show_empty_cover: true, fields: fields, identifiers: identifiers)
+    Card.new(label: "Edition · in catalog", proposed: false, cover: record.cover_image, cover_chip: record.field_sources["cover_image"],
+             cover_selectable: false, show_empty_cover: true, fields: fields, identifiers: identifiers)
   end
 
   # One EnrichmentRecord per (edition, provider) now (see

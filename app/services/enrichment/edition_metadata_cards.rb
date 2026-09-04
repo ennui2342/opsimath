@@ -31,7 +31,8 @@ module Enrichment
       end
       identifiers = EditionIdentifier.for_display(@edition.edition_identifiers).map { |i| [ ID_TYPE_LABELS.fetch(i.id_type, i.id_type.upcase), i.value ] }
 
-      Card.new(label: "Edition · in catalog", cover: @edition.cover_image, show_empty_cover: true, fields: fields, identifiers: identifiers)
+      Card.new(label: "Edition · in catalog", cover: @edition.cover_image, cover_chip: @edition.field_sources["cover_image"],
+               show_empty_cover: true, fields: fields, identifiers: identifiers)
     end
 
     # Every field this source knows is pickable — not gated to "the one

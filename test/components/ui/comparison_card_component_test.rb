@@ -81,6 +81,25 @@ module Ui
       assert_selector "img"
     end
 
+    test "renders the cover's provenance chip when present" do
+      edition = Edition.create!
+      edition.cover_image.attach(io: StringIO.new("bytes"), filename: "cover.jpg", content_type: "image/jpeg")
+      card = PendingDecision::Card.new(label: "Edition · in catalog", cover: edition.cover_image, cover_chip: "isfdb", fields: [])
+
+      render_inline(ComparisonCardComponent.new(card: card))
+
+      assert_text "isfdb"
+    end
+
+    test "renders no cover chip when nothing is attached, even if cover_chip is set" do
+      edition = Edition.create!
+      card = PendingDecision::Card.new(label: "Edition · in catalog", cover: edition.cover_image, cover_chip: "isfdb", show_empty_cover: true, fields: [])
+
+      render_inline(ComparisonCardComponent.new(card: card))
+
+      assert_no_text "isfdb"
+    end
+
     test "renders a placeholder instead of an image when show_empty_cover is true and nothing is attached" do
       edition = Edition.create!
       card = PendingDecision::Card.new(label: "Edition · in catalog", cover: edition.cover_image, show_empty_cover: true, fields: [])

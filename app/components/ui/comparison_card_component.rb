@@ -18,6 +18,8 @@ module Ui
   # - proposed        — flags the card that raised the decision (conflict ring + header tint)
   # - cover           — an ActiveStorage attachment to show
   # - cover_url       — a remote image URL to show instead (feed rows / un-downloaded candidates)
+  # - cover_chip      — provenance badge under the cover (which provider it came from) —
+  #   the cover's equivalent of a FieldRow's `chip`; only rendered when `cover` is attached
   # - cover_selectable — render the "Apply this cover" checkbox on the cover
   # - show_empty_cover — draw the "No cover" placeholder when nothing's attached
   # - fields          — FieldRows; a selectable one gets a checkbox (fields[] by default)
@@ -43,7 +45,7 @@ module Ui
   #   by accident.
   class ComparisonCardComponent < ApplicationComponent
     Card = Struct.new(
-      :label, :meta, :proposed, :cover, :cover_url, :cover_selectable, :show_empty_cover,
+      :label, :meta, :proposed, :cover, :cover_url, :cover_chip, :cover_selectable, :show_empty_cover,
       :fields, :identifiers, :info_note, :select_name, :select_value, :selected,
       :input_scope, :fields_disabled, :field_value_prefix, :fields_start_checked,
       keyword_init: true

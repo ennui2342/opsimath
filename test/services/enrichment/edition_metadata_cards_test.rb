@@ -3,7 +3,8 @@ require "test_helper"
 module Enrichment
   class EditionMetadataCardsTest < ActiveSupport::TestCase
     test "a reference card for the edition, plus one selectable card per known source" do
-      edition = Edition.create!(publisher: "Ace Books", format: "paperback")
+      edition = Edition.create!(publisher: "Ace Books", format: "paperback", field_sources: { "cover_image" => "isfdb" })
+      edition.cover_image.attach(io: StringIO.new("bytes"), filename: "c.jpg", content_type: "image/jpeg")
       EnrichmentRecord.create!(
         entity: edition, provider: "goodreads", external_id: "1", fetched_at: 1.day.ago,
         raw_payload: {}, fields: { "publisher" => "Ace" }
@@ -18,6 +19,7 @@ module Enrichment
       assert_equal "Edition · in catalog", cards[:edition].label
       assert_equal "Ace Books", cards[:edition].fields.find { |f| f.name == "publisher" }.value
       assert(cards[:edition].fields.none?(&:selectable)) # reference only
+      assert_equal "isfdb", cards[:edition].cover_chip
 
       labels = cards[:sources].map(&:label)
       assert_equal [ "Goodreads · on file", "Isfdb · on file" ], labels

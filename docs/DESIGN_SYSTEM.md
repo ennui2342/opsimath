@@ -68,6 +68,7 @@ logic (`PendingDecision#comparison_cards` / `#printing_choice_cards` /
 | `proposed` | flags the card that raised the decision — conflict ring + tinted header |
 | `cover` | an ActiveStorage attachment to show |
 | `cover_url` | a remote image URL to show instead (incoming feed rows have no attachment) |
+| `cover_chip` | provenance badge under the cover (which provider it came from) — a `FieldRow`'s `chip`, for the cover; only shown when `cover` is attached |
 | `cover_selectable` | render the "Apply this cover" checkbox over the cover |
 | `show_empty_cover` | draw the dashed "No cover" placeholder when nothing is attached |
 | `fields` | `FieldRow`s; a `selectable` one gets a pre-checked `fields[]` checkbox and the conflict highlight |

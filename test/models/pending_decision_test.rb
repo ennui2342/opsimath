@@ -86,7 +86,7 @@ class PendingDecisionTest < ActiveSupport::TestCase
   end
 
   test "comparison_cards builds an edition card, a card per other provider, and the proposing card" do
-    edition = Edition.create!(publisher: "Orbit", publish_date: "2001", language: "eng", page_count: 502, field_sources: { "publisher" => "goodreads" })
+    edition = Edition.create!(publisher: "Orbit", publish_date: "2001", language: "eng", page_count: 502, field_sources: { "publisher" => "goodreads", "cover_image" => "isfdb" })
     edition.cover_image.attach(io: StringIO.new("current-bytes"), filename: "current.jpg", content_type: "image/jpeg")
     EnrichmentRecord.create!(entity: edition, provider: "goodreads", external_id: "1", fetched_at: 1.day.ago, raw_payload: {}, fields: { "publisher" => "Orbit", "format_detail" => nil })
     isfdb = EnrichmentRecord.create!(entity: edition, provider: "isfdb", external_id: "2", fetched_at: 1.hour.ago, raw_payload: {}, fields: { "publisher" => "Orbit / Little, Brown UK", "publish_date" => "2005", "language" => "eng" })
@@ -101,6 +101,7 @@ class PendingDecisionTest < ActiveSupport::TestCase
     assert_equal "Orbit", cards[:edition].fields.find { |f| f.name == "publisher" }.value
     assert_equal "goodreads", cards[:edition].fields.find { |f| f.name == "publisher" }.chip
     assert_equal edition.cover_image.blob, cards[:edition].cover.blob
+    assert_equal "isfdb", cards[:edition].cover_chip
 
     other = cards[:others].sole
     assert_equal "Goodreads · on file", other.label
