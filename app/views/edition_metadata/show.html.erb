@@ -2,17 +2,17 @@
 
 <div class="w-full max-w-5xl">
   <div class="mb-4">
-    <%= render(Ui::BadgeComponent.new(text: @edition.works.map(&:title).join(", ").presence || "Edition ##{@edition.id}")) %>
+    <%= render(Ui::BadgeComponent.new(text: [ @edition.format_detail, @edition.format ].compact.map(&:humanize).first || "Edition")) %>
   </div>
   <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
-    <%= [ @edition.format_detail, @edition.format ].compact.map(&:humanize).first || "Edition" %>
+    <%= @edition.works.map(&:title).join(", ").presence || "Edition ##{@edition.id}" %>
   </h1>
   <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
     <%= @edition.works.flat_map { |w| w.work_contributors.where(role: "author").map { |wc| wc.contributor.name } }.uniq.join(", ").presence || "Unknown author" %>
   </p>
 
   <% if @cards[:sources].empty? %>
-    <p class="mb-6 rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-gray-600 dark:text-gray-400">
+    <p class="mb-6 rounded-lg border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500 dark:border-gray-600 dark:text-gray-400">
       No other sources on file for this edition yet.
     </p>
   <% else %>

@@ -1225,8 +1225,9 @@ for that edition — reference card plus one selectable card per
 (mix cover from ISFDB with publisher kept as catalogued, say) — see
 `docs/DESIGN_SYSTEM.md`'s `Ui::EditionCardComponent` section for the
 mechanics. A right-click on the cover is the fast path for the single
-most common correction: a native `<dialog>` listing just the covers on
-file, one click to swap.
+most common correction: a panel rolls out in place from the cover
+(not a centered `<dialog>`) listing just the covers on file, one click
+to swap.
 
 This is deliberately not a `PendingDecision` — nothing is "resolved,"
 there's no queue, and it's available for any edition at any time,

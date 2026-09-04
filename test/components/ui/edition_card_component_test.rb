@@ -108,11 +108,11 @@ module Ui
 
       render_inline(EditionCardComponent.new(edition:))
 
-      assert_no_selector "dialog"
+      assert_no_selector "[data-cover-picker-target='panel']"
       assert_no_selector "[data-action*='cover-picker']"
     end
 
-    test "right-click cover picker lists a card per source cover, posting to edition_metadata" do
+    test "right-click cover picker rolls out a panel in place (not a <dialog>), one card per source cover" do
       edition = Edition.create!
       edition.cover_image.attach(io: StringIO.new(PNG), filename: "current.png", content_type: "image/png")
       isfdb = EnrichmentRecord.create!(entity: edition, provider: "isfdb", external_id: "1", fetched_at: Time.current, raw_payload: {}, fields: {})
@@ -120,9 +120,10 @@ module Ui
 
       render_inline(EditionCardComponent.new(edition: edition.reload))
 
+      assert_no_selector "dialog" # not a native dialog — starts hidden, positioned relative to the cover
       assert_selector "img[data-action='contextmenu->cover-picker#open']"
-      assert_selector "dialog[data-cover-picker-target='dialog']"
-      assert_selector "dialog form[action='#{Rails.application.routes.url_helpers.edition_metadata_path(edition)}'] input[value='isfdb:cover_image']", visible: false
+      assert_selector "[data-cover-picker-target='panel'][hidden].absolute", visible: false
+      assert_selector "[data-cover-picker-target='panel'] form[action='#{Rails.application.routes.url_helpers.edition_metadata_path(edition)}'] input[value='isfdb:cover_image']", visible: false
       assert_text "Isfdb"
     end
 

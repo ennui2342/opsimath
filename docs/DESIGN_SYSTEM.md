@@ -99,35 +99,6 @@ Three selection idioms:
   card. `fields_start_checked: false` starts every box unticked (unlike
   the other idioms, nothing here is "the" proposal to trust by default).
 
-### `Ui::EditionCardComponent` → reconcile this edition (the cog + the cover picker)
-
-Every edition card carries a small cog in its bottom-right corner, linking
-to `EditionMetadataController#show` (`/editions/:id/metadata`) — an
-on-demand comparison-review screen, always available, not gated behind a
-raised `PendingDecision`. It's `Enrichment::EditionMetadataCards#build`
-feeding the same `Ui::ComparisonCardComponent`: a reference "Edition · in
-catalog" card (not selectable) plus one selectable card per
-`EnrichmentRecord` source on file — *every* field pickable from *every*
-source (unlike `PendingDecision#comparison_cards`, which only makes the
-one proposing source's fields selectable). Submitting applies each ticked
-field straight from its named source
-(`Enrichment::EditionMetadataResolver`) — no `FieldApplier` conflict gate,
-the reviewer already chose in front of the full comparison, same trust
-`EditionReconciliationResolver`/`IsfdbEditionEnricher#commit_choice`
-extend to a direct pick. Redirects back to the book page with a flash
-summary (`layouts/application.html.erb` now renders `notice`/`alert`).
-
-**Quick shortcut — right-click the cover.** `cover_picker_controller.js`
-intercepts `contextmenu` on the cover image (only wired when
-`EditionCardComponent#cover_choices` — sources with a cover on
-file — is non-empty) and opens a native `<dialog>` listing just the
-covers, one per source. Picking one submits a single
-`"<provider>:cover_image"` pick straight to the same
-`EditionMetadataController#update` the full page uses — no separate
-endpoint. This is the fast path for "I'm relaxed about trusting an
-ISBN-matched ISFDB cover most of the time, but want an easy escape hatch
-per book" (docs/INTEGRATIONS.md's cover-conflict addendum).
-
 ### `Ui::EditionCardComponent`
 
 One edition (a printing), laid out the same way everywhere it appears —
@@ -176,6 +147,50 @@ table).
 When you change the edition layout, change it in both places (or write
 down why they diverge) — same rule as `feedback_goodreads_path_parity`
 for the sync paths.
+
+#### Reconcile this edition — the corner cog
+
+Every edition card carries a small **cog** in its bottom-right corner
+(`text-gray-300 hover:text-gray-600`, `absolute bottom-2 right-2`, inline
+SVG, `h-4 w-4`, `aria-label`) — the first icon-only affordance in the
+app; reuse this exact treatment for the next one rather than inventing a
+size/color/position from scratch. It links to
+`EditionMetadataController#show` (`/editions/:id/metadata`) — an
+on-demand comparison-review screen, always available, not gated behind a
+raised `PendingDecision`. `Enrichment::EditionMetadataCards#build` feeds
+the same `Ui::ComparisonCardComponent`: a reference "Edition · in
+catalog" card (not selectable) plus one selectable card per
+`EnrichmentRecord` source on file — *every* field pickable from *every*
+source (unlike `PendingDecision#comparison_cards`, which only makes the
+one proposing source's fields selectable — see the 4th selection idiom
+above). Submitting applies each ticked field straight from its named
+source (`Enrichment::EditionMetadataResolver`) — no `FieldApplier`
+conflict gate, the reviewer already chose in front of the full
+comparison. Redirects back to the book page with a flash summary
+(`layouts/application.html.erb` renders `notice`/`alert`). Header follows
+the standard comparison-review shape exactly: badge = a short descriptor
+(here the edition's format, standing in for "kind"), h1 = the work title,
+subtitle = authors — **don't put the subject in the badge**, that's the
+one thing the first cut of this screen got backwards.
+
+**Quick shortcut — right-click the cover.** A small panel rolls out *in
+place* from the cover (`cover_picker_controller.js`), not a centered
+`<dialog>` — deliberately: a native `<dialog>`'s `showModal()` centers
+in the viewport (Tailwind's preflight resets `margin: 0`, which breaks
+even that), landing top-left and reading as a stray unstyled box, plus a
+full backdrop is more takeover than a two-cover pick warrants. Instead:
+a plain `absolute left-0 top-0` panel anchored to a `relative` wrapper
+around the cover, `hidden` by default, `scale-95 opacity-0` as its
+JS-toggled "closed" transition state (`origin-top-left`, so it visibly
+unfurls from the cover's corner) — click-outside and Escape close it,
+handled in the controller since there's no native dialog light-dismiss
+to lean on. Only wired when `EditionCardComponent#cover_choices` (sources
+with a cover on file) is non-empty. Picking a cover submits a single
+`"<provider>:cover_image"` pick straight to the same
+`EditionMetadataController#update` the full page uses — no separate
+endpoint. This is the fast path for "relaxed about trusting an
+ISBN-matched ISFDB cover most of the time, but want an easy escape hatch
+per book" (docs/INTEGRATIONS.md's cover-conflict addendum).
 
 ### `Ui::MarkdownComponent`
 
