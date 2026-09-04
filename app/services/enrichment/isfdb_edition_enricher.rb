@@ -58,6 +58,17 @@ module Enrichment
       new(edition, client: nil).reprocess(data)
     end
 
+    # Public wrapper around the private #resolve_candidate — the same
+    # "confident pick" logic `enrich` uses on a fresh fetch, exposed for
+    # `isfdb:resolve_duplicate_printings` to re-run against an already-
+    # raised enrichment_printing_choice decision's stored candidates
+    # (no new isfdb-adapter fetch needed; the candidates are already on
+    # the decision's payload). Returns the winning raw candidate hash, or
+    # nil if this is still a genuine "which one do I own" question.
+    def self.resolve_candidate_for(edition, candidates)
+      new(edition, client: nil).send(:resolve_candidate, candidates)
+    end
+
     def initialize(edition, client:)
       @edition = edition
       @client = client
@@ -356,22 +367,87 @@ module Enrichment
     # 1,493 of opsimath's own ISFDB-matched ISBNs hit this). isfdb-adapter
     # returns every candidate, most-recent-printing-first.
     #
-    # Confident pick: exactly one candidate, OR exactly one whose publish
-    # year matches what's already on file (year-level, not full EDTF
-    # precision — either side commonly knows only the year). Anything else
-    # — no year on file (true for every RSS-auto-created edition), the
-    # year matching none, or the year matching several — returns nil, and
-    # `enrich` raises an enrichment_printing_choice decision rather than
-    # guessing which printing the collector actually holds. Mark,
-    # 2026-09-03: don't guess; show all the printings as cards.
+    # Confident pick, tried in order: exactly one candidate; exactly one
+    # whose publish year matches what's already on file (year-level, not
+    # full EDTF precision — either side commonly knows only the year);
+    # or — 2026-09-04, a real finding — every candidate actually
+    # describing the *same* edition, just as separate ISFDB pub records
+    # (a collaborative wiki: independent contributors re-entering a
+    # printing they already had, one submission more complete than the
+    # last). Confirmed against the real pending backlog: 74% of every
+    # "which printing" decision raised had candidates agreeing on
+    # publisher/binding/page count and differing only in how much of the
+    # rest they'd filled in — not a genuine "which one do I own" question
+    # at all. See #same_edition? for exactly what "the same" requires.
+    # Anything else — no year on file (true for every RSS-auto-created
+    # edition), the year matching none or several, and genuinely
+    # different candidates — returns nil, and `enrich` raises an
+    # enrichment_printing_choice decision rather than guessing which
+    # printing the collector actually holds. Mark, 2026-09-03: don't
+    # guess; show all the printings as cards.
     def resolve_candidate(candidates)
       return candidates.first if candidates.one?
 
       known_year = @edition.publish_date.presence&.slice(0, 4)
-      return nil unless known_year
+      if known_year
+        matches = candidates.select { |c| c["publish_date"].to_s.start_with?(known_year) }
+        return matches.first if matches.one?
+      end
 
-      matches = candidates.select { |c| c["publish_date"].to_s.start_with?(known_year) }
-      matches.one? ? matches.first : nil
+      richest_candidate(candidates) if same_edition?(candidates)
+    end
+
+    # Same binding (compared raw — an unmapped ptype maps to the same nil
+    # `FORMAT_BY_PTYPE` result as any other unmapped one, which would
+    # otherwise read as a false match), the same publisher once the
+    # existing non-distinguishing-variant normalization is applied
+    # pairwise, and page counts within PAGE_COUNT_TOLERANCE of each
+    # other. Mark, 2026-09-04, on that last one: page count is the least
+    # interesting field here, ambiguous to count in the first place on a
+    # collaborative wiki — a small variance is almost certainly a
+    # counting difference between contributors, not evidence of a
+    # separate printing, and it's the detail that matters least even
+    # when it does turn out to differ genuinely.
+    def same_edition?(candidates)
+      return false unless candidates.map { |c| c["binding"].to_s.downcase }.uniq.one?
+
+      candidates.map { |c| c["publisher"] }.combination(2).all? { |a, b| publisher_equivalent?(a, b) } &&
+        page_counts_equivalent?(candidates)
+    end
+
+    def publisher_equivalent?(a, b)
+      return true if normalize_name(a) == normalize_name(b)
+
+      substring_variant?(a, b) && non_distinguishing_variant?(a, b)
+    end
+
+    PAGE_COUNT_TOLERANCE = 0.1 # 10% of the larger count — see #same_edition?
+
+    def page_counts_equivalent?(candidates)
+      pages = candidates.filter_map { |c| c["page_count"] }.uniq
+      return true if pages.size <= 1
+
+      (pages.max - pages.min) <= pages.max * PAGE_COUNT_TOLERANCE
+    end
+
+    # Among equivalent candidates, prefer the one that actually says the
+    # most — most precise publish_date (the string's own length is its
+    # precision, same signal #plan_publish_date already trusts), then
+    # whichever else has more of the fields this enricher cares about
+    # filled in. Never the isfdb-adapter's own "most recent" default —
+    # completeness, not recency, is what separates these once they're
+    # already confirmed to be the same printing.
+    def richest_candidate(candidates)
+      candidates.max_by { |c| candidate_completeness(c) }
+    end
+
+    def candidate_completeness(c)
+      [
+        c["publish_date"].to_s.length,
+        Array(c["cover_artists"]).any? ? 1 : 0,
+        c["language"].present? ? 1 : 0,
+        c["page_count"].present? ? 1 : 0
+      ]
     end
 
     def substring_variant?(a, b)

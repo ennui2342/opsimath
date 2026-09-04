@@ -1220,6 +1220,52 @@ values" call in front of the full comparison. This is deliberately
 *upstream* of the field-level `enrichment_conflict` bundling: pick the
 right record first, then there's nothing left to dispute.
 
+#### Addendum: most "reused ISBN" cases aren't ambiguous at all
+
+Mark, looking at the real queue (2026-09-04): "the editions I'm choosing
+between are often identical except maybe missing a field or two... they
+seem to be the same record, just with better info rather than a different
+printing." Confirmed by sweeping every pending `enrichment_printing_choice`
+decision: **74%** had candidates agreeing on publisher, binding, and page
+count, differing only in how completely each had been filled in — ISFDB
+is a collaborative wiki, and independent contributors re-enter a printing
+they already have on their own shelf rather than editing the existing
+record. That's not a "which one do I own" question; it's ISFDB's own data
+duplication being surfaced as if it were one.
+
+`#resolve_candidate` gained a third tier, tried after the exact-candidate
+and known-year cases and before giving up to a human: `#same_edition?`
+treats every candidate as one real printing when they share the same raw
+`binding` string, the same publisher once the existing
+non-distinguishing-variant normalization (`#non_distinguishing_variant?`)
+is applied pairwise, and page counts within `PAGE_COUNT_TOLERANCE` (10%
+of the larger count) of each other. Mark on that last one: page count is
+ambiguous to count on a collaborative wiki in the first place, a small
+variance is almost certainly a counting difference between contributors
+rather than a separate printing, and it's the least interesting field to
+get right even on the rare occasion it does turn out to differ for real.
+When every candidate clears that bar, `#richest_candidate` applies the
+one that actually says the most — most precise `publish_date` first (the
+string's own length is its precision, the same signal `#plan_publish_date`
+already trusts), then whichever else has more of the fields this enricher
+tracks filled in — rather than isfdb-adapter's own "most recent" default,
+which has no bearing on which record is most *complete*.
+
+This is a `resolve_candidate` change, so it takes effect automatically on
+every future enrichment; it doesn't retroactively touch a decision
+already sitting in the queue under the old, stricter rule. Those get
+swept once via `bin/rails isfdb:resolve_duplicate_printings` — re-runs
+`same_edition?` against each pending decision's already-stored candidates
+(no new isfdb-adapter fetch) and auto-accepts (`PendingDecisionResolver.accept`,
+same code path a human's own click would take) whichever now resolve,
+leaving genuinely ambiguous ones exactly as they were. Side fix found
+while wiring the sweep up: `accept_printing_choice`'s fallback field list
+(used only when a caller doesn't pass `selected_fields` explicitly — the
+real review form always does) was missing `cover_artist` — a decision
+accepted programmatically with no explicit fields would silently never
+apply it. Now reuses `PendingDecision::EDITION_FIELD_ORDER` directly
+instead of a second, drifted-from-it copy of the same list.
+
 ### Addendum: reconciling an edition on demand, not just when something raised a conflict
 
 The publisher-sweep analysis (2026-09-04) found the pending

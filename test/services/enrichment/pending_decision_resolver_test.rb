@@ -201,6 +201,22 @@ module Enrichment
       assert_empty PendingDecision.pending
     end
 
+    test "accepting an enrichment_printing_choice with no explicit fields applies every EDITION_FIELD_ORDER field, cover_artist included" do
+      edition = Edition.create!(publisher: "Wrong On File")
+      pending = PendingDecision.create!(kind: "enrichment_printing_choice", payload: {
+        "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "isbn" => "0586065504",
+        "candidates" => [
+          { "_isfdb_pub_id" => 35246, "publisher" => "Triad Grafton", "publish_date" => "1986-05", "binding" => "pb",
+            "page_count" => 464, "cover_artists" => [ "Richard Clifton-Dey" ], "cover_url" => nil }
+        ]
+      })
+
+      PendingDecisionResolver.accept(pending, pub_id: "35246") # no selected_fields
+
+      assert_equal "Richard Clifton-Dey", edition.reload.cover_artist
+      assert_equal "Triad Grafton", edition.publisher
+    end
+
     test "rejecting an enrichment_printing_choice leaves the edition alone" do
       edition = Edition.create!(publisher: "Untouched")
       pending = PendingDecision.create!(kind: "enrichment_printing_choice", payload: {

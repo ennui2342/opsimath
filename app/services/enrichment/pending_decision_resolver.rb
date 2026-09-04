@@ -73,7 +73,13 @@ module Enrichment
       candidate = (@pending_decision.payload["candidates"] || []).find { |c| c["_isfdb_pub_id"].to_s == pub_id.to_s }
       raise ArgumentError, "no ISFDB candidate #{pub_id.inspect} in decision #{@pending_decision.id}" unless candidate
 
-      fields = selected_fields.presence || %w[format format_detail publisher publish_date language page_count cover_image]
+      # 2026-09-04 fix: this default (used only when no explicit selection
+      # comes in — the real browser form always submits one checkbox per
+      # field actually shown, so this only matters for a programmatic
+      # accept like isfdb:resolve_duplicate_printings) was missing
+      # cover_artist, silently dropping it whenever a caller didn't pass
+      # fields itself.
+      fields = selected_fields.presence || PendingDecision::EDITION_FIELD_ORDER + %w[cover_image]
       Enrichment::IsfdbEditionEnricher.commit_choice(
         record, candidate, fields: fields, cover_blob: @pending_decision.candidate_cover(pub_id)&.blob
       )

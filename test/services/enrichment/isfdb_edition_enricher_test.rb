@@ -196,6 +196,91 @@ module Enrichment
       assert_equal 2, PendingDecision.sole.candidate_covers.count # not re-attached on the second pass
     end
 
+    # #same_edition? — 2026-09-04, confirmed against the real pending
+    # backlog: 74% of raised printing-choice decisions were several ISFDB
+    # pub records for the exact same real printing (a collaborative wiki
+    # re-entered independently), not a genuine "which one do I own"
+    # question. These merge automatically instead of asking a human.
+
+    test "duplicate isfdb records agreeing on everything but publish_date precision merge, preferring the more precise one" do
+      less_precise = DUNE_RESPONSE.merge(_isfdb_pub_id: 111_111, publish_date: "2010")
+      more_precise = DUNE_RESPONSE.merge(_isfdb_pub_id: 222_222, publish_date: "2010-06")
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ less_precise, more_precise ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      result = IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal :success, result.status
+      assert_empty PendingDecision.where(kind: "enrichment_printing_choice")
+      assert_equal "2010-06", @edition.reload.publish_date
+      assert_equal 222_222, EnrichmentRecord.sole.raw_payload["_isfdb_pub_id"]
+    end
+
+    test "duplicate isfdb records tied on publish_date merge, preferring the one with a cover artist credited" do
+      no_artist = DUNE_RESPONSE.merge(_isfdb_pub_id: 111_111)
+      with_artist = DUNE_RESPONSE.merge(_isfdb_pub_id: 222_222, cover_artists: [ "John Schoenherr" ])
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ no_artist, with_artist ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      result = IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal :success, result.status
+      assert_empty PendingDecision.where(kind: "enrichment_printing_choice")
+      assert_equal "John Schoenherr", @edition.reload.cover_artist
+      assert_equal 222_222, EnrichmentRecord.sole.raw_payload["_isfdb_pub_id"]
+    end
+
+    test "a non-distinguishing publisher variant across duplicate isfdb records still merges automatically" do
+      plain = DUNE_RESPONSE.merge(_isfdb_pub_id: 111_111, publisher: "Ace Books")
+      joined_imprint = DUNE_RESPONSE.merge(_isfdb_pub_id: 222_222, publisher: "Ace Books / Berkley", cover_artists: [ "X" ])
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ plain, joined_imprint ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      result = IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal :success, result.status
+      assert_empty PendingDecision.where(kind: "enrichment_printing_choice")
+      assert_equal "Ace Books / Berkley", @edition.reload.publisher # the richer (more complete) candidate won
+    end
+
+    test "a small page-count variance between duplicate isfdb records still merges — the least reliable, least important field here" do
+      a = DUNE_RESPONSE.merge(_isfdb_pub_id: 111_111, page_count: 883)
+      b = DUNE_RESPONSE.merge(_isfdb_pub_id: 222_222, page_count: 900, cover_artists: [ "X" ]) # ~1.9% apart, richer wins
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ a, b ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      result = IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal :success, result.status
+      assert_empty PendingDecision.where(kind: "enrichment_printing_choice")
+      assert_equal 900, @edition.reload.page_count
+    end
+
+    test "a page-count difference beyond the tolerance still raises for review — a real physical difference, not counting noise" do
+      a = DUNE_RESPONSE.merge(_isfdb_pub_id: 111_111, page_count: 300)
+      b = DUNE_RESPONSE.merge(_isfdb_pub_id: 222_222, page_count: 900)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ a, b ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      result = IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal :needs_review, result.status
+      assert_equal "enrichment_printing_choice", PendingDecision.sole.kind
+    end
+
+    test "resolve_candidate_for re-evaluates an already-raised decision's stored candidates without a new fetch" do
+      edition = Edition.create!
+      candidates = [
+        DUNE_RESPONSE.merge(_isfdb_pub_id: 111_111).stringify_keys,
+        DUNE_RESPONSE.merge(_isfdb_pub_id: 222_222, cover_artists: [ "X" ]).stringify_keys
+      ]
+
+      winner = IsfdbEditionEnricher.resolve_candidate_for(edition, candidates)
+
+      assert_equal 222_222, winner["_isfdb_pub_id"]
+      assert_not_requested :get, /isfdb-adapter/
+    end
+
     test "commit_choice applies only the checked fields from the chosen candidate, no conflict gate" do
       @edition.update!(publisher: "Wrong Publisher On File") # would normally be a conflict
       chosen = DUNE_RESPONSE.merge(publisher: "New English Library", publish_date: "1985", page_count: 412, _isfdb_pub_id: 111_111)
