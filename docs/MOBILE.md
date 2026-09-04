@@ -77,10 +77,13 @@ entries      id ("work:<id>" | "wishlist:<id>"), kind, title, subtitle,
              search_title, search_author, search_series,
              isbn10, isbn13          -- entry-level: kind='wishlist' only
 editions     entry_id, format, format_detail, publisher, year,
-             page_count, disposition, isbn10, isbn13, isfdb, goodreads, thumb
+             page_count, disposition, cover_artist, reading_status,
+             isbn10, isbn13, isfdb, goodreads, thumb
                                      -- kind='work' only; every edition of the work a Copy has
                                      -- passed through (owned + retired: replaced/sold/…); 1..n
-                                     -- disposition: drives the per-card lozenge (owned first)
+                                     -- disposition: drives the ownership lozenge (owned first)
+                                     -- reading_status: reading/read/dnf/tbr, same precedence as the
+                                     --   web card's reading_badge (Mobile::ShopView#reading_status_of)
                                      -- isfdb/goodreads: the linkable ids for the shared edition-card footer
 isbn_index   isbn13, entry_id, edition_id   -- every ISBN form folded to 13
 meta         version, generated_at
@@ -210,14 +213,17 @@ snapshot is still fully functional.
 - **Result**: one of three states, unambiguous and glanceable —
   - **Owned** — a work header (title / series / author · year) followed by
     one **edition card per printing a copy has passed through**, each in
-    the shared edition layout (`docs/DESIGN_SYSTEM.md` "Edition card"):
-    cover thumbnail, bold format line, its own **OWNED / REPLACED / …
-    lozenge**, `publisher · year · pages`, and the two-row identifier
-    footer with ISFDB / Goodreads hyperlinked. A scan/ISBN that resolved
-    via a sibling ISBN (you own a *different* printing) still reads Owned,
-    with a "you own a different edition" line above the title; the matched
-    card is marked. `pocket.js`'s `editionCardHtml` / `idFooter` are the
-    JS twin of `Ui::EditionCardComponent`.
+    the shared edition layout (`docs/DESIGN_SYSTEM.md` "Edition card",
+    reorg brought in step 2026-09-04): cover thumbnail, bold headline
+    (`publisher · year · pages`, falling back to format when that's all
+    there is), a lozenge row (**OWNED / REPLACED / …** then **READ /
+    READING / DNF / TBR**), a muted detail line (format · cover artist),
+    and the two-row identifier footer with ISFDB / Goodreads hyperlinked.
+    A scan/ISBN that resolved via a sibling ISBN (you own a *different*
+    printing) still reads Owned, with a "you own a different edition"
+    line above the title; the matched card is marked. `pocket.js`'s
+    `editionCardHtml` / `idFooter` are the JS twin of
+    `Ui::EditionCardComponent`.
   - **On wishlist** — amber; the wishlist entry with its own cover and a
     WISHLIST lozenge on the header (it has no edition cards).
   - **Neither** — grey; "not in the collection or wishlist".

@@ -143,7 +143,7 @@
 
   // --- queries -------------------------------------------------------
   function editionsOf(entryId) {
-    const es = db.prepare("SELECT id, format, format_detail, publisher, year, page_count, disposition, isbn10, isbn13, isfdb, goodreads, thumb FROM editions WHERE entry_id = ?");
+    const es = db.prepare("SELECT id, format, format_detail, publisher, year, page_count, disposition, cover_artist, reading_status, isbn10, isbn13, isfdb, goodreads, thumb FROM editions WHERE entry_id = ?");
     es.bind([entryId]);
     const out = [];
     while (es.step()) out.push(es.getAsObject());
@@ -223,16 +223,36 @@
     given_away: ["other", "GIVEN AWAY"], lost: ["other", "LOST"],
   };
 
+  // Reading.status -> lozenge, mirrors Ui::EditionCardComponent#reading_badge
+  // on the web (docs/DESIGN_SYSTEM.md, "Edition card") — "success"/"default"
+  // are the same two variant names, not new colors: .pill.success and
+  // .pill.default alias the existing owned/other tokens (pocket.css).
+  const READING = {
+    reading: ["default", "READING"], read: ["success", "READ"],
+    dnf: ["default", "DNF"], tbr: ["default", "TBR"],
+  };
+
+  // 2026-09-04: same reorg as the web edition card — headline (bold, top)
+  // promoted to publisher · year · pages, falling back to format when
+  // that's all there is; a lozenge row (ownership, then reading status);
+  // format + cover artist demoted to a muted detail line underneath.
   function editionCardHtml(e, matched) {
     const thumb = blobUrl(e.thumb);
-    const meta = [e.publisher, e.year, e.page_count ? e.page_count + " pages" : null].filter(Boolean);
-    const pill = DISPOSITION[e.disposition];
+    const publisherLine = [e.publisher, e.year, e.page_count ? e.page_count + " pages" : null].filter(Boolean).join(" · ");
+    const formatText = humanize(e.format_detail || e.format) || "Edition";
+    const headline = publisherLine || formatText;
+    const detail = [formatText, e.cover_artist].filter(Boolean).join(" · ");
+    const ownedPill = DISPOSITION[e.disposition];
+    const readPill = READING[e.reading_status];
     return `<div class="edition${matched ? " matched" : ""}">
       ${thumb ? `<img src="${thumb}" alt="">` : `<div class="noimg">?</div>`}
       <div class="body">
-        <div class="fmt">${esc(humanize(e.format_detail || e.format) || "Edition")}${matched ? ` <span class="meta">· matched</span>` : ""}</div>
-        ${meta.length ? `<div class="meta">${esc(meta.join(" · "))}</div>` : ""}
-        ${pill ? `<span class="pill ${pill[0]}">${pill[1]}</span>` : ""}
+        <div class="headline">${esc(headline)}${matched ? ` <span class="meta">· matched</span>` : ""}</div>
+        ${ownedPill || readPill ? `<div class="pills">
+          ${ownedPill ? `<span class="pill ${ownedPill[0]}">${ownedPill[1]}</span>` : ""}
+          ${readPill ? `<span class="pill ${readPill[0]}">${readPill[1]}</span>` : ""}
+        </div>` : ""}
+        <div class="meta">${esc(detail)}</div>
         ${idFooter(e)}
       </div>
     </div>`;

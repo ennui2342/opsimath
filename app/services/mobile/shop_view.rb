@@ -26,6 +26,7 @@ module Mobile
     )
     Edition = Struct.new(
       :id, :format, :format_detail, :publisher, :year, :page_count, :disposition,
+      :cover_artist, :reading_status,
       :isbn10, :isbn13, :isfdb, :goodreads, :has_cover,
       keyword_init: true
     )
@@ -52,7 +53,7 @@ module Mobile
       ::Work.includes(
         { work_contributors: :contributor },
         { work_series: :series },
-        { editions: [ :edition_identifiers, :copies, { cover_image_attachment: :blob } ] }
+        { editions: [ :edition_identifiers, :copies, :readings, { cover_image_attachment: :blob } ] }
       )
     end
 
@@ -104,6 +105,21 @@ module Mobile
       edition.copies.first&.disposition
     end
 
+    # Same precedence as Ui::EditionCardComponent#reading_badge on the
+    # web (docs/DESIGN_SYSTEM.md) — reading/paused beats a past completed
+    # read, which beats dnf; "tbr" (not nil) when there's simply no
+    # Reading yet, since every edition reaching here already has a copy
+    # (editions_of filters to that), unlike the web component's bare
+    # catalogue-only nil case.
+    def reading_status_of(edition)
+      statuses = edition.readings.map(&:status)
+      return "reading" if statuses.intersect?(%w[reading paused])
+      return "read" if statuses.include?("completed")
+      return "dnf" if statuses.include?("dnf")
+
+      "tbr"
+    end
+
     def build_edition(edition)
       ids = edition.edition_identifiers.each_with_object({}) { |i, h| h[i.id_type] = i.value }
 
@@ -115,6 +131,8 @@ module Mobile
         year: edition.publish_date&.slice(0, 4),
         page_count: edition.page_count,
         disposition: disposition_of(edition),
+        cover_artist: edition.cover_artist.presence,
+        reading_status: reading_status_of(edition),
         isbn10: ids["isbn10"],
         isbn13: ids["isbn13"],
         isfdb: ids["isfdb"],

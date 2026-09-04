@@ -94,7 +94,9 @@ main { padding: 0 1rem 3rem; }
 .entry.neither .noimg { color: var(--none); }
 
 /* One printing a copy has passed through — same shape as
-   Ui::EditionCardComponent on the web. */
+   Ui::EditionCardComponent on the web (headline / lozenges / detail line
+   reorg brought in step 2026-09-04 — see docs/DESIGN_SYSTEM.md's own note
+   on keeping the two from drifting further). */
 .edition {
   display: flex;
   gap: 0.7rem;
@@ -111,10 +113,11 @@ main { padding: 0 1rem 3rem; }
   background: var(--card);
   font-size: 1.1rem;
 }
-.edition .fmt { font-weight: 600; font-size: 0.9rem; }
-.edition.matched .fmt { color: var(--owned); }
-.edition .meta { font-size: 0.8rem; }
-.edition .pill { margin-top: 0.35rem; }
+.edition .headline { font-weight: 600; font-size: 0.9rem; }
+.edition.matched .headline { color: var(--owned); }
+.edition .meta { font-size: 0.8rem; color: var(--muted); margin-top: 0.15rem; }
+.edition .pills { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.35rem; }
+.edition .pills .pill { margin-top: 0; }
 .edition .ids {
   display: flex;
   flex-wrap: wrap;
@@ -136,9 +139,9 @@ main { padding: 0 1rem 3rem; }
   font-weight: 700;
   letter-spacing: 0.04em;
 }
-.pill.owned { color: var(--owned); background: var(--owned-bg); }
+.pill.owned, .pill.success { color: var(--owned); background: var(--owned-bg); }
 .pill.wish { color: var(--wish); background: var(--wish-bg); }
-.pill.neither, .pill.other { color: var(--none); background: var(--none-bg); }
+.pill.neither, .pill.other, .pill.default { color: var(--none); background: var(--none-bg); }
 
 /* --- barcode scanner overlay --- */
 #scanner {

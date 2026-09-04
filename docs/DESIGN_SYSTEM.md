@@ -149,18 +149,21 @@ shape:
 **This layout is shared with the pocket app** (`docs/MOBILE.md`), which
 can't use a ViewComponent — it builds cards in plain JS
 (`pocket.js` `editionCardHtml` / `idFooter`) against CSS classes in
-`pocket.css` (`.edition`, `.edition .fmt`, `.edition .ids`). **The pocket
-app has not yet been updated for the 2026-09-04 reorg** (headline
-promotion, reading-status lozenges, cover artist) — it still shows the
-pre-reorg format→lozenge→meta hierarchy. Bring it in step next time
-either side of this layout changes, per `feedback_goodreads_path_parity`'s
-same rule for the sync paths — don't let the two drift further. Order and
-ISFDB/Goodreads-only linking stay in sync already: `pocket.js`'s
-`ID_URL` map mirrors `EditionIdentifier::EXTERNAL_URL_BY_TYPE` and its
-`DISPOSITION` map mirrors `Copy::DISPOSITION_LABELS`. The snapshot
-carries per edition: `format_detail`, `page_count`, `disposition`,
+`pocket.css` (`.edition`, `.edition .headline`, `.edition .ids`). Brought
+in step for the 2026-09-04 reorg (headline promotion, reading-status
+lozenges, cover artist) the same day — `pocket.js`'s `READING` map mirrors
+the web's `reading_badge` precedence (reading/paused > completed > dnf >
+default tbr; `Mobile::ShopView#reading_status_of` computes it server-side
+since sql.js has no Reading table to query from), and `.pill.success` /
+`.pill.default` alias the existing owned/other color tokens rather than
+introducing new ones. Order and ISFDB/Goodreads-only linking stay in sync
+already: `pocket.js`'s `ID_URL` map mirrors
+`EditionIdentifier::EXTERNAL_URL_BY_TYPE` and its `DISPOSITION` map
+mirrors `Copy::DISPOSITION_LABELS`. The snapshot carries per edition:
+`format`, `format_detail`, `publisher`, `year`, `page_count`,
+`disposition`, `cover_artist`, `reading_status`,
 `isbn10/isbn13/isfdb/goodreads` (`Mobile::SnapshotBuilder` `editions`
-table) — no `cover_artist` there yet either.
+table).
 
 When you change the edition layout, change it in both places (or write
 down why they diverge) — same rule as `feedback_goodreads_path_parity`

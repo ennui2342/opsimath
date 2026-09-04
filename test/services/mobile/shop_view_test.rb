@@ -13,7 +13,7 @@ module Mobile
       series = Series.create!(name: "Sprawl")
       WorkSeries.create!(work:, series:, position: 1)
 
-      edition = Edition.create!(format: "paperback", format_detail: "mass_market", publisher: "Ace Books", publish_date: "1984", page_count: 271)
+      edition = Edition.create!(format: "paperback", format_detail: "mass_market", publisher: "Ace Books", publish_date: "1984", page_count: 271, cover_artist: "Bruce Pennington")
       EditionContent.create!(work:, edition:)
       EditionIdentifier.create!(edition:, id_type: "isbn10", value: "0441569595")
       EditionIdentifier.create!(edition:, id_type: "isbn13", value: "9780441569595")
@@ -39,6 +39,8 @@ module Mobile
       assert_equal "1984", ed.year
       assert_equal 271, ed.page_count
       assert_equal "owned", ed.disposition
+      assert_equal "Bruce Pennington", ed.cover_artist
+      assert_equal "tbr", ed.reading_status # no Reading yet
       assert_equal "0441569595", ed.isbn10
       assert_equal "9780441569595", ed.isbn13
       assert_equal "55210", ed.isfdb
@@ -67,6 +69,27 @@ module Mobile
       eds = entries.sole.editions
       assert_equal [ "Gollancz", "Orbit" ], eds.map(&:publisher) # owned first
       assert_equal %w[owned replaced], eds.map(&:disposition)
+    end
+
+    test "reading_status: an open reading beats a past completed read, which beats dnf, which beats the tbr default" do
+      work = Work.create!(title: "Statuses", literary_form: "novel")
+      reading_ed = Edition.create!(publisher: "A")
+      read_ed = Edition.create!(publisher: "B")
+      dnf_ed = Edition.create!(publisher: "C")
+      tbr_ed = Edition.create!(publisher: "D")
+      [ reading_ed, read_ed, dnf_ed, tbr_ed ].each do |e|
+        EditionContent.create!(work:, edition: e)
+        Copy.create!(edition: e, disposition: "owned")
+      end
+      Reading.create!(work:, edition: reading_ed, status: "reading")
+      Reading.create!(work:, edition: read_ed, status: "completed")
+      Reading.create!(work:, edition: dnf_ed, status: "dnf")
+
+      by_publisher = entries.sole.editions.index_by(&:publisher)
+      assert_equal "reading", by_publisher["A"].reading_status
+      assert_equal "read", by_publisher["B"].reading_status
+      assert_equal "dnf", by_publisher["C"].reading_status
+      assert_equal "tbr", by_publisher["D"].reading_status
     end
 
     test "an edition read but not owned (a Copy-less unowned read) does not surface" do

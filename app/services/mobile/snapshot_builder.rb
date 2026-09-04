@@ -28,19 +28,21 @@ module Mobile
         search_series   TEXT
       );
       CREATE TABLE editions (
-        id            INTEGER PRIMARY KEY,
-        entry_id      TEXT NOT NULL,
-        format        TEXT,
-        format_detail TEXT,
-        publisher     TEXT,
-        year          INTEGER,
-        page_count    INTEGER,
-        disposition   TEXT,
-        isbn10        TEXT,
-        isbn13        TEXT,
-        isfdb         TEXT,
-        goodreads     TEXT,
-        thumb         BLOB
+        id             INTEGER PRIMARY KEY,
+        entry_id       TEXT NOT NULL,
+        format         TEXT,
+        format_detail  TEXT,
+        publisher      TEXT,
+        year           INTEGER,
+        page_count     INTEGER,
+        disposition    TEXT,
+        cover_artist   TEXT,
+        reading_status TEXT,
+        isbn10         TEXT,
+        isbn13         TEXT,
+        isfdb          TEXT,
+        goodreads      TEXT,
+        thumb          BLOB
       );
       CREATE INDEX idx_editions_entry ON editions (entry_id);
       CREATE TABLE isbn_index (
@@ -99,10 +101,11 @@ module Mobile
 
       entry.editions.each do |edition|
         db.execute(
-          "INSERT INTO editions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+          "INSERT INTO editions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
           [
             edition.id, entry.id, edition.format, edition.format_detail, edition.publisher,
             edition.year&.to_i, edition.page_count, edition.disposition,
+            edition.cover_artist, edition.reading_status,
             edition.isbn10, edition.isbn13, edition.isfdb, edition.goodreads,
             blob(thumbs["edition:#{edition.id}"])
           ]

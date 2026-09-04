@@ -8,7 +8,7 @@ module Mobile
     setup do
       @work = Work.create!(title: "Neuromancer", literary_form: "novel", original_publication_year: 1984)
       WorkContributor.create!(work: @work, contributor: Contributor.create!(name: "William Gibson"), role: "author", display_order: 0)
-      @edition = Edition.create!(format: "paperback", publisher: "Ace Books", publish_date: "1984", page_count: 271)
+      @edition = Edition.create!(format: "paperback", publisher: "Ace Books", publish_date: "1984", page_count: 271, cover_artist: "Bruce Pennington")
       EditionContent.create!(work: @work, edition: @edition)
       EditionIdentifier.create!(edition: @edition, id_type: "isbn13", value: "9780441569595")
       EditionIdentifier.create!(edition: @edition, id_type: "isfdb", value: "55210")
@@ -49,12 +49,14 @@ module Mobile
 
     test "owned editions hang off the work entry, carrying ISBNs, page count, disposition and linkable ids" do
       db = build_and_open
-      editions = db.execute("SELECT entry_id, publisher, page_count, disposition, isbn13, isfdb, goodreads FROM editions")
+      editions = db.execute("SELECT entry_id, publisher, page_count, disposition, cover_artist, reading_status, isbn13, isfdb, goodreads FROM editions")
       assert_equal 1, editions.size
       assert_equal "work:#{@work.id}", editions.first["entry_id"]
       assert_equal "Ace Books", editions.first["publisher"]
       assert_equal 271, editions.first["page_count"]
       assert_equal "owned", editions.first["disposition"]
+      assert_equal "Bruce Pennington", editions.first["cover_artist"]
+      assert_equal "tbr", editions.first["reading_status"]
       assert_equal "9780441569595", editions.first["isbn13"]
       assert_equal "55210", editions.first["isfdb"]
       assert_nil editions.first["goodreads"]
