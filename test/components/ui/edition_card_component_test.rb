@@ -84,6 +84,48 @@ module Ui
       assert_no_text "No cover"
     end
 
+    test "links to the reconcile-metadata page via a cog in the corner" do
+      edition = Edition.create!
+
+      render_inline(EditionCardComponent.new(edition:))
+
+      assert_selector "a[href='#{Rails.application.routes.url_helpers.edition_metadata_path(edition)}']"
+    end
+
+    test "cover_choices lists every source with an attached cover, nothing else" do
+      edition = Edition.create!
+      assert_empty EditionCardComponent.new(edition:).cover_choices
+
+      goodreads = EnrichmentRecord.create!(entity: edition, provider: "goodreads", external_id: "1", fetched_at: Time.current, raw_payload: {}, fields: {})
+      EnrichmentRecord.create!(entity: edition, provider: "isfdb", external_id: "2", fetched_at: Time.current, raw_payload: {}, fields: {}) # no cover
+      goodreads.cover_image.attach(io: StringIO.new(PNG), filename: "c.png", content_type: "image/png")
+
+      assert_equal [ goodreads ], EditionCardComponent.new(edition: edition.reload).cover_choices
+    end
+
+    test "no right-click cover picker is wired when no source has a cover on file" do
+      edition = Edition.create!
+
+      render_inline(EditionCardComponent.new(edition:))
+
+      assert_no_selector "dialog"
+      assert_no_selector "[data-action*='cover-picker']"
+    end
+
+    test "right-click cover picker lists a card per source cover, posting to edition_metadata" do
+      edition = Edition.create!
+      edition.cover_image.attach(io: StringIO.new(PNG), filename: "current.png", content_type: "image/png")
+      isfdb = EnrichmentRecord.create!(entity: edition, provider: "isfdb", external_id: "1", fetched_at: Time.current, raw_payload: {}, fields: {})
+      isfdb.cover_image.attach(io: StringIO.new(PNG), filename: "isfdb.png", content_type: "image/png")
+
+      render_inline(EditionCardComponent.new(edition: edition.reload))
+
+      assert_selector "img[data-action='contextmenu->cover-picker#open']"
+      assert_selector "dialog[data-cover-picker-target='dialog']"
+      assert_selector "dialog form[action='#{Rails.application.routes.url_helpers.edition_metadata_path(edition)}'] input[value='isfdb:cover_image']", visible: false
+      assert_text "Isfdb"
+    end
+
     private
 
     def card(edition) = EditionCardComponent.new(edition:)

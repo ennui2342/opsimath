@@ -1208,6 +1208,33 @@ values" call in front of the full comparison. This is deliberately
 *upstream* of the field-level `enrichment_conflict` bundling: pick the
 right record first, then there's nothing left to dispute.
 
+### Addendum: reconciling an edition on demand, not just when something raised a conflict
+
+The publisher-sweep analysis (2026-09-04) found the pending
+`enrichment_conflict` backlog is 94% cover-image disagreements between
+the Goodreads cover on file and the ISFDB one — a real, mostly-legitimate
+backlog, not stale noise. Mark's response: he'd be more relaxed about
+accepting an ISBN-matched ISFDB cover automatically (a policy for later)
+if there were an easy, always-available way to fix the rare miss by hand
+— not just when a `PendingDecision` happened to be raised.
+
+**`EditionMetadataController`** (`/editions/:id/metadata`) is that: a
+cog on every `Ui::EditionCardComponent` opens a comparison-review screen
+for that edition — reference card plus one selectable card per
+`EnrichmentRecord` source, *every* field pickable from *every* source
+(mix cover from ISFDB with publisher kept as catalogued, say) — see
+`docs/DESIGN_SYSTEM.md`'s `Ui::EditionCardComponent` section for the
+mechanics. A right-click on the cover is the fast path for the single
+most common correction: a native `<dialog>` listing just the covers on
+file, one click to swap.
+
+This is deliberately not a `PendingDecision` — nothing is "resolved,"
+there's no queue, and it's available for any edition at any time,
+independent of whether ISFDB enrichment ever flagged it. The three
+existing review screens (`enrichment_conflict`, `enrichment_printing_choice`,
+`EditionReconciliation`) stay as they are — this is a fourth, general
+escape hatch alongside them, not a replacement.
+
 ## Explicitly out of scope for this phase
 
 - ~~Any UI. Verification happens via Rails console...~~ **Superseded**: a

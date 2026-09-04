@@ -45,6 +45,14 @@ module Ui
       @edition.cover_image.variant(:thumb) if @edition.cover_image.attached?
     end
 
+    # Every known source that has a cover on file — the right-click "pick a
+    # different cover" modal's options. One row per provider
+    # (EnrichmentRecord's own uniqueness), so this is at most a couple of
+    # entries (goodreads/isfdb) in practice.
+    def cover_choices
+      @edition.enrichment_records.select { |r| r.cover_image.attached? }
+    end
+
     private
 
     def identifier_rows

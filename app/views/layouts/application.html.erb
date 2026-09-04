@@ -38,6 +38,17 @@
       </header>
     <% end %>
 
+    <% if notice %>
+      <div class="border-b border-green-200 bg-green-50 px-5 py-2 text-sm text-green-800 dark:border-green-900 dark:bg-green-950 dark:text-green-200">
+        <div class="container mx-auto"><%= notice %></div>
+      </div>
+    <% end %>
+    <% if alert %>
+      <div class="border-b border-conflict-200 bg-conflict-100 px-5 py-2 text-sm text-conflict-800 dark:border-conflict-900 dark:bg-conflict-900 dark:text-conflict-200">
+        <div class="container mx-auto"><%= alert %></div>
+      </div>
+    <% end %>
+
     <main class="container mx-auto flex px-5 py-8">
       <%= yield %>
     </main>

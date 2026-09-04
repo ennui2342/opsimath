@@ -90,6 +90,43 @@ Three selection idioms:
   `printing_choice_controller.js` keep only the picked card's checkboxes
   live so the form never submits fields from a printing you didn't
   choose.
+- **Checkboxes, mixed freely across N cards** — "which *source*, per
+  field": the edition-metadata screen (below). `field_value_prefix` makes
+  every checkbox in a card self-describing (`field_picks[]` =
+  `"<provider>:<field>"` instead of `fields[]` = `"<field>"`), and
+  `field_pick_controller.js` keeps at most one source ticked per field —
+  checking "publisher" on the ISFDB card unchecks it on the Goodreads
+  card. `fields_start_checked: false` starts every box unticked (unlike
+  the other idioms, nothing here is "the" proposal to trust by default).
+
+### `Ui::EditionCardComponent` → reconcile this edition (the cog + the cover picker)
+
+Every edition card carries a small cog in its bottom-right corner, linking
+to `EditionMetadataController#show` (`/editions/:id/metadata`) — an
+on-demand comparison-review screen, always available, not gated behind a
+raised `PendingDecision`. It's `Enrichment::EditionMetadataCards#build`
+feeding the same `Ui::ComparisonCardComponent`: a reference "Edition · in
+catalog" card (not selectable) plus one selectable card per
+`EnrichmentRecord` source on file — *every* field pickable from *every*
+source (unlike `PendingDecision#comparison_cards`, which only makes the
+one proposing source's fields selectable). Submitting applies each ticked
+field straight from its named source
+(`Enrichment::EditionMetadataResolver`) — no `FieldApplier` conflict gate,
+the reviewer already chose in front of the full comparison, same trust
+`EditionReconciliationResolver`/`IsfdbEditionEnricher#commit_choice`
+extend to a direct pick. Redirects back to the book page with a flash
+summary (`layouts/application.html.erb` now renders `notice`/`alert`).
+
+**Quick shortcut — right-click the cover.** `cover_picker_controller.js`
+intercepts `contextmenu` on the cover image (only wired when
+`EditionCardComponent#cover_choices` — sources with a cover on
+file — is non-empty) and opens a native `<dialog>` listing just the
+covers, one per source. Picking one submits a single
+`"<provider>:cover_image"` pick straight to the same
+`EditionMetadataController#update` the full page uses — no separate
+endpoint. This is the fast path for "I'm relaxed about trusting an
+ISBN-matched ISFDB cover most of the time, but want an easy escape hatch
+per book" (docs/INTEGRATIONS.md's cover-conflict addendum).
 
 ### `Ui::EditionCardComponent`
 

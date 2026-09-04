@@ -1,0 +1,41 @@
+<% content_for :title, "Reconcile edition" %>
+
+<div class="w-full max-w-5xl">
+  <div class="mb-4">
+    <%= render(Ui::BadgeComponent.new(text: @edition.works.map(&:title).join(", ").presence || "Edition ##{@edition.id}")) %>
+  </div>
+  <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
+    <%= [ @edition.format_detail, @edition.format ].compact.map(&:humanize).first || "Edition" %>
+  </h1>
+  <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
+    <%= @edition.works.flat_map { |w| w.work_contributors.where(role: "author").map { |wc| wc.contributor.name } }.uniq.join(", ").presence || "Unknown author" %>
+  </p>
+
+  <% if @cards[:sources].empty? %>
+    <p class="mb-6 rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-gray-600 dark:text-gray-400">
+      No other sources on file for this edition yet.
+    </p>
+  <% else %>
+    <%= form_with url: edition_metadata_path(@edition), method: :patch, data: { controller: "field-pick" } do %>
+      <div class="mb-6 grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
+        <%= render(Ui::ComparisonCardComponent.new(card: @cards[:edition])) %>
+        <% @cards[:sources].each do |card| %>
+          <%= render(Ui::ComparisonCardComponent.new(card: card)) %>
+        <% end %>
+      </div>
+
+      <button type="submit" class="rounded-md bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600">
+        Apply ticked fields
+      </button>
+    <% end %>
+  <% end %>
+
+  <p class="mt-6 max-w-2xl text-xs text-gray-500 dark:text-gray-400">
+    Tick a field on whichever source has the value you want — checking one
+    source's box for a field unchecks it on the others, so each field takes
+    from at most one place. Nothing's pre-selected; leave a field unticked
+    to keep it as catalogued.
+  </p>
+
+  <%= link_to "Back to book", work_path(@edition.works.first), class: "mt-3 inline-block text-sm text-gray-500 hover:underline dark:text-gray-400" if @edition.works.first %>
+</div>

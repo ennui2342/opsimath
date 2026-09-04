@@ -162,6 +162,29 @@ module Ui
       assert_selector "input[type=checkbox][value=cover_image]"
     end
 
+    test "field_value_prefix makes checkboxes self-describing as 'provider:field', field_picks[] instead of fields[]" do
+      card = Ui::ComparisonCardComponent::Card.new(
+        label: "ISFDB · on file", field_value_prefix: "isfdb", cover: nil,
+        fields: [ Ui::ComparisonCardComponent::FieldRow.new(name: "publisher", value: "Orbit", selectable: true) ]
+      )
+
+      render_inline(ComparisonCardComponent.new(card: card))
+
+      assert_selector "input[type=checkbox][name='field_picks[]'][value='isfdb:publisher']"
+      assert_no_selector "input[type=checkbox][name='fields[]']"
+    end
+
+    test "fields_start_checked: false starts every box unchecked (and not disabled)" do
+      card = Ui::ComparisonCardComponent::Card.new(
+        label: "ISFDB · on file", field_value_prefix: "isfdb", fields_start_checked: false,
+        fields: [ Ui::ComparisonCardComponent::FieldRow.new(name: "publisher", value: "Orbit", selectable: true) ]
+      )
+
+      render_inline(ComparisonCardComponent.new(card: card))
+
+      assert_selector "input[type=checkbox]:not([checked]):not([disabled])"
+    end
+
     test "a selectable cover renders a checked 'Apply this cover' checkbox" do
       edition = Edition.create!
       edition.cover_image.attach(io: StringIO.new("bytes"), filename: "cover.jpg", content_type: "image/jpeg")
