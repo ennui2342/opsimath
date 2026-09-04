@@ -241,8 +241,8 @@ module Goodreads
     end
 
     test "currently-reading on a *different* edition than the completed read just opens a new Reading — no conflict" do
-      # The EditionReconciliation change_edition case: read the old printing,
-      # acquired a new one, now reading that. Unambiguous new read.
+      # The edition_reconciliation change_edition case: read the old
+      # printing, acquired a new one, now reading that. Unambiguous new read.
       work = Work.create!(title: "Downbelow Station", literary_form: "novel")
       old_edition = Edition.create!(publisher: "Mandarin")
       new_edition = Edition.create!(publisher: "DAW Books")
@@ -411,14 +411,14 @@ module Goodreads
       [ work, edition ]
     end
 
-    test "a title+author-only match raises an EditionReconciliation instead of binding an edition" do
+    test "a title+author-only match raises an edition_reconciliation PendingDecision instead of binding an edition" do
       work, edition = owned_work_with_edition(title: "Facets", author: "Walter Jon Williams", gr_id: "3945054", isbn10: "0586213872")
       item = title_author_item("read", title: "Facets", author: "Walter Jon Williams", gr_id: "1343099", isbn: "0812564022", user_read_at: "2024-02-01")
 
       outcome = ShelfSync.sync(item, "read", {})
 
-      rec = EditionReconciliation.sole
-      assert_equal work, rec.work
+      rec = PendingDecision.where(kind: "edition_reconciliation").sole
+      assert_equal work, rec.entity
       assert_equal "1343099", rec.incoming_goodreads_id
       assert_equal "read", rec.shelf
       assert_equal [ edition.id ], rec.payload["candidate_edition_ids"]
@@ -434,8 +434,8 @@ module Goodreads
       ShelfSync.sync(title_author_item("read", **base, user_rating: "3"), "read", {})
       ShelfSync.sync(title_author_item("read", **base, user_rating: "5"), "read", {})
 
-      assert_equal 1, EditionReconciliation.count
-      assert_equal "5", EditionReconciliation.sole.payload.dig("feed_item", "user_rating")
+      assert_equal 1, PendingDecision.where(kind: "edition_reconciliation").count
+      assert_equal "5", PendingDecision.where(kind: "edition_reconciliation").sole.payload.dig("feed_item", "user_rating")
     end
 
     test "a confident (goodreads_book_id) match still opens a Reading with source: owned_copy" do
@@ -446,7 +446,7 @@ module Goodreads
 
       assert_equal edition, outcome.entity.edition
       assert_equal "owned_copy", outcome.entity.source
-      assert_equal 0, EditionReconciliation.count
+      assert_equal 0, PendingDecision.where(kind: "edition_reconciliation").count
     end
   end
 end

@@ -200,4 +200,101 @@ class PendingDecisionTest < ActiveSupport::TestCase
 
     assert_equal "Untitled reread_conflict", PendingDecision.new(kind: "reread_conflict", payload: {}).display_title
   end
+
+  # edition_reconciliation kind — folded in 2026-09-04 from a separate
+  # EditionReconciliation model; ported straight from its own test file.
+  module EditionReconciliationKind
+    def self.build(work, **payload_overrides)
+      PendingDecision.create!(
+        kind: "edition_reconciliation",
+        payload: {
+          "entity_type" => "Work", "entity_id" => work.id,
+          "goodreads_book_id" => "999", "shelf" => "read", "work_id" => work.id,
+          "candidate_edition_ids" => work.editions.ids,
+          "feed_item" => {
+            "goodreads_book_id" => "999", "title" => "Crossfire", "author_name" => "Nancy Kress",
+            "isbn" => "0812564022", "user_read_at" => "2024-01-05"
+          }
+        }.merge(payload_overrides)
+      )
+    end
+  end
+
+  test "edition_reconciliation: feed_item rebuilds the FeedItem struct from the payload" do
+    work = Work.create!(title: "Crossfire", literary_form: "novel")
+    item = EditionReconciliationKind.build(work).feed_item
+
+    assert_instance_of Goodreads::RssClient::FeedItem, item
+    assert_equal "999", item.goodreads_book_id
+    assert_equal "0812564022", item.isbn
+    assert_equal "Crossfire", item.title
+  end
+
+  test "edition_reconciliation: shelf / incoming_goodreads_id / incoming_isbn read from the payload" do
+    work = Work.create!(title: "Crossfire", literary_form: "novel")
+    rec = EditionReconciliationKind.build(work)
+
+    assert_equal "read", rec.shelf
+    assert_equal "999", rec.incoming_goodreads_id
+    assert_equal "0812564022", rec.incoming_isbn
+  end
+
+  test "edition_reconciliation: incoming_isbn is nil when the feed carried none" do
+    work = Work.create!(title: "Crossfire", literary_form: "novel")
+    rec = EditionReconciliationKind.build(work, "feed_item" => { "goodreads_book_id" => "999", "title" => "X" })
+
+    assert_nil rec.incoming_isbn
+  end
+
+  test "edition_reconciliation: candidate_editions returns the work's editions in id order" do
+    work = Work.create!(title: "Crossfire", literary_form: "novel")
+    ed1 = Edition.create!(format: "hardcover")
+    ed2 = Edition.create!(format: "paperback")
+    EditionContent.create!(work: work, edition: ed1)
+    EditionContent.create!(work: work, edition: ed2)
+
+    assert_equal [ ed1.id, ed2.id ], EditionReconciliationKind.build(work).candidate_editions.map(&:id)
+  end
+
+  test "edition_reconciliation_cards: an incoming (proposed) card plus one selectable card per edition" do
+    work = Work.create!(title: "Crossfire", literary_form: "novel")
+    ed1 = Edition.create!(format: "hardcover")
+    ed2 = Edition.create!(format: "paperback")
+    EditionContent.create!(work: work, edition: ed1)
+    EditionContent.create!(work: work, edition: ed2)
+    Copy.create!(edition: ed1, disposition: "owned")
+    Reading.create!(work: work, edition: ed1, status: "completed", source: "owned_copy")
+
+    cards = EditionReconciliationKind.build(work, "feed_item" => {
+      "goodreads_book_id" => "999", "title" => "Crossfire", "isbn" => "0812564022",
+      "user_read_at" => "2024-01-05", "book_image_url" => "https://example.com/c.jpg"
+    }).edition_reconciliation_cards
+
+    assert cards[:incoming].proposed
+    assert_equal "https://example.com/c.jpg", cards[:incoming].cover_url
+    assert_equal "0812564022", cards[:incoming].fields.find { |f| f.name == "isbn" }.value
+
+    assert_equal 2, cards[:editions].size
+    owned = cards[:editions].first
+    assert_equal "Edition · owned · read", owned.label
+    assert_equal "target_edition_id", owned.select_name
+    assert_equal ed1.id.to_s, owned.select_value
+    assert owned.selected
+    assert_equal "Edition · catalog", cards[:editions].last.label
+    assert_not cards[:editions].last.selected
+  end
+
+  test "edition_reconciliation_cards is nil for other kinds" do
+    assert_nil PendingDecision.new(kind: "enrichment_conflict").edition_reconciliation_cards
+  end
+
+  test "edition_reconciliation: resolved_edition reads payload's resolved_edition_id, nil until set" do
+    work = Work.create!(title: "Crossfire", literary_form: "novel")
+    edition = Edition.create!
+    rec = EditionReconciliationKind.build(work)
+    assert_nil rec.resolved_edition
+
+    rec.update!(payload: rec.payload.merge("resolved_edition_id" => edition.id))
+    assert_equal edition, rec.resolved_edition
+  end
 end

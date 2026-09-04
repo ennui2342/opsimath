@@ -606,8 +606,6 @@ own tables — only the genuinely domain-specific pieces below are.
 ```mermaid
 erDiagram
     JOB_ITEM }o--|| PENDING_DECISION : "may produce"
-    JOB_ITEM }o--|| EDITION_RECONCILIATION : "may produce"
-    EDITION_RECONCILIATION }o--|| WORK : "about"
 ```
 
 (No `Job`/`JobEvent` entities — that bookkeeping lives in Solid Queue's own
@@ -645,21 +643,32 @@ what this actually needs, per principle 16.
 | Field | Notes |
 |---|---|
 | `id` | |
-| `kind` | Real, shipped kinds as of Phase 2: `enrichment_conflict` (ISFDB or Goodreads enrichment — see `docs/INTEGRATIONS.md`'s enrichment addendum; one unified kind regardless of source or whether it's an isolated single-field dispute or several fields bundled together, replacing the earlier `enrichment_field_conflict`/`enrichment_edition_mismatch` split — see `docs/INTEGRATIONS.md`'s Phase 3 addendum), `enrichment_printing_choice` (ISFDB enrichment — one ISBN matched more than one ISFDB publication and the year on file can't pick between them; a human chooses the printing and which of its fields to apply — see `docs/INTEGRATIONS.md`'s reused-ISBN addendum), `possible_duplicate_work` (Goodreads sync — `Matcher` found more than one ambiguous title+author match), `reread_conflict` (Goodreads sync — a `currently-reading` event fires for an edition that already has a completed `Reading` and none open; edition-scoped, so a currently-reading landing on a fresh edition of an already-read work just opens a new `Reading` — see `docs/INTEGRATIONS.md`). `unmatched_shelf_entry` is designed for but not currently triggered by any code path — the confirmed auto-create policy (`docs/INTEGRATIONS.md`) handles the plain "no match" case directly instead of routing it here. Extends to further kinds (e.g. `series_match_candidate`) the same way, without a new mechanism |
+| `kind` | Real, shipped kinds as of Phase 2: `enrichment_conflict` (ISFDB or Goodreads enrichment — see `docs/INTEGRATIONS.md`'s enrichment addendum; one unified kind regardless of source or whether it's an isolated single-field dispute or several fields bundled together, replacing the earlier `enrichment_field_conflict`/`enrichment_edition_mismatch` split — see `docs/INTEGRATIONS.md`'s Phase 3 addendum), `enrichment_printing_choice` (ISFDB enrichment — one ISBN matched more than one ISFDB publication and the year on file can't pick between them; a human chooses the printing and which of its fields to apply — see `docs/INTEGRATIONS.md`'s reused-ISBN addendum), `possible_duplicate_work` (Goodreads sync — `Matcher` found more than one ambiguous title+author match), `reread_conflict` (Goodreads sync — a `currently-reading` event fires for an edition that already has a completed `Reading` and none open; edition-scoped, so a currently-reading landing on a fresh edition of an already-read work just opens a new `Reading` — see `docs/INTEGRATIONS.md`), `edition_reconciliation` (Goodreads sync — a feed row resolves to a `Work` already owned but not to a specific `Edition`; see below — a structurally different question from every other kind, but folded in as a `kind` rather than kept as its own model/queue, 2026-09-04). `unmatched_shelf_entry` is designed for but not currently triggered by any code path — the confirmed auto-create policy (`docs/INTEGRATIONS.md`) handles the plain "no match" case directly instead of routing it here. Extends to further kinds (e.g. `series_match_candidate`) the same way, without a new mechanism |
 | `run_id` | optional — set when produced by a batch run, null for a one-off interactive lookup |
-| `payload` | JSON — shape depends on `kind`. `enrichment_printing_choice` is the one that *does* carry a value snapshot — `{entity_type, entity_id, source, isbn, candidates: [<raw isfdb-adapter pub hash>, ...]}` — because the candidates are the decision (accepting one must not depend on re-fetching, and the adapter's mirror can change under a queued decision). `enrichment_conflict` is a thin pointer, not a frozen value snapshot: `{entity_type, entity_id, fields: [field_name, ...], source}` — the entity plus which field name(s) are in dispute (one for an isolated conflict, several when a whole fetch is bundled — see `docs/INTEGRATIONS.md`'s enrichment addendum for why that's a different question from a single-field dispute, and why source no longer matters to which shape this takes) and which source raised it. No `current_value`/`proposed` stored: once `EnrichmentRecord.fields` exists, freezing a value at raise time is a staleness hazard against a real review backlog — `PendingDecision#field_diffs` derives the actual current-vs-proposed comparison live, from the entity's column plus that source's own `EnrichmentRecord` |
+| `payload` | JSON — shape depends on `kind`. `enrichment_printing_choice` is the one that *does* carry a value snapshot — `{entity_type, entity_id, source, isbn, candidates: [<raw isfdb-adapter pub hash>, ...]}` — because the candidates are the decision (accepting one must not depend on re-fetching, and the adapter's mirror can change under a queued decision). `enrichment_conflict` is a thin pointer, not a frozen value snapshot: `{entity_type, entity_id, fields: [field_name, ...], source}` — the entity plus which field name(s) are in dispute (one for an isolated conflict, several when a whole fetch is bundled — see `docs/INTEGRATIONS.md`'s enrichment addendum for why that's a different question from a single-field dispute, and why source no longer matters to which shape this takes) and which source raised it. No `current_value`/`proposed` stored: once `EnrichmentRecord.fields` exists, freezing a value at raise time is a staleness hazard against a real review backlog — `PendingDecision#field_diffs` derives the actual current-vs-proposed comparison live, from the entity's column plus that source's own `EnrichmentRecord`. `edition_reconciliation`'s payload is described in full below |
 | `status` | `pending` / `accepted` / `rejected` |
 | `created_at` / `resolved_at` | |
 
-### EditionReconciliation
+### `edition_reconciliation` (a `PendingDecision` kind)
 
-A second review queue, kept separate from `PendingDecision` on purpose.
-`PendingDecision` asks "two sources disagree about a *field value* —
-which is right"; this asks "an incoming reading/shelf event doesn't map
-cleanly onto the collection's *edition and ownership structure* — how
-should it land". Different question, structural resolution actions
-(create / relink / dispose records, not pick a value), different review
-screen — so a distinct model, not another `kind`.
+**2026-09-04 correction:** originally built as a second, separate
+`EditionReconciliation` model/queue/controller/nav item — the reasoning
+at the time was that `PendingDecision` asks "two sources disagree about a
+*field value* — which is right" while this asks "an incoming shelf event
+doesn't map cleanly onto the collection's *edition and ownership
+structure* — how should it land", a genuinely different question with
+structural resolution actions (create / relink / dispose records, not
+pick a value) and its own review screen. Mark reconsidered: different
+question, same underlying mechanism — one queue a sync run writes an item
+to for a human to resolve, one nav link, one index with a kind filter,
+same Turbo-Stream advance-in-place pattern. So it's a `kind` like any
+other, just one whose payload/resolution shape is its own (same as
+`enrichment_printing_choice` already isn't a plain field-value pick
+either) rather than a whole separate model. `entity_type`/`entity_id`
+point at the matched `Work` (not an `Edition` — that's the very thing
+still undetermined), reusing `PendingDecision#entity`'s existing
+polymorphic-by-payload lookup rather than adding a dedicated `work_id`
+column.
 
 Raised by the Goodreads sync (`docs/INTEGRATIONS.md`) when `Matcher`
 resolves a feed row to a `Work` you already have but **not** to a
@@ -670,18 +679,20 @@ the moment you own more than one edition) and recorded only the cover;
 now `Matcher#by_title_author` returns `edition: nil` and
 `ShelfSync#ensure_cataloged` routes the ambiguity to a human. **Every**
 such match raises one — `relink` is a one-click resolution. Applied by
-`Goodreads::EditionReconciliationResolver`.
+`Goodreads::EditionReconciliationResolver`, still its own service class
+(the resolution vocabulary below has nothing in common with plain
+accept/reject) even though the model it acts on isn't its own anymore.
 
-| Field | Notes |
-|---|---|
-| `id` | |
-| `work_id` | the matched work — always known (that's the trigger) |
-| `run_id` | optional — the sync run that raised it |
-| `payload` | JSON: the feed row as received (`goodreads_book_id`, `isbn`, `title`, shelf, read dates, rating, review, cover URL) plus the candidate `edition_id`s already on the work. Live-derived, not a frozen enrichment snapshot — same reasoning as `PendingDecision.payload`. |
-| `resolution` | null while pending, then `relink` / `change_edition` / `add_edition` / `unowned_read` / `rejected` |
-| `resolved_edition_id` | optional — the edition the resolution created or acted on |
-| `status` | `pending` / `resolved` |
-| `created_at` / `resolved_at` | |
+`payload`: the feed row as received (`goodreads_book_id`, `isbn`, `title`,
+shelf, read dates, rating, review, cover URL) plus the candidate
+`edition_id`s already on the work — live-derived, not a frozen enrichment
+snapshot, same reasoning as every other kind's payload. Once resolved,
+the resolver folds the outcome into the same payload rather than a
+dedicated column: `resolution` (`relink` / `change_edition` /
+`add_edition` / `unowned_read` / `rejected`) and `resolved_edition_id`
+(the edition the resolution created or acted on). `status` maps onto
+`PendingDecision`'s own `pending`/`accepted`/`rejected` — `rejected`
+resolution → `rejected` status, anything else resolved → `accepted`.
 
 Resolutions:
 

@@ -1,0 +1,50 @@
+<% work = pending_decision.entity %>
+<% cards = pending_decision.edition_reconciliation_cards %>
+<% authors = work.work_contributors.select { |wc| wc.role == "author" }.map { |wc| wc.contributor.name }.join(", ") %>
+
+<div class="mb-4 flex flex-wrap items-center gap-2">
+  <%= render(Ui::BadgeComponent.new(text: "edition reconciliation", variant: :conflict)) %>
+  <%= render(Ui::BadgeComponent.new(text: pending_decision.shelf, variant: :default)) %>
+</div>
+<h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100"><%= work.title %></h1>
+<p class="mb-4 text-sm text-gray-500 dark:text-gray-400"><%= authors.presence || "Unknown author" %></p>
+
+<%= form_with url: resolve_pending_decision_path(pending_decision, kind: kind_filter), method: :post,
+      data: { turbo_stream: true, decision_shortcuts_target: "accept" } do |f| %>
+  <div class="mb-6 grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
+    <%= render(Ui::ComparisonCardComponent.new(card: cards[:incoming])) %>
+    <% cards[:editions].each do |card| %>
+      <%= render(Ui::ComparisonCardComponent.new(card: card)) %>
+    <% end %>
+  </div>
+
+  <fieldset class="mb-5">
+    <legend class="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">Resolution</legend>
+    <div class="space-y-1.5">
+      <% PendingDecision::RESOLUTION_CHOICES.each_with_index do |(value, label, hint), i| %>
+        <label class="flex items-baseline gap-2 text-sm">
+          <%= f.radio_button :resolution, value, checked: i.zero?, class: "mt-0.5 h-4 w-4 flex-shrink-0 border-gray-300" %>
+          <span>
+            <span class="font-medium text-gray-900 dark:text-gray-100"><%= label %></span>
+            <span class="text-gray-500 dark:text-gray-400">— <%= hint %></span>
+            <% if value == "unowned_read" %>
+              <%= f.select :source, %w[library borrowed other], {},
+                    class: "ml-1 rounded-md border-gray-300 py-0.5 text-sm dark:border-gray-600 dark:bg-gray-800" %>
+            <% end %>
+          </span>
+        </label>
+      <% end %>
+    </div>
+  </fieldset>
+
+  <button type="submit" class="rounded-md bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600">
+    Apply (A)
+  </button>
+<% end %>
+
+<div class="mt-3 flex gap-3">
+  <%= button_to "Reject (R)", resolve_pending_decision_path(pending_decision, resolution: "rejected", kind: kind_filter),
+        method: :post, form: { data: { turbo_stream: true, decision_shortcuts_target: "reject" } },
+        class: "rounded-md bg-gray-200 px-4 py-2 font-medium text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600" %>
+  <%= link_to "Back to queue", pending_decisions_path(kind: kind_filter), class: "ml-auto self-center text-sm text-gray-500 hover:underline dark:text-gray-400" %>
+</div>

@@ -5,6 +5,8 @@
       <%= render "decision_reread_conflict", pending_decision: pending_decision, kind_filter: kind_filter %>
     <% when "enrichment_printing_choice" %>
       <%= render "decision_printing_choice", pending_decision: pending_decision, kind_filter: kind_filter %>
+    <% when "edition_reconciliation" %>
+      <%= render "decision_edition_reconciliation", pending_decision: pending_decision, kind_filter: kind_filter %>
     <% else %>
       <%= render "decision_comparison", pending_decision: pending_decision, kind_filter: kind_filter %>
     <% end %>

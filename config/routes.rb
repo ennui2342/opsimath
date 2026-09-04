@@ -17,10 +17,8 @@ Rails.application.routes.draw do
     member do
       post :accept
       post :reject
+      post :resolve # edition_reconciliation kind only — see PendingDecisionsController#resolve
     end
-  end
-  resources :edition_reconciliations, only: [ :index, :show ] do
-    member { post :resolve }
   end
   resources :editions, only: [] do
     resource :metadata, only: [ :show, :update ], controller: "edition_metadata"

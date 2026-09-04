@@ -45,7 +45,7 @@ module Ui
       render(ComparisonCardComponent.new(card: card))
     end
 
-    # EditionReconciliation: the incoming Goodreads row — a remote cover URL,
+    # edition_reconciliation: the incoming Goodreads row — a remote cover URL,
     # no attachment, flagged `proposed`.
     def incoming_feed_card
       card = Ui::ComparisonCardComponent::Card.new(
@@ -60,7 +60,7 @@ module Ui
       render(ComparisonCardComponent.new(card: card))
     end
 
-    # EditionReconciliation: one owned edition, pickable — the header is a
+    # edition_reconciliation: one owned edition, pickable — the header is a
     # radio, a checked card takes the conflict ring.
     def selectable_edition_card
       card = Ui::ComparisonCardComponent::Card.new(

@@ -2,7 +2,7 @@ module Ui
   # One full card in the comparison-review layout, used by every "here are
   # the candidates, make a structural call" screen: the PendingDecision
   # enrichment-conflict review (Edition's catalog state / another provider's
-  # record / the proposing record), the EditionReconciliation review (each
+  # record / the proposing record), the edition_reconciliation review (each
   # owned Edition / the incoming Goodreads row), the
   # enrichment_printing_choice review (one card per ISFDB printing that
   # shares the ISBN — radio in the header *and* per-field checkboxes), and
@@ -11,8 +11,8 @@ module Ui
   #
   # Dumb renderer — all the "which fields, which are selectable, which
   # provider" logic lives in the model method that builds the Cards
-  # (PendingDecision#comparison_cards / #printing_choice_cards,
-  # EditionReconciliation#comparison_cards, Enrichment::EditionMetadataCards#build).
+  # (PendingDecision#comparison_cards / #printing_choice_cards /
+  # #edition_reconciliation_cards, Enrichment::EditionMetadataCards#build).
   #
   # Card knobs:
   # - proposed        — flags the card that raised the decision (conflict ring + header tint)

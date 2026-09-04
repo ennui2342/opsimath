@@ -67,8 +67,9 @@ module Goodreads
       # A work-only match — deliberately no `edition`. Which of the work's
       # editions this feed row refers to (or whether it's a new one) is
       # something the sync can't tell without a human once you own more
-      # than one; `ShelfSync` raises an `EditionReconciliation` on this.
-      # Tiers 1/2 above stay confident: they resolve a specific edition.
+      # than one; `ShelfSync` raises an edition_reconciliation
+      # PendingDecision on this. Tiers 1/2 above stay confident: they
+      # resolve a specific edition.
       Result.new(work: works.first, edition: nil, ambiguous: false)
     end
   end

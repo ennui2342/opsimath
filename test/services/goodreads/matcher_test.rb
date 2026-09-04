@@ -41,7 +41,7 @@ module Goodreads
       result = Matcher.match(item(goodreads_book_id: "999999", title: "Existentialism from Dostoevsky to Sartre", author_name: "Walter Kaufmann"))
 
       assert_equal work, result.work
-      assert_nil result.edition, "a work-only match leaves the edition for EditionReconciliation to resolve"
+      assert_nil result.edition, "a work-only match leaves the edition for an edition_reconciliation PendingDecision to resolve"
       assert_not result.ambiguous
     end
 

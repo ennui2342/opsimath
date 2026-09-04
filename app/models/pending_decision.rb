@@ -18,8 +18,8 @@ class PendingDecision < ApplicationRecord
   # current catalog state, one per other known provider (info only), and one
   # for the record that actually raised this decision (actionable —
   # checkboxes on whatever's in payload["fields"]). The structs are the
-  # component's: EditionReconciliation feeds the same component the same
-  # shapes (see docs/DESIGN_SYSTEM.md, "Comparison-review screen").
+  # component's: #edition_reconciliation_cards feeds the same component
+  # the same shapes (see docs/DESIGN_SYSTEM.md, "Comparison-review screen").
   Card = Ui::ComparisonCardComponent::Card
   FieldRow = Ui::ComparisonCardComponent::FieldRow
 
@@ -44,11 +44,13 @@ class PendingDecision < ApplicationRecord
 
   # A one-line label for the review-queue list — the book this decision
   # is about, whatever its kind. Falls back through: the entity Edition's
-  # work titles, the payload's own `title` (Goodreads-sync kinds), then a
+  # work titles, the entity Work's own title (edition_reconciliation), the
+  # payload's own `title` (entity-less Goodreads-sync kinds), then a
   # generic placeholder.
   def display_title
     record = entity
     return record.works.map(&:title).join(", ").presence || "Edition ##{record.id}" if record.is_a?(Edition)
+    return record.title if record.is_a?(Work)
 
     payload["title"].presence || "Untitled #{kind}"
   end
@@ -131,7 +133,99 @@ class PendingDecision < ApplicationRecord
     { edition: edition_card(record), candidates: candidates.each_with_index.map { |c, i| candidate_card(c, first: i.zero?) } }
   end
 
+  # edition_reconciliation only (folded in 2026-09-04 — previously a
+  # separate EditionReconciliation model/queue; see docs/DATA_MODEL.md):
+  # raised when Goodreads::Matcher resolves a feed row to a Work already
+  # owned but not to a specific Edition. Asks "how does this record map
+  # onto my editions and copies" — a structural pick, not a field-value
+  # pick, so it gets its own card shape and its own resolution vocabulary
+  # rather than reusing #comparison_cards/accept-reject.
+  RESOLUTION_CHOICES = [
+    [ "relink",         "Relink",          "same book — Goodreads changed its edition id" ],
+    [ "change_edition", "Change edition",  "you swapped your copy; the old one is kept as replaced" ],
+    [ "add_edition",    "Add edition",     "you own this one alongside what you already had" ],
+    [ "unowned_read",   "Unowned read",    "a library / borrowed / subscription read — no copy added" ]
+  ].freeze
+
+  RECONCILIATION_CARD_FIELDS = %w[format format_detail publisher publish_date].freeze
+
+  # Rebuilds the Goodreads feed row that raised this from
+  # payload["feed_item"] — Goodreads::EditionReconciliationResolver
+  # replays it once the edition is confidently resolved.
+  def feed_item
+    Goodreads::RssClient::FeedItem.new(**payload.fetch("feed_item").symbolize_keys)
+  end
+
+  def shelf = payload["shelf"]
+  def incoming_goodreads_id = payload["goodreads_book_id"]
+  def incoming_isbn = payload.dig("feed_item", "isbn").presence
+
+  # The work's current editions — the "which one is this / or is it new"
+  # choice the reviewer makes.
+  def candidate_editions
+    entity.editions.order(:id)
+  end
+
+  # Set into payload["resolved_edition_id"] by
+  # Goodreads::EditionReconciliationResolver once resolved — there's no
+  # dedicated column, same jsonb payload every kind already writes back to
+  # (see PendingDecisionResolver#prune_payload for the same pattern).
+  def resolved_edition
+    Edition.find_by(id: payload["resolved_edition_id"])
+  end
+
+  # Display shape for the review screen: the incoming Goodreads row as
+  # the `proposed` card, then one selectable card per owned edition —
+  # same Ui::ComparisonCardComponent every other comparison-review screen
+  # uses, just a different card shape than #comparison_cards (a
+  # structural "which edition" pick, not a field-value pick).
+  def edition_reconciliation_cards
+    return nil unless kind == "edition_reconciliation" && entity.is_a?(Work)
+
+    { incoming: reconciliation_incoming_card, editions: candidate_editions.map { |e| reconciliation_candidate_card(e) } }
+  end
+
   private
+
+  def reconciliation_incoming_card
+    item = feed_item
+    fields = [
+      reconciliation_row("goodreads id", item.goodreads_book_id),
+      reconciliation_row("isbn", item.isbn),
+      reconciliation_row("read", item.user_read_at),
+      reconciliation_row("rating", item.user_rating),
+      reconciliation_row("review", ("yes" if item.user_review.present?))
+    ].compact
+    Card.new(label: "Goodreads · incoming", proposed: true, cover_url: item.book_image_url.presence, fields: fields)
+  end
+
+  def reconciliation_candidate_card(edition)
+    fields = RECONCILIATION_CARD_FIELDS.map do |f|
+      value = edition.public_send(f)
+      value = value&.humanize if f.start_with?("format")
+      FieldRow.new(name: f, value: value)
+    end
+    Card.new(
+      label: reconciliation_candidate_label(edition),
+      cover: edition.cover_image, show_empty_cover: true,
+      fields: fields,
+      identifiers: edition.edition_identifiers.map { |i| [ ID_TYPE_LABELS.fetch(i.id_type, i.id_type.upcase), i.value ] },
+      select_name: "target_edition_id", select_value: edition.id.to_s,
+      selected: edition.id == candidate_editions.first&.id
+    )
+  end
+
+  def reconciliation_candidate_label(edition)
+    marks = []
+    marks << "owned" if edition.copies.any? { |c| c.disposition == "owned" }
+    marks << "read" if edition.readings.any?
+    "Edition · #{marks.presence&.join(" · ") || "catalog"}"
+  end
+
+  def reconciliation_row(name, value)
+    return nil if value.blank?
+    FieldRow.new(name: name, value: value)
+  end
 
   def candidate_card(candidate, first:)
     pub_id = candidate["_isfdb_pub_id"].to_s

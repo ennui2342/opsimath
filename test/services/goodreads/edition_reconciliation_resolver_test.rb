@@ -20,7 +20,8 @@ module Goodreads
 
       # the feed row that re-shelved to a different Goodreads edition of
       # the same read (the read date carries over, per Goodreads behaviour)
-      @rec = EditionReconciliation.create!(work: @work, payload: {
+      @rec = PendingDecision.create!(kind: "edition_reconciliation", payload: {
+        "entity_type" => "Work", "entity_id" => @work.id,
         "goodreads_book_id" => "1343099", "shelf" => "read", "work_id" => @work.id,
         "candidate_edition_ids" => [ @old_edition.id ],
         "feed_item" => {
@@ -40,8 +41,8 @@ module Goodreads
       assert @old_edition.edition_identifiers.exists?(id_type: "goodreads", value: "1343099")
       assert_equal [ @old_reading ], @work.reload.readings.to_a
       assert_equal @old_edition, @old_reading.reload.edition
-      assert @rec.reload.resolved?
-      assert @rec.resolution_relink?
+      assert @rec.reload.accepted?
+      assert_equal "relink", @rec.payload["resolution"]
     end
 
     test "change_edition retires the old copy and builds+enriches a new owned edition" do
@@ -99,8 +100,8 @@ module Goodreads
     test "rejected marks it resolved and changes nothing" do
       resolve(resolution: "rejected")
 
-      assert @rec.reload.resolved?
-      assert @rec.resolution_rejected?
+      assert @rec.reload.rejected?
+      assert_equal "rejected", @rec.payload["resolution"]
       assert_equal [ @old_reading ], @work.reload.readings.to_a
       assert_equal 1, @work.editions.count
     end

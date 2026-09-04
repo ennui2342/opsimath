@@ -822,7 +822,7 @@ Scoped to the matched edition, not the work — 2026-09-04: a
 `currently-reading` event landing on an edition with no reading of its
 own is an unambiguous new read, even when another edition of the same
 work was read before, so `ShelfSync#currently_reading` just opens the
-`Reading`. This is the common shape after an `EditionReconciliation`
+`Reading`. This is the common shape after an `edition_reconciliation`
 `change_edition`: read the old printing, acquired and started a new one.)
 
 ### Addendum: edition-level reconciliation
@@ -853,15 +853,20 @@ Real cases that exposed this (2026-09):
 Built (2026-09): when `Matcher` resolves to a `Work` you own but not to a
 specific `Edition` via `goodreads_book_id` (`by_title_author` now returns
 `edition: nil` rather than `editions.first`), `ShelfSync#ensure_cataloged`
-raises an `EditionReconciliation` (`docs/DATA_MODEL.md`) and bails the
-shelf handler, same shape as `possible_duplicate_work`. **Every**
-title+author match raises one — nothing is handled silently; `relink`
-("same edition, Goodreads churned the id") is a one-click resolution. It
-is a *separate* queue from `PendingDecision` on purpose — the question
-isn't "which field value is right" but "how does this record map onto my
-editions and copies", and the resolutions are structural: `relink` /
-`change_edition` / `add_edition` / `unowned_read` / `rejected`, applied
-by `Goodreads::EditionReconciliationResolver`.
+raises a `PendingDecision` of `kind: edition_reconciliation`
+(`docs/DATA_MODEL.md`) and bails the shelf handler, same shape as
+`possible_duplicate_work`. **Every** title+author match raises one —
+nothing is handled silently; `relink` ("same edition, Goodreads churned
+the id") is a one-click resolution. The question isn't "which field
+value is right" but "how does this record map onto my editions and
+copies", and the resolutions are structural: `relink` / `change_edition`
+/ `add_edition` / `unowned_read` / `rejected`, applied by
+`Goodreads::EditionReconciliationResolver` — still its own service class
+even though it's a `kind` sharing `PendingDecision`'s queue/nav/index now,
+not a separate model (2026-09-04 correction: originally built as its own
+`EditionReconciliation` model/controller/nav item; reconsidered — same
+underlying "a sync run flags something for a human" mechanism as every
+other kind, worth one queue rather than two).
 
 `relink` / `change_edition` / `add_edition` make the `goodreads_book_id`
 resolve to a confident `Edition`, then **replay** the feed event through
@@ -1232,9 +1237,22 @@ to swap.
 This is deliberately not a `PendingDecision` — nothing is "resolved,"
 there's no queue, and it's available for any edition at any time,
 independent of whether ISFDB enrichment ever flagged it. The three
-existing review screens (`enrichment_conflict`, `enrichment_printing_choice`,
-`EditionReconciliation`) stay as they are — this is a fourth, general
+existing review kinds (`enrichment_conflict`, `enrichment_printing_choice`,
+`edition_reconciliation`) stay as they are — this is a fourth, general
 escape hatch alongside them, not a replacement.
+
+Since 2026-09-04, `CoverApplier.plan(..., authoritative: true)` (used
+only by `IsfdbEditionEnricher`, whose own `enrich` never reaches it
+without an isbn-confident printing match already in hand) is the actual
+"relaxed about trusting an ISBN-matched ISFDB cover" behavior this escape
+hatch was built to backstop — a differing cover fills outright instead of
+raising `enrichment_conflict`. `Enrichment::SourceRecorder.integrate` also
+auto-resolves any stale `enrichment_conflict` decision left over from
+before that fetch started committing cleanly, so the backlog this
+produced (94% of it a cover-only dispute, confirmed against real
+`PendingDecision` data — see `edition_metadata_reconcile` in the
+project's own memory) is expected to clear on the next bulk enrichment
+run rather than sit stale.
 
 ## Explicitly out of scope for this phase
 

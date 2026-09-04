@@ -31,8 +31,6 @@
           <%= link_to "Books", works_path, class: "text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100" %>
           <% pd = PendingDecision.pending.count %>
           <%= link_to "Pending decisions#{" (#{pd})" if pd.positive?}", pending_decisions_path, class: "text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100" %>
-          <% er = EditionReconciliation.pending.count %>
-          <%= link_to "Edition reconciliations#{" (#{er})" if er.positive?}", edition_reconciliations_path, class: "text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100" %>
           <%= button_to "Log out", session_path, method: :delete, class: "ml-auto text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100" %>
         </nav>
       </header>

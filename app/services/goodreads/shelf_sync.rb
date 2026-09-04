@@ -116,7 +116,7 @@ module Goodreads
         # on a *different* edition of the work doesn't reach here:
         # currently-reading landing on an edition with no reading of its
         # own is an unambiguous new read — a fresh copy, or the edition
-        # just swapped via EditionReconciliation — and the else branch
+        # just swapped via an edition_reconciliation resolution — and the else branch
         # opens it. date_started carried in `extra` for the resolver.
         pd = flag_pending("reread_conflict", work: work, edition: edition, extra: { "date_started" => @item.user_date_added })
         Outcome.new(entity: pd, payload: {}, edition: edition, created: cataloged.created, changed: cataloged.created)
@@ -365,22 +365,27 @@ module Goodreads
     end
 
     # Raised when a feed row resolves to a Work I own but not a specific
-    # Edition (see ensure_cataloged). Deduped on (work_id,
-    # goodreads_book_id) like flag_pending; the payload is refreshed on a
-    # re-touch so the resolver always replays the latest feed state.
+    # Edition (see ensure_cataloged) — a PendingDecision of kind
+    # "edition_reconciliation" (folded in 2026-09-04 from a separate
+    # EditionReconciliation model; see docs/DATA_MODEL.md). Deduped on
+    # (work_id, goodreads_book_id) like flag_pending; the payload is
+    # refreshed on a re-touch so the resolver always replays the latest
+    # feed state.
     def flag_edition_reconciliation(work)
       payload = {
+        "entity_type" => "Work", "entity_id" => work.id,
+        "title" => @item.title, "author_name" => @item.author_name,
         "goodreads_book_id" => @item.goodreads_book_id,
         "shelf" => @shelf,
         "work_id" => work.id,
         "candidate_edition_ids" => work.editions.ids,
         "feed_item" => @item.to_h.transform_keys(&:to_s)
       }
-      existing = EditionReconciliation.pending
+      existing = PendingDecision.pending.where(kind: "edition_reconciliation")
                    .where("payload @> ?", { "work_id" => work.id, "goodreads_book_id" => @item.goodreads_book_id }.to_json)
                    .first
       existing&.update!(payload: payload)
-      existing || EditionReconciliation.create!(work: work, payload: payload)
+      existing || PendingDecision.create!(kind: "edition_reconciliation", payload: payload)
     end
   end
 end

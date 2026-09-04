@@ -1,6 +1,13 @@
 module Goodreads
-  # Applies an EditionReconciliation resolution — see docs/DATA_MODEL.md
-  # and docs/INTEGRATIONS.md's edition-level reconciliation addendum.
+  # Applies a resolution to an edition_reconciliation PendingDecision —
+  # see docs/DATA_MODEL.md and docs/INTEGRATIONS.md's edition-level
+  # reconciliation addendum. Folded into PendingDecision 2026-09-04
+  # (previously its own EditionReconciliation model/queue) — this
+  # resolver stays its own class regardless, same as
+  # Enrichment::IsfdbEditionEnricher#commit_choice being its own thing
+  # PendingDecisionResolver delegates to: the resolution vocabulary here
+  # (relink/change_edition/add_edition/unowned_read/rejected) has nothing
+  # in common with accept/reject.
   #
   # relink / change_edition / add_edition make the goodreads_book_id
   # resolve to a confident Edition, then **replay** the original feed
@@ -26,7 +33,7 @@ module Goodreads
 
     def initialize(reconciliation, isfdb: Isfdb::Client.new)
       @rec = reconciliation
-      @work = reconciliation.work
+      @work = reconciliation.entity
       @item = reconciliation.feed_item
       @isfdb = isfdb
     end
@@ -41,8 +48,16 @@ module Goodreads
       else raise InvalidResolution, "unknown resolution #{resolution.inspect}"
       end
 
-      @rec.update!(status: "resolved", resolution: resolution.to_s,
-                   resolved_edition_id: @resolved_edition&.id, resolved_at: Time.current)
+      # No dedicated resolution/resolved_edition_id columns anymore —
+      # PendingDecision only knows pending/accepted/rejected, so
+      # "rejected" maps onto that status directly and everything else
+      # (a genuine structural resolution, however it turned out) is
+      # "accepted"; the specific resolution choice and which edition it
+      # landed on are recorded into payload, same place every other kind
+      # already stashes its own outcome data.
+      status = resolution.to_s == "rejected" ? "rejected" : "accepted"
+      @rec.update!(status: status, resolved_at: Time.current,
+                   payload: @rec.payload.merge("resolution" => resolution.to_s, "resolved_edition_id" => @resolved_edition&.id))
       @rec
     end
 

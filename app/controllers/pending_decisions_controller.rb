@@ -3,7 +3,7 @@
 # with a Turbo Stream swapping straight to the next pending decision
 # in place, not a full page redirect back to the index.
 class PendingDecisionsController < ApplicationController
-  before_action :set_pending_decision, only: [ :show, :accept, :reject ]
+  before_action :set_pending_decision, only: [ :show, :accept, :reject, :resolve ]
 
   def index
     @kind = params[:kind].presence
@@ -25,6 +25,22 @@ class PendingDecisionsController < ApplicationController
   def reject
     Enrichment::PendingDecisionResolver.reject(@pending_decision)
     advance
+  end
+
+  # edition_reconciliation's own resolution vocabulary
+  # (relink/change_edition/add_edition/unowned_read/rejected) doesn't fit
+  # accept/reject's binary, so it gets its own verb — the one place this
+  # queue's shared accept/reject/resolve trio isn't uniform across every
+  # kind, same as accept already isn't (selected_fields vs. pub_id).
+  def resolve
+    @kind = params[:kind].presence
+    Goodreads::EditionReconciliationResolver.resolve(
+      @pending_decision, resolution: params[:resolution],
+      target_edition_id: params[:target_edition_id].presence, source: params[:source].presence
+    )
+    advance
+  rescue Goodreads::EditionReconciliationResolver::InvalidResolution => e
+    redirect_to pending_decision_path(@pending_decision, kind: @kind), alert: e.message
   end
 
   private

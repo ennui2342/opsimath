@@ -55,8 +55,8 @@ to a `:default` shelf name).
 
 One card in a **comparison-review** layout. Dumb renderer — the model method
 that builds the cards owns all the "which fields, which are selectable"
-logic (`PendingDecision#comparison_cards`,
-`EditionReconciliation#comparison_cards`). Both feed it the same
+logic (`PendingDecision#comparison_cards` / `#printing_choice_cards` /
+`#edition_reconciliation_cards`). All feed it the same
 `Ui::ComparisonCardComponent::Card` / `::FieldRow` structs.
 
 `Card` knobs:
@@ -82,7 +82,7 @@ Three selection idioms:
 - **Per-field checkboxes** (`FieldRow#selectable`) — "which of these values
   do I want", `enrichment_conflict`. Submits `fields[]`.
 - **Whole-card radio** (`select_name`) — "which of these candidates is it",
-  `EditionReconciliation`. Submits one value under `select_name`.
+  the `edition_reconciliation` kind. Submits one value under `select_name`.
 - **Both, combined** — "which printing, *and* which of its fields":
   `enrichment_printing_choice` (`PendingDecision#printing_choice_cards`).
   Each candidate card has a header radio *and* per-field checkboxes;
@@ -223,8 +223,8 @@ The shape for "here are N candidates, make one structural call." Used by
 `pending_decisions/_decision_comparison`,
 `pending_decisions/_decision_printing_choice` (candidate ISFDB printings
 for a reused ISBN — radio + checkboxes per card) and
-`edition_reconciliations/_reconciliation`. A new review screen of this kind
-should be recognisably the same page:
+`pending_decisions/_decision_edition_reconciliation`. A new review screen
+of this kind should be recognisably the same page:
 
 ```
 #<name>  .w-full.max-w-5xl   data-controller="decision-shortcuts"
@@ -265,8 +265,9 @@ Rules:
 
 ### Queue / index list
 
-`pending_decisions/index`, `edition_reconciliations/index`.
-`w-full max-w-3xl`; `<h1>`; an optional one-line description; then a
+`pending_decisions/index` — the one queue, every kind (including
+`edition_reconciliation`) filtered from the same index via the kind pills
+below. `w-full max-w-3xl`; `<h1>`; an optional one-line description; then a
 `divide-y … rounded-lg border` `<ul>` of `<li>` rows, each a full-width
 `link_to` (`flex items-center justify-between gap-4 px-4 py-3
 hover:bg-gray-50 dark:hover:bg-gray-800`) with the subject on the left and a
@@ -285,9 +286,9 @@ queue" link.
 
 `layouts/application.html.erb` renders `notice`/`alert` as a full-width
 bar directly under the header, above `<main>` — plain Rails flash, no
-Turbo Stream (it only ever appears after a real page redirect: a
-`PendingDecisionsController`/`EditionReconciliationsController` invalid
-resolution, or `EditionMetadataController#update`'s "Updated Cover image,
+Turbo Stream (it only ever appears after a real page redirect:
+`PendingDecisionsController#resolve`'s invalid-resolution alert, or
+`EditionMetadataController#update`'s "Updated Cover image,
 Publisher." summary). Two variants, one per Rails key:
 
 | key | classes | when |
@@ -298,8 +299,9 @@ Publisher." summary). Two variants, one per Rails key:
 **This is app-wide chrome, not a screen concern** — a controller sets
 `notice:`/`alert:` on `redirect_to` and gets the banner for free; no view
 needs to know it exists. Added 2026-09-04 alongside `EditionMetadataController`
-— before this, `flash` was set in a couple of places (`EditionReconciliationsController`'s
-invalid-resolution `alert`) but never actually rendered anywhere, a
+— before this, `flash` was set in a couple of places (the then-separate
+`EditionReconciliationsController`'s invalid-resolution `alert`, since
+folded into `PendingDecisionsController#resolve`) but never actually rendered anywhere, a
 pre-existing gap.
 
 ## Button roles

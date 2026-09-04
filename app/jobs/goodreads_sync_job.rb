@@ -59,7 +59,7 @@ class GoodreadsSyncJob < ApplicationJob
   def process_touched(touched)
     JobItem.create!(run_id: job_id, entity: touched.entity, status: "success", message: "#{touched.shelf}: #{touched.goodreads_book_id}")
 
-    if touched.entity.is_a?(PendingDecision) || touched.entity.is_a?(EditionReconciliation)
+    if touched.entity.is_a?(PendingDecision)
       notify_review_item(touched.entity, touched)
       return
     end
@@ -89,17 +89,17 @@ class GoodreadsSyncJob < ApplicationJob
     ))
   end
 
-  # Both review queues (PendingDecision + EditionReconciliation) notify
-  # the same way — something needs a human before the sync can finish
-  # this item.
+  # Every review kind (enrichment_conflict, possible_duplicate_work,
+  # reread_conflict, edition_reconciliation, ...) is a PendingDecision now
+  # — one queue, one notification shape — something needs a human before
+  # the sync can finish this item. "edition reconciliation" reads better
+  # than the raw kind string in a Discord title; everything else is
+  # already legible as-is.
   def notify_review_item(record, touched)
-    label = record.is_a?(EditionReconciliation) ? "edition reconciliation" : record.kind
+    label = record.kind == "edition_reconciliation" ? "edition reconciliation" : record.kind
     Notifications.notify(Notifications::Event.new(
       kind: :pending_decision, level: :warn, title: "Needs review: #{label} — #{touched.title}",
-      fields: {
-        "shelf" => touched.shelf, "goodreads_book_id" => touched.goodreads_book_id,
-        "#{record.model_name.param_key}_id" => record.id
-      }
+      fields: { "shelf" => touched.shelf, "goodreads_book_id" => touched.goodreads_book_id, "pending_decision_id" => record.id }
     ))
   end
 
