@@ -135,17 +135,14 @@ main { padding: 0 1rem 3rem; }
 .edition .pills { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.35rem; }
 .edition .pills .pill { margin-top: 0; }
 /* A wishlist card's pills row is the first thing in .body — no headline
-   above it to separate from, and nothing to put on its left, so it sits
-   flush at the top and right-aligned instead of stacked-below-left. */
-.wishlist-card .pills { justify-content: flex-end; margin-top: 0; }
-/* .edition's default align-items (stretch) pins .body to the *top* of
-   the image's full height — fine when the body's own content (headline +
-   pills + meta + ids) is about that tall anyway, but a wishlist card's
-   content is often just the one pill (sometimes plus an isbn line), so
-   stretch left it floating at the top with visible dead space below,
-   disconnected from the image next to it. Center the (usually short)
-   content block against the image instead. */
-.wishlist-card { align-items: center; }
+   above it to separate from, so it just sits flush at the top, flush
+   left, exactly like an edition card's own pills row (2026-09-04
+   correction: an earlier pass right-justified this, which — because
+   .body stretches to the row's full width via .entry .body's flex: 1 —
+   left the lozenge stranded far from the cover at the right edge of the
+   screen instead of sitting next to it; Mark caught it from a real
+   screenshot). */
+.wishlist-card .pills { margin-top: 0; }
 .edition .ids {
   display: flex;
   flex-wrap: wrap;

@@ -263,12 +263,16 @@
   // A pure wishlist entry (no editions at all — see docs, "is a wishlist
   // item connected to an edition?": no) gets the same card shape as an
   // edition — same size/left-aligned image — but there's no
-  // publisher/year/pages to headline with, so the WISHLIST lozenge takes
-  // that line's place instead, right-aligned rather than stacked below an
-  // empty headline. `idFooter` reuses the exact same footer an edition
-  // card uses; a wishlist item never has an isfdb id (nothing's been
-  // matched yet), but does carry isbn10/isbn13 and a goodreads id, which
-  // idFooter already renders fine given only some of the fields it knows.
+  // publisher/year/pages to headline with, so the WISHLIST lozenge just
+  // takes that line's place, same pills-row styling an edition card's own
+  // ownership/reading lozenges use (flush top-left — a first cut had this
+  // right-justified, which read fine in isolation but on a real device
+  // left it stranded at the far right of the screen since .body stretches
+  // to the row's full width; fixed 2026-09-04). `idFooter` reuses the
+  // exact same footer an edition card uses; a wishlist item never has an
+  // isfdb id (nothing's been matched yet), but does carry isbn10/isbn13
+  // and a goodreads id, which idFooter already renders fine given only
+  // some of the fields it knows.
   function wishlistCardHtml(row) {
     const thumb = blobUrl(row.thumb);
     return `<div class="edition wishlist-card">

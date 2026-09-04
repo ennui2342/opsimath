@@ -230,8 +230,9 @@ snapshot is still fully functional.
     one card in the same shape an edition card uses (`pocket.js`'s
     `wishlistCardHtml`, 2026-09-04): same size, left-aligned cover, and
     since there's no publisher/year/pages to headline with, the WISHLIST
-    lozenge sits where the headline line would be, right-aligned, with
-    the isbn10/isbn13/goodreads identifier footer underneath (a wishlist
+    lozenge simply sits where the headline line would be (flush top-left,
+    same as an edition card's own pills row), with the
+    isbn10/isbn13/goodreads identifier footer underneath (a wishlist
     item carries no isfdb id — it hasn't been matched to anything yet).
     A work you already own one printing of but still wishlist another edition of
     keeps the compact inline lozenge next to its title instead — it
