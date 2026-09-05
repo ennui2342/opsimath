@@ -1266,6 +1266,60 @@ accepted programmatically with no explicit fields would silently never
 apply it. Now reuses `PendingDecision::EDITION_FIELD_ORDER` directly
 instead of a second, drifted-from-it copy of the same list.
 
+##### 2026-09-05 correction: the first cut of `#same_edition?` was wrong on two real books
+
+Mark, reviewing an actual merged decision (Fahrenheit 451): "the editions
+I'm choosing between... doesn't match my copy... my printing is in the
+70s and the matched printing is in the 90s. It feels like this alone
+should have split apart some of your editions rather than merging all
+12." Right on both counts. The ISBN's 12 ISFDB records are genuinely two
+different printings — 7 credit **Donna Diamond** at 179 pages, 4 credit
+**Joseph Mugnaini** at 191-192 pages — and the merge picked a Donna
+Diamond one; Goodreads' own original record for this book already said
+190 pages, matching the *other* group. `#same_edition?` never looked at
+`cover_artists` at all, and only used `publish_date` as a completeness
+tie-break, never as a disqualifier — so a genuinely re-illustrated
+reissue, or a real decade-plus reprint gap, merged just like ISFDB's
+actual duplicate records did.
+
+Audited every field an isfdb-adapter candidate carries against the real
+164 already-accepted decisions, not just the two just found, before
+deciding what needed a rule (`IsfdbEditionEnricher#same_edition?`'s own
+comment has the full field-by-field accounting). Net new checks: any two
+candidates that both state a `cover_artists` credit, a publish-date
+*year*, or a `language` must agree exactly (a candidate that simply
+doesn't say never disagrees with one that does — same rule `page_count`
+and everything else here already follows); and `_isfdb_title_id` —
+ISFDB's own "same underlying novel" id, checked first as the most
+fundamental gate, since a mismatch there means the ISBN matched genuinely
+distinct ISFDB entities, not just distinct printings of one (real case
+found: "Chapterhouse: Dune" / "Chapter House Dune" are title-string
+variants of the *same* book and share a title id; "Revolt in 2100" /
+"\"If This Goes On—\"" do not, and shouldn't merge). `authors` and
+`_isfdb_series_id` got the same exact-agreement treatment too, though in
+this backlog every case where either disagreed also disagreed on
+`_isfdb_title_id` or year — they added no further cases today, but
+they're real facts this app tracks and a future dataset might disagree on
+them without tripping the other checks.
+
+True blast radius, re-audited across every dimension: **63 of the 164**
+accepted decisions should not have merged (up from the 13 the
+cover-artist check alone found) — including `#798`, *The Anubis Gates*,
+the exact HarperCollins-UK-1993-vs-Triad-Grafton-1986 case that motivated
+building `enrichment_printing_choice` in the first place, silently
+re-collapsed by the first cut of this "fix." `bin/rails
+isfdb:reopen_bad_printing_merges` re-runs the corrected `#same_edition?`
+(`IsfdbEditionEnricher.same_edition_for?` — deliberately re-checking only
+the equivalence rule itself, not the full `#resolve_candidate` cascade,
+since its earlier "matches the year already on file" tier would read
+`@edition.publish_date` — which might already *be* a bad merge's own
+mistaken write) against each accepted decision's stored candidates and
+reopens (`status: "pending"`) whichever now fail it, leaving the
+currently-applied (possibly wrong) field values in place — the review
+screen shows the edition's current state alongside every real candidate
+either way, so picking the right one there overwrites the wrong data as
+part of the normal accept flow. The remaining 101 stay accepted.
+
 ### Addendum: reconciling an edition on demand, not just when something raised a conflict
 
 The publisher-sweep analysis (2026-09-04) found the pending

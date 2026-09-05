@@ -268,6 +268,112 @@ module Enrichment
       assert_equal "enrichment_printing_choice", PendingDecision.sole.kind
     end
 
+    # The 2026-09-05 audit — every dimension #same_edition? checks beyond
+    # binding/publisher/page_count, found by going through every field an
+    # isfdb-adapter candidate actually carries against the real accepted
+    # backlog (63 of 164 turned out wrong under the first cut, including
+    # re-collapsing the exact Anubis Gates case that motivated this whole
+    # mechanism — see docs/INTEGRATIONS.md).
+
+    test "a genuinely re-illustrated reissue (different cover artist) raises for review, even with identical publisher/binding/pages" do
+      original = DUNE_RESPONSE.merge(_isfdb_pub_id: 111_111, cover_artists: [ "John Schoenherr" ])
+      reissue = DUNE_RESPONSE.merge(_isfdb_pub_id: 222_222, cover_artists: [ "Jim Burns" ])
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ original, reissue ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      result = IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal :needs_review, result.status
+      assert_equal "enrichment_printing_choice", PendingDecision.sole.kind
+    end
+
+    test "a real decade-plus reprint gap (different known years) raises for review, even with identical publisher/binding/pages" do
+      a = DUNE_RESPONSE.merge(_isfdb_pub_id: 111_111, publish_date: "1986")
+      b = DUNE_RESPONSE.merge(_isfdb_pub_id: 222_222, publish_date: "1993")
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ a, b ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      result = IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal :needs_review, result.status
+      assert_equal "enrichment_printing_choice", PendingDecision.sole.kind
+    end
+
+    test "candidates sharing an isbn but pointing at a different isfdb title record raise for review" do
+      novel = DUNE_RESPONSE.merge(_isfdb_pub_id: 111_111, _isfdb_title_id: 2036)
+      other_work = DUNE_RESPONSE.merge(_isfdb_pub_id: 222_222, _isfdb_title_id: 999_999)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ novel, other_work ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      result = IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal :needs_review, result.status
+      assert_equal "enrichment_printing_choice", PendingDecision.sole.kind
+    end
+
+    test "candidates crediting different authors raise for review" do
+      a = DUNE_RESPONSE.merge(_isfdb_pub_id: 111_111, authors: [ "Frank Herbert" ])
+      b = DUNE_RESPONSE.merge(_isfdb_pub_id: 222_222, authors: [ "Brian Herbert" ])
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ a, b ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      result = IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal :needs_review, result.status
+      assert_equal "enrichment_printing_choice", PendingDecision.sole.kind
+    end
+
+    test "candidates in different isfdb series raise for review" do
+      a = DUNE_RESPONSE.merge(_isfdb_pub_id: 111_111, _isfdb_series_id: 869)
+      b = DUNE_RESPONSE.merge(_isfdb_pub_id: 222_222, _isfdb_series_id: 123_456)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ a, b ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      result = IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal :needs_review, result.status
+      assert_equal "enrichment_printing_choice", PendingDecision.sole.kind
+    end
+
+    test "candidates in different languages raise for review" do
+      a = DUNE_RESPONSE.merge(_isfdb_pub_id: 111_111, language: "eng")
+      b = DUNE_RESPONSE.merge(_isfdb_pub_id: 222_222, language: "fre")
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ a, b ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      result = IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal :needs_review, result.status
+      assert_equal "enrichment_printing_choice", PendingDecision.sole.kind
+    end
+
+    test "a blank value on one side of any exact-match dimension never disqualifies a merge on its own" do
+      sparse = DUNE_RESPONSE.merge(_isfdb_pub_id: 111_111, cover_artists: [], publish_date: "", language: "")
+      full = DUNE_RESPONSE.merge(_isfdb_pub_id: 222_222, cover_artists: [ "John Schoenherr" ], publish_date: "2010-06", language: "eng")
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ sparse, full ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      result = IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal :success, result.status
+      assert_empty PendingDecision.where(kind: "enrichment_printing_choice")
+      assert_equal "John Schoenherr", @edition.reload.cover_artist # the richer candidate won, as before
+    end
+
+    test "same_edition_for? re-checks the equivalence rule alone, with no edition needed" do
+      merged = [
+        DUNE_RESPONSE.merge(_isfdb_pub_id: 111_111).stringify_keys,
+        DUNE_RESPONSE.merge(_isfdb_pub_id: 222_222, cover_artists: [ "X" ]).stringify_keys
+      ]
+      not_merged = [
+        DUNE_RESPONSE.merge(_isfdb_pub_id: 111_111, cover_artists: [ "John Schoenherr" ]).stringify_keys,
+        DUNE_RESPONSE.merge(_isfdb_pub_id: 222_222, cover_artists: [ "Jim Burns" ]).stringify_keys
+      ]
+
+      assert IsfdbEditionEnricher.same_edition_for?(merged)
+      assert_not IsfdbEditionEnricher.same_edition_for?(not_merged)
+    end
+
     test "resolve_candidate_for re-evaluates an already-raised decision's stored candidates without a new fetch" do
       edition = Edition.create!
       candidates = [

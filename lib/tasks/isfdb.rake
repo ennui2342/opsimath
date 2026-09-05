@@ -28,4 +28,20 @@ namespace :isfdb do
     end
     puts "resolved=#{resolved} left=#{left}"
   end
+
+  desc "One-time remediation for the 2026-09-05 same_edition? audit: reopen every accepted enrichment_printing_choice decision the corrected algorithm (title_id/authors/series_id/cover_artists/year/language, not just binding/publisher/page_count) would NOT have merged — see docs/INTEGRATIONS.md. Leaves the currently-applied field values in place; reopening puts it back in front of a human, same as any other pending decision"
+  task reopen_bad_printing_merges: :environment do
+    reopened = 0
+    kept = 0
+    PendingDecision.where(kind: "enrichment_printing_choice", status: "accepted").find_each do |pending_decision|
+      candidates = pending_decision.payload["candidates"] || []
+      if Enrichment::IsfdbEditionEnricher.same_edition_for?(candidates)
+        kept += 1
+      else
+        pending_decision.update!(status: "pending", resolved_at: nil)
+        reopened += 1
+      end
+    end
+    puts "reopened=#{reopened} kept=#{kept}"
+  end
 end

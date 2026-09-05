@@ -69,6 +69,19 @@ module Enrichment
       new(edition, client: nil).send(:resolve_candidate, candidates)
     end
 
+    # Public wrapper around the private #same_edition? alone — doesn't
+    # need an edition at all (the check is purely a function of the
+    # candidate list, never `@edition`), so no edition argument here.
+    # `isfdb:reopen_bad_printing_merges` uses this specifically rather
+    # than #resolve_candidate_for: it needs to re-run *only* the
+    # equivalence rule that was actually wrong, not the full cascade —
+    # #resolve_candidate's earlier "matches the year already on file"
+    # tier would read @edition.publish_date, which itself might already
+    # be the bad merge's own mistaken write.
+    def self.same_edition_for?(candidates)
+      new(nil, client: nil).send(:same_edition?, candidates)
+    end
+
     def initialize(edition, client:)
       @edition = edition
       @client = client
@@ -397,22 +410,80 @@ module Enrichment
       richest_candidate(candidates) if same_edition?(candidates)
     end
 
-    # Same binding (compared raw — an unmapped ptype maps to the same nil
-    # `FORMAT_BY_PTYPE` result as any other unmapped one, which would
-    # otherwise read as a false match), the same publisher once the
-    # existing non-distinguishing-variant normalization is applied
-    # pairwise, and page counts within PAGE_COUNT_TOLERANCE of each
-    # other. Mark, 2026-09-04, on that last one: page count is the least
-    # interesting field here, ambiguous to count in the first place on a
-    # collaborative wiki — a small variance is almost certainly a
-    # counting difference between contributors, not evidence of a
-    # separate printing, and it's the detail that matters least even
-    # when it does turn out to differ genuinely.
+    # 2026-09-05 audit (Mark: "this is sloppy... let's run through your
+    # algorithm to make sure there's no mistakes" — first cut only
+    # checked binding/publisher/page_count and wrongly merged 63 of 164
+    # real accepted decisions, including collapsing back together the
+    # exact Anubis Gates HarperCollins-UK-1993-vs-Triad-Grafton-1986 case
+    # that motivated building enrichment_printing_choice in the first
+    # place). Went through every field an isfdb-adapter candidate
+    # actually carries, not just the two already caught, and checked each
+    # one against the real accepted-decision backlog before deciding
+    # whether it needed a rule:
+    #
+    # - `_isfdb_title_id` — ISFDB's own "same underlying novel" id, more
+    #   fundamental than the title *string* (which legitimately varies —
+    #   "Chapterhouse: Dune" / "Chapter House Dune" are the same book,
+    #   different title records). A mismatch here means the ISBN matched
+    #   genuinely distinct ISFDB entities, not just distinct printings of
+    #   one — checked first, before anything else even matters.
+    # - `binding` — exact (compared raw: an unmapped ptype maps to the
+    #   same nil `FORMAT_BY_PTYPE` result as any other unmapped one,
+    #   which would otherwise read as a false match).
+    # - `publisher` — the existing non-distinguishing-variant
+    #   normalization, applied pairwise.
+    # - `cover_artists`, publish_date's *year*, `language` — exact
+    #   agreement wherever any candidate actually states a value
+    #   (#agrees_where_known?); a candidate that simply doesn't say never
+    #   disagrees with one that does, same "blank isn't a disagreement"
+    #   rule this file applies everywhere else. These three, especially
+    #   cover_artists and year, are exactly what the real 63 turned out
+    #   to hinge on — a genuinely re-illustrated reissue, or a real
+    #   decade-plus reprint gap, reads as "different" now instead of
+    #   silently merging.
+    # - `page_count` — its own tolerance, `PAGE_COUNT_TOLERANCE`, since
+    #   unlike the above it's genuinely ambiguous to count in the first
+    #   place on a collaborative wiki (Mark, 2026-09-04): a small
+    #   variance there is almost certainly a counting difference between
+    #   contributors, not evidence of a separate printing, and it's the
+    #   detail that matters least even on the rare occasion it does
+    #   differ for real. Re-verified against the 101 decisions that
+    #   *do* still merge under every check above: the actual page-count
+    #   spread among them tops out at 5.0%, comfortably inside the 10%
+    #   tolerance and nowhere near the ~7-19% range the real 63 needed
+    #   the other checks to catch anyway.
+    # - `authors`, `_isfdb_series_id` — checked too; in this backlog
+    #   every case where either disagreed also disagreed on title_id or
+    #   year, so they added no further cases, but they're real facts
+    #   this app tracks and a future dataset might disagree on them
+    #   without also tripping title_id or year — covered by the same
+    #   #agrees_where_known? rule for the same reason.
+    # - `title`, `subtitle`, `description`, `categories`, `cover_url`,
+    #   `isbn_10`/`isbn_13`, `_isfdb_series_num` — not meaningful
+    #   equivalence dimensions: constant per ISBN query, purely
+    #   cosmetic/derived, or (title, cover_url) already superseded by a
+    #   more authoritative field above.
     def same_edition?(candidates)
       return false unless candidates.map { |c| c["binding"].to_s.downcase }.uniq.one?
+      return false unless candidates.map { |c| c["_isfdb_title_id"] }.uniq.one?
+      return false unless agrees_where_known?(candidates) { |c| c["authors"] }
+      return false unless agrees_where_known?(candidates) { |c| c["_isfdb_series_id"] }
+      return false unless agrees_where_known?(candidates) { |c| Array(c["cover_artists"]).sort.presence }
+      return false unless agrees_where_known?(candidates) { |c| c["publish_date"].to_s[0, 4].presence }
+      return false unless agrees_where_known?(candidates) { |c| c["language"].presence }
 
       candidates.map { |c| c["publisher"] }.combination(2).all? { |a, b| publisher_equivalent?(a, b) } &&
         page_counts_equivalent?(candidates)
+    end
+
+    # True when every candidate that actually states a value for
+    # whatever the block extracts states the *same* one — a candidate
+    # that leaves it blank never disagrees with one that doesn't. For the
+    # exact-match dimensions only (#same_edition?'s callers); publisher
+    # gets its own non-distinguishing-variant tolerance and page_count
+    # its own percentage tolerance, both defined separately.
+    def agrees_where_known?(candidates, &block)
+      candidates.filter_map(&block).uniq.size <= 1
     end
 
     def publisher_equivalent?(a, b)
