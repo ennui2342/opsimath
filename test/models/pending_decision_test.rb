@@ -149,7 +149,7 @@ class PendingDecisionTest < ActiveSupport::TestCase
     assert_nil pending.comparison_cards
   end
 
-  test "printing_choice_cards: a reference card plus one selectable card per ISFDB printing, first pre-picked" do
+  test "printing_choice_cards: a reference card plus one read-only radio card per ISFDB printing, first pre-picked" do
     edition = Edition.create!(publisher: "Existing")
     pending = PendingDecision.create!(kind: "enrichment_printing_choice", payload: {
       "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "isbn" => "0586065504",
@@ -170,17 +170,13 @@ class PendingDecisionTest < ActiveSupport::TestCase
     assert_equal "pub_id", first.select_name
     assert_equal "35244", first.select_value
     assert first.selected
-    assert_not first.fields_disabled
-    assert_equal "pub35244_", first.input_scope
-    assert(first.fields.all?(&:selectable))
+    assert(first.fields.none?(&:selectable)) # no per-field picking — the whole printing applies
+    assert_nil first.cover_selectable
     assert_equal "Mass market", first.fields.find { |f| f.name == "format_detail" }.value
-    assert first.cover_selectable # its downloaded cover renders as an <img> + checkbox
     assert_equal "35244.jpg", first.cover.filename.to_s
     assert_equal "Richard Clifton-Dey", first.fields.find { |f| f.name == "cover_artist" }.value
 
     assert_not second.selected
-    assert second.fields_disabled
-    assert_not second.cover_selectable # no cover downloaded for this printing
   end
 
   test "printing_choice_cards collapses several ISFDB records for the same printing into one card, showing the richest" do
@@ -206,8 +202,8 @@ class PendingDecisionTest < ActiveSupport::TestCase
 
     assert_equal "847371", diamond.select_value          # the richest of its three (has a date and a cover_url)
     assert_equal "1993-05", diamond.fields.find { |f| f.name == "publish_date" }.value
-    assert_match(/3 near-identical ISFDB records/, diamond.info_note)
-    assert_match(/2 near-identical ISFDB records/, mugnaini.info_note)
+    assert_match(/3 ISFDB records for this printing/, diamond.info_note)
+    assert_match(/2 ISFDB records for this printing/, mugnaini.info_note)
   end
 
   test "printing_choice_cards leaves genuinely different printings as separate cards" do

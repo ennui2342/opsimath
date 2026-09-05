@@ -510,30 +510,59 @@ module Enrichment
       assert_equal "already-here", pending.candidate_covers.sole.download
     end
 
-    test "commit_choice applies only the checked fields from the chosen candidate, no conflict gate" do
-      @edition.update!(publisher: "Wrong Publisher On File") # would normally be a conflict
-      chosen = DUNE_RESPONSE.merge(publisher: "New English Library", publish_date: "1985", page_count: 412, _isfdb_pub_id: 111_111)
+    test "commit_choice resets the edition to the chosen printing wholesale, no conflict gate" do
+      @edition.update!(publisher: "Wrong Publisher On File", publish_date: "2003", page_count: 999,
+                       cover_artist: "Someone Else",
+                       field_sources: { "publisher" => "goodreads", "publish_date" => "goodreads", "page_count" => "goodreads", "cover_artist" => "goodreads" })
+      chosen = DUNE_RESPONSE.merge(publisher: "New English Library", publish_date: "1985", page_count: 412,
+                                   cover_artists: [ "Bruce Pennington" ], _isfdb_pub_id: 111_111)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "cover-bytes", headers: { "Content-Type" => "image/jpeg" })
 
-      IsfdbEditionEnricher.commit_choice(@edition, chosen.deep_stringify_keys, fields: %w[publisher page_count cover_image])
+      IsfdbEditionEnricher.commit_choice(@edition, chosen.deep_stringify_keys)
 
       @edition.reload
-      assert_equal "New English Library", @edition.publisher # overwritten, no PendingDecision
+      assert_equal "New English Library", @edition.publisher
+      assert_equal "1985", @edition.publish_date
       assert_equal 412, @edition.page_count
-      assert_nil @edition.publish_date # not checked -> not applied
-      assert_equal "isfdb", @edition.field_sources["publisher"]
+      assert_equal "Bruce Pennington", @edition.cover_artist
+      assert_equal %w[isfdb isfdb isfdb isfdb],
+                   @edition.field_sources.values_at("publisher", "publish_date", "page_count", "cover_artist")
       assert @edition.cover_image.attached?
       assert_empty PendingDecision.all
       assert_equal "111111", @edition.edition_identifiers.find_by(id_type: "isfdb").value
     end
 
-    test "commit_choice can pick cover_artist like any other field" do
-      chosen = DUNE_RESPONSE.merge(cover_artists: [ "John Schoenherr" ], _isfdb_pub_id: 111_111)
+    test "commit_choice clears a field the chosen printing leaves blank, dropping its stale provenance" do
+      @edition.update!(publish_date: "2003", field_sources: { "publish_date" => "goodreads" })
+      chosen = DUNE_RESPONSE.merge(publish_date: "", _isfdb_pub_id: 111_111) # this printing has no date
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
 
-      IsfdbEditionEnricher.commit_choice(@edition, chosen.deep_stringify_keys, fields: %w[cover_artist])
+      IsfdbEditionEnricher.commit_choice(@edition, chosen.deep_stringify_keys)
 
-      assert_equal "John Schoenherr", @edition.reload.cover_artist
+      @edition.reload
+      assert_nil @edition.publish_date
+      assert_not @edition.field_sources.key?("publish_date")
+    end
+
+    test "commit_choice drops other isfdb identifiers a past wrong merge attached, keeping the chosen pub" do
+      EditionIdentifier.create!(edition: @edition, id_type: "isfdb", value: "847371")
+      EditionIdentifier.create!(edition: @edition, id_type: "isfdb", value: "253097")
+      chosen = DUNE_RESPONSE.merge(_isfdb_pub_id: 361_403)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      IsfdbEditionEnricher.commit_choice(@edition, chosen.deep_stringify_keys)
+
+      assert_equal %w[361403], @edition.edition_identifiers.where(id_type: "isfdb").pluck(:value)
+    end
+
+    test "commit_choice keeps format when the chosen printing's binding is present but unmapped" do
+      @edition.update!(format: "hardcover", format_detail: "library", field_sources: { "format" => "goodreads" })
+      chosen = DUNE_RESPONSE.merge(binding: "quarto", _isfdb_pub_id: 111_111) # not in FORMAT_BY_PTYPE
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      IsfdbEditionEnricher.commit_choice(@edition, chosen.deep_stringify_keys)
+
+      assert_equal "hardcover", @edition.reload.format # our mapping gap, not ISFDB saying "no format"
     end
 
     test "reprocess re-applies an already-fetched payload without a new EnrichmentRecord or network call" do

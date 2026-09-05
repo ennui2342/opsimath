@@ -55,4 +55,21 @@ class EnrichmentRecordTest < ActiveSupport::TestCase
     end
     assert_not record.cover_image.attached?
   end
+
+  test "with COVER_CACHE_DIR set, a fetch is written to the cache and a second fetch reads it back with no network call" do
+    Dir.mktmpdir do |dir|
+      ENV["COVER_CACHE_DIR"] = dir
+      stub = stub_request(:get, "https://covers.example/c.jpg").to_return(status: 200, body: "cached-bytes", headers: { "Content-Type" => "image/jpeg" })
+
+      first = HasCoverImage.fetch_image("https://covers.example/c.jpg")
+      assert_equal "cached-bytes", first[:io].read
+
+      second = HasCoverImage.fetch_image("https://covers.example/c.jpg")
+      assert_equal "cached-bytes", second[:io].read
+      assert_equal "image/jpeg", second[:content_type]
+      assert_requested stub, times: 1 # the second call never hit the network
+    end
+  ensure
+    ENV.delete("COVER_CACHE_DIR")
+  end
 end

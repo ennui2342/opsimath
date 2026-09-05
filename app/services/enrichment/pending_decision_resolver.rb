@@ -62,29 +62,24 @@ module Enrichment
       Reading.create!(work: work, edition: edition, status: "reading", date_started: @pending_decision.payload["date_started"])
     end
 
-    # Accept = "this ISFDB printing (pub_id) is the one I own — apply the
-    # fields I checked." No conflict gate: the reviewer picked both the
-    # printing and the values in front of the full comparison. `pub_id`
-    # comes from the radio in the chosen card's header.
-    def accept_printing_choice(selected_fields, pub_id)
+    # Accept = "this ISFDB printing (pub_id) is the one I own." The edition
+    # becomes that pub record wholesale (Enrichment::IsfdbEditionEnricher#commit_choice)
+    # — no per-field selection, because a printing choice is a "which book
+    # is this" call, not a "which value do I trust" one. `pub_id` comes
+    # from the radio in the chosen card's header. `selected_fields` is
+    # accepted for signature parity with accept_enrichment and ignored.
+    def accept_printing_choice(_selected_fields, pub_id)
       record = @pending_decision.entity
       return unless record
 
       candidate = (@pending_decision.payload["candidates"] || []).find { |c| c["_isfdb_pub_id"].to_s == pub_id.to_s }
       raise ArgumentError, "no ISFDB candidate #{pub_id.inspect} in decision #{@pending_decision.id}" unless candidate
 
-      # 2026-09-04 fix: this default (used only when no explicit selection
-      # comes in — the real browser form always submits one checkbox per
-      # field actually shown, so this only matters for a programmatic
-      # accept like isfdb:resolve_duplicate_printings) was missing
-      # cover_artist, silently dropping it whenever a caller didn't pass
-      # fields itself.
-      fields = selected_fields.presence || PendingDecision::EDITION_FIELD_ORDER + %w[cover_image]
       Enrichment::IsfdbEditionEnricher.commit_choice(
-        record, candidate, fields: fields, cover_blob: @pending_decision.candidate_cover(pub_id)&.blob
+        record, candidate, cover_blob: @pending_decision.candidate_cover(pub_id)&.blob
       )
       @pending_decision.candidate_covers.purge_later if @pending_decision.candidate_covers.attached?
-      resolve_superseded_conflict(record, fields)
+      resolve_superseded_conflict(record, PendingDecision::EDITION_FIELD_ORDER + %w[cover_image])
     end
 
     # A printing-choice decision and a field-level enrichment_conflict can

@@ -14,21 +14,18 @@
 <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
   ISBN <span class="font-mono"><%= pending_decision.payload["isbn"] %></span>
   <% if cards[:candidates].one? %>
-    matched several ISFDB records that all look like the same printing — confirm to apply the most complete one, or reject if it's wrong.
+    matched several ISFDB records that all look like the same printing — confirm to adopt it, or reject if it's wrong.
   <% else %>
-    matches <%= cards[:candidates].size %> ISFDB printings — pick the one you own, then choose which details to apply.
+    matches <%= cards[:candidates].size %> ISFDB printings — pick the one you own. Its details replace what's on the edition; rejecting leaves the edition as it is.
   <% end %>
 </p>
 
 <%= form_with url: accept_pending_decision_path(pending_decision, kind: kind_filter), method: :post,
-      data: { turbo_stream: true, decision_shortcuts_target: "accept",
-              controller: "printing-choice", action: "change->printing-choice#sync" } do %>
+      data: { turbo_stream: true, decision_shortcuts_target: "accept" } do %>
   <div class="mb-6 grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
     <%= render(Ui::ComparisonCardComponent.new(card: cards[:edition])) %>
     <% cards[:candidates].each do |card| %>
-      <div data-printing-choice-target="card" data-printing-choice-key="<%= card.select_value %>">
-        <%= render(Ui::ComparisonCardComponent.new(card: card)) %>
-      </div>
+      <%= render(Ui::ComparisonCardComponent.new(card: card)) %>
     <% end %>
   </div>
 
@@ -46,6 +43,8 @@
 
 <p class="mt-6 max-w-2xl text-xs text-gray-500 dark:text-gray-400">
   Same ISBN, more than one printing in ISFDB — usually a later reissue under a
-  new publisher. Only the checked fields from the selected printing are applied;
-  rejecting leaves the edition as it is.
+  new publisher. Accepting makes the edition <em>be</em> the selected printing:
+  every bibliographic field (and the cover) is taken from it, and one it leaves
+  blank is cleared — the old value stays on record and the per-edition metadata
+  screen (the cog) can pull it back. Rejecting leaves the edition as it is.
 </p>

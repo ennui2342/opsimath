@@ -22,7 +22,7 @@ namespace :goodreads do
     puts counts
   end
 
-  desc "Wipe all book/reading/review/enrichment data and rebuild it from source (CSV import + Goodreads sync + ISFDB enrichment). Never run automatically — requires CONFIRM=yes. Pass SKIP_SYNC=yes to omit the Goodreads RSS sync step (CSV import + ISFDB enrichment only — e.g. for a restore-point dump that shouldn't carry any RSS-sourced data)."
+  desc "Wipe all book/reading/review/enrichment data and rebuild it from source (CSV import + Goodreads sync + ISFDB enrichment). Never run automatically — requires CONFIRM=yes. Pass SKIP_SYNC=yes to omit the Goodreads RSS sync step (CSV import + ISFDB enrichment only — e.g. for a restore-point dump that shouldn't carry any RSS-sourced data). Set COVER_CACHE_DIR (seed it first with covers:cache_export) to reuse already-downloaded cover images instead of re-fetching ~2k of them — see docs/INTEGRATIONS.md."
   task rebuild: :environment do
     abort "Refusing to run without CONFIRM=yes" unless ENV["CONFIRM"] == "yes"
 

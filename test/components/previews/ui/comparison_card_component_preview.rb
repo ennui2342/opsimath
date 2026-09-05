@@ -75,23 +75,23 @@ module Ui
       render(ComparisonCardComponent.new(card: card))
     end
 
-    # enrichment_printing_choice: one ISFDB printing candidate — radio in
-    # the header AND per-field checkboxes, its downloaded cover shown as an
-    # <img> with an "Apply this cover" box. `fields_disabled` dims the
-    # unpicked printings.
+    # enrichment_printing_choice: one ISFDB printing candidate — just a
+    # radio in the header, fields read-only (accepting adopts the whole
+    # printing, there's nothing per-field to pick), its downloaded cover
+    # shown as an <img>.
     def printing_choice_candidate
       edition = Edition.create!
       edition.cover_image.attach(io: StringIO.new(PNG_BYTES), filename: "triad.png", content_type: "image/png")
       card = Ui::ComparisonCardComponent::Card.new(
         label: "ISFDB · 1986 · Triad Grafton",
-        cover: edition.cover_image, cover_selectable: true,
+        cover: edition.cover_image,
         select_name: "pub_id", select_value: "35246", selected: true,
-        input_scope: "pub35246_", fields_disabled: false,
+        info_note: "2 ISFDB records for this printing — the fullest is shown",
         fields: [
-          Ui::ComparisonCardComponent::FieldRow.new(name: "format_detail", value: "Mass market", selectable: true),
-          Ui::ComparisonCardComponent::FieldRow.new(name: "publisher", value: "Triad Grafton", selectable: true),
-          Ui::ComparisonCardComponent::FieldRow.new(name: "publish_date", value: "1986-05", selectable: true),
-          Ui::ComparisonCardComponent::FieldRow.new(name: "page_count", value: 464, selectable: true)
+          Ui::ComparisonCardComponent::FieldRow.new(name: "format_detail", value: "Mass market"),
+          Ui::ComparisonCardComponent::FieldRow.new(name: "publisher", value: "Triad Grafton"),
+          Ui::ComparisonCardComponent::FieldRow.new(name: "publish_date", value: "1986-05"),
+          Ui::ComparisonCardComponent::FieldRow.new(name: "page_count", value: 464)
         ]
       )
       render(ComparisonCardComponent.new(card: card))
@@ -101,10 +101,9 @@ module Ui
       card = Ui::ComparisonCardComponent::Card.new(
         label: "ISFDB · 1993 · HarperCollins (UK)",
         select_name: "pub_id", select_value: "35244", selected: false,
-        input_scope: "pub35244_", fields_disabled: true,
         fields: [
-          Ui::ComparisonCardComponent::FieldRow.new(name: "publisher", value: "HarperCollins (UK)", selectable: true),
-          Ui::ComparisonCardComponent::FieldRow.new(name: "publish_date", value: "1993-10", selectable: true)
+          Ui::ComparisonCardComponent::FieldRow.new(name: "publisher", value: "HarperCollins (UK)"),
+          Ui::ComparisonCardComponent::FieldRow.new(name: "publish_date", value: "1993-10")
         ]
       )
       render(ComparisonCardComponent.new(card: card))

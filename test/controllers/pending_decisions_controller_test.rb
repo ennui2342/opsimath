@@ -186,15 +186,15 @@ class PendingDecisionsControllerTest < ActionDispatch::IntegrationTest
     assert_select "h1", text: "The Anubis Gates"
     assert_select "input[type=radio][name='pub_id'][value=?][checked]", "35244"
     assert_select "input[type=radio][name='pub_id'][value=?]", "35246"
-    assert_select "input[type=checkbox][name='fields[]'][value=publisher]"
+    assert_select "input[type=checkbox][name='fields[]']", false # no per-field picking on a printing choice
     assert_select "img" # the 1986 printing's downloaded cover
 
-    post accept_pending_decision_url(pending),
-      params: { pub_id: "35246", fields: %w[publisher publish_date] }, as: :turbo_stream
+    post accept_pending_decision_url(pending), params: { pub_id: "35246" }, as: :turbo_stream
 
     assert_response :success
     assert_equal "Triad Grafton", edition.reload.publisher
     assert_equal "1986-05", edition.publish_date
+    assert_equal 464, edition.page_count # the whole printing, not a subset
     assert_equal "accepted", pending.reload.status
   end
 

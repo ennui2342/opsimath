@@ -125,9 +125,12 @@ class PendingDecision < ApplicationRecord
   # (Enrichment::IsfdbEditionEnricher.cluster_candidates: several ISFDB
   # records for one physical book, differing only in how completely each
   # was filled in, or not at all) collapse into a single card showing
-  # their richest representative. Each card carries a radio in its header
-  # ("this is my printing") and per-field checkboxes; only the picked
-  # card's checkboxes submit (Stimulus printing-choice / #fields_disabled).
+  # their richest representative. Each card carries just a radio in its
+  # header ("this is my printing") — no per-field checkboxes: accepting
+  # resets the Edition to the picked printing wholesale (it's a "which
+  # book is this" call, not a "which value" one — see
+  # Enrichment::IsfdbEditionEnricher#commit_choice), so the fields render
+  # read-only, same as the reference card.
   def printing_choice_cards
     record = entity
     return nil unless kind == "enrichment_printing_choice" && record.is_a?(Edition)
@@ -251,15 +254,14 @@ class PendingDecision < ApplicationRecord
       "publisher" => candidate["publisher"], "cover_artist" => Array(candidate["cover_artists"]).join(", ").presence,
       "publish_date" => candidate["publish_date"],
       "language" => candidate["language"], "page_count" => candidate["page_count"]
-    }.filter_map { |name, value| FieldRow.new(name: name, value: value, selectable: true) if value.present? }
+    }.filter_map { |name, value| FieldRow.new(name: name, value: value) if value.present? }
 
     Card.new(
       label: [ "ISFDB", candidate["publish_date"].to_s[0, 4].presence, candidate["publisher"].presence ].compact.join(" · "),
       fields: rows,
-      cover: cover, cover_selectable: cover.present?,
+      cover: cover,
       select_name: "pub_id", select_value: pub_id, selected: first,
-      input_scope: "pub#{pub_id}_", fields_disabled: !first,
-      info_note: ("#{record_count} near-identical ISFDB records — picking this applies the most complete one" if record_count > 1)
+      info_note: ("#{record_count} ISFDB records for this printing — the fullest is shown" if record_count > 1)
     )
   end
 

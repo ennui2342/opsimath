@@ -38,13 +38,19 @@ module Enrichment
     end
 
     # Commit one specific ISFDB printing the reviewer picked in an
-    # enrichment_printing_choice decision, applying only the fields they
-    # checked. No FieldApplier / conflict gate — the human already made
-    # the "which printing, which values" call in front of the full
-    # comparison. `candidate_data` is a raw candidate hash straight out of
-    # the decision's payload (an un-mutated lookup_isbn result).
-    def self.commit_choice(edition, candidate_data, fields:, cover_blob: nil)
-      new(edition, client: nil).commit_choice(candidate_data, fields, cover_blob)
+    # enrichment_printing_choice decision — the edition *becomes* that
+    # printing. No FieldApplier / conflict gate (the human picked the
+    # printing in front of the full comparison), and no per-field choice:
+    # a printing choice is an identity decision ("which book is this"),
+    # not a per-field trust call the way enrichment_conflict is, so the
+    # edition takes the whole pub record rather than a mix of it and
+    # whatever a different printing or the Goodreads import left behind
+    # (Mark, 2026-09-05: *"if we're saying this is a different edition,
+    # [we] should reset all the fields to that edition"*). `candidate_data`
+    # is a raw candidate hash straight out of the decision's payload (an
+    # un-mutated lookup_isbn result).
+    def self.commit_choice(edition, candidate_data, cover_blob: nil)
+      new(edition, client: nil).commit_choice(candidate_data, cover_blob)
     end
 
     # Re-applies an already-fetched payload (an existing EnrichmentRecord's
@@ -178,18 +184,42 @@ module Enrichment
       backfill_isbn_identifiers(data)
     end
 
-    def commit_choice(data, fields, cover_blob = nil)
-      wanted = fields.map(&:to_s)
+    def commit_choice(data, cover_blob = nil)
       @enrichment_record = record_enrichment(data) # provenance + a fresh cover blob
 
-      attrs = candidate_fields(data).slice(*wanted)
-      if attrs.any?
-        @edition.update!(attrs.merge(field_sources: @edition.field_sources.merge(attrs.keys.index_with { "isfdb" })))
-      end
+      stated = candidate_fields(data)
 
-      apply_choice_cover(cover_blob) if wanted.include?("cover_image")
+      # Every bibliographic field resets to this printing. One left blank
+      # by the pub is *cleared* — a stale value from a different printing
+      # (a reissue year, say) mislabelled as this one's is worse than a
+      # gap, and the dropped value still lives on the source's own
+      # EnrichmentRecord for the metadata cog to pull back. The exception:
+      # don't clear format/format_detail when the pub states a binding our
+      # FORMAT_BY_PTYPE just doesn't map — that's our gap, not ISFDB
+      # saying "no format".
+      resettable = PendingDecision::EDITION_FIELD_ORDER.dup
+      resettable -= %w[format format_detail] if data["binding"].present? && !stated.key?("format")
+      cleared = resettable - stated.keys
+
+      @edition.update!(
+        cleared.index_with(nil).merge(stated).merge(
+          "field_sources" => @edition.field_sources.except(*cleared).merge(stated.keys.index_with { "isfdb" })
+        )
+      )
+
+      apply_choice_cover(cover_blob)
       backfill_isfdb_identifier(data)
       backfill_isbn_identifiers(data)
+      pin_isfdb_identifier(data["_isfdb_pub_id"])
+    end
+
+    # A printing choice settles which ISFDB pub this edition *is* — drop
+    # any other isfdb identifier an earlier (wrong) auto-merge attached,
+    # so a re-enrich and the metadata screen both see one unambiguous pub.
+    def pin_isfdb_identifier(pub_id)
+      return if pub_id.blank?
+
+      @edition.edition_identifiers.where(id_type: "isfdb").where.not(value: pub_id.to_s).destroy_all
     end
 
     private

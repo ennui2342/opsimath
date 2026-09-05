@@ -1204,21 +1204,35 @@ on file, year matches none, year matches several) raises a new
 the raw candidate list verbatim (accept never re-hits the adapter), and
 `PendingDecision#printing_choice_cards` renders the Edition's current
 state plus one `Ui::ComparisonCardComponent` per candidate printing —
-each with a **radio in the header** ("this is the printing I own") *and*
-per-field **checkboxes** inside, including the printing's cover as a real
-`<img>` (every candidate's cover is downloaded server-side at raise time
-into `PendingDecision#candidate_covers` — a `has_many_attached` keyed by
-pub id — same as the `enrichment_conflict` flow, since ISFDB's own wiki
-cover URLs Cloudflare-gate a browser hotlink).
-`printing_choice_controller.js` keeps only the picked card's checkboxes
-live. Accept
-(`PendingDecisionResolver#accept_printing_choice` →
-`IsfdbEditionEnricher.commit_choice`) writes exactly the checked fields
-from the chosen printing straight onto the Edition — no `FieldApplier`
-conflict gate, since the reviewer already made the "which printing, which
-values" call in front of the full comparison. This is deliberately
-*upstream* of the field-level `enrichment_conflict` bundling: pick the
-right record first, then there's nothing left to dispute.
+each with a **radio in the header** ("this is the printing I own"), its
+fields **read-only**, and the printing's cover as a real `<img>` (every
+candidate's cover is downloaded server-side at raise time into
+`PendingDecision#candidate_covers` — a `has_many_attached` keyed by pub
+id — same as the `enrichment_conflict` flow, since ISFDB's own wiki cover
+URLs Cloudflare-gate a browser hotlink).
+
+Accept (`PendingDecisionResolver#accept_printing_choice` →
+`IsfdbEditionEnricher#commit_choice`) makes the Edition **be** the chosen
+pub: every bibliographic field (`PendingDecision::EDITION_FIELD_ORDER` +
+the cover) is taken from it, one it leaves blank is *cleared*, and any
+other `isfdb` `EditionIdentifier` a past wrong merge attached is dropped.
+No `FieldApplier` conflict gate — the reviewer made the call in front of
+the full comparison. There's deliberately no per-field picking (Mark,
+2026-09-05): a printing choice is a "which book is this" decision, not a
+"which source do I trust for this field" one the way `enrichment_conflict`
+is, so a pick-and-mix of one printing's cover with another's date would
+describe no real book. The dropped values still live on each source's own
+`EnrichmentRecord`; the per-edition metadata screen (the cog) pulls one
+back if ISFDB's record was the sparser one. This is *upstream* of the
+field-level `enrichment_conflict` bundling: pick the right record first,
+then there's nothing left to dispute.
+
+The one hesitation — ISFDB pub records are often date-sparse, so the
+reset can blank a `publish_date` — is deliberate: a missing date beats a
+reissue year from a *different* printing mislabelled as this one's (the
+motivating case: Fahrenheit 451 #1041 sat with a `1993-05` Donna Diamond
+date after an old auto-merge, and picking the Joseph Mugnaini printing
+would have kept it).
 
 #### Addendum: most "reused ISBN" cases aren't ambiguous at all
 
@@ -1499,6 +1513,27 @@ produced (94% of it a cover-only dispute, confirmed against real
 `PendingDecision` data — see `edition_metadata_reconcile` in the
 project's own memory) is expected to clear on the next bulk enrichment
 run rather than sit stale.
+
+### Rebuilding the library from source, and the cover cache
+
+`bin/rails goodreads:rebuild` (needs `CONFIRM=yes`) truncates everything
+book-related and replays it: `goodreads:import` (CSV) → `goodreads:sync`
+(RSS backfill — `SKIP_SYNC=yes` to omit) → `isfdb:enrich_editions`. Used
+when the data has drifted from what a clean replay would produce (e.g.
+after a run of enrichment-algorithm changes) and a hand-cleanup would be
+more work than a rebuild — `pg_dump` the result as a restore point so the
+expensive import doesn't have to run again.
+
+The slow part is the ~2k provider **cover** downloads (one ISFDB cover
+per enriched edition, plus each printing-choice candidate's, plus the RSS
+covers). `HasCoverImage.fetch_image` consults `ENV["COVER_CACHE_DIR"]`
+first when it's set — a URL already there is read from disk, and every
+real fetch is written back — so a rebuild reuses covers already pulled
+instead of re-downloading them. Provider cover URLs are stable content
+addresses, so this is safe; it's off unless the env var is set.
+`bin/rails covers:cache_export` (also needs `COVER_CACHE_DIR`) seeds the
+directory from the covers already attached in the current library —
+run it *before* the rebuild, pointing both at the same directory.
 
 ## Explicitly out of scope for this phase
 
