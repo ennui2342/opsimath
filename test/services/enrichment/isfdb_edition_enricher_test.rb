@@ -263,8 +263,12 @@ module Enrichment
     end
 
     test "a small page-count variance between duplicate isfdb records still merges — the least reliable, least important field here" do
-      a = DUNE_RESPONSE.merge(_isfdb_pub_id: 111_111, page_count: 883)
-      b = DUNE_RESPONSE.merge(_isfdb_pub_id: 222_222, page_count: 900, cover_artists: [ "X" ]) # ~1.9% apart, richer wins
+      # Both credit the same cover artist: the page count is the *only*
+      # thing differing, so its tolerance applies. (When a candidate also
+      # leaves the artist blank, the tolerance is withheld — see the next
+      # test.)
+      a = DUNE_RESPONSE.merge(_isfdb_pub_id: 111_111, page_count: 883, cover_artists: [ "X" ], publish_date: "2010")
+      b = DUNE_RESPONSE.merge(_isfdb_pub_id: 222_222, page_count: 900, cover_artists: [ "X" ], publish_date: "2010-06") # ~1.9% apart, richer (more precise date) wins
       stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ a, b ].to_json)
       stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
 
@@ -273,6 +277,23 @@ module Enrichment
       assert_equal :success, result.status
       assert_empty PendingDecision.where(kind: "enrichment_printing_choice")
       assert_equal 900, @edition.reload.page_count
+    end
+
+    test "a page-count variance PLUS a blank cover artist on one side raises for review — two soft matches don't stack" do
+      # Mark, 2026-09-05 ("is it right for automerge? this sounds no
+      # different"): a blank credit already leans on blank-isn't-a-
+      # disagreement to call these one edition; the page tolerance on top
+      # of that is a second guess, and a blank-credited 191pp printing may
+      # really be a differently-illustrated edition (Fahrenheit 451).
+      a = DUNE_RESPONSE.merge(_isfdb_pub_id: 111_111, page_count: 883, cover_artists: [ "X" ])
+      b = DUNE_RESPONSE.merge(_isfdb_pub_id: 222_222, page_count: 900, cover_artists: [])
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ a, b ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      result = IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal :needs_review, result.status
+      assert_equal "enrichment_printing_choice", PendingDecision.sole.kind
     end
 
     test "a page-count difference beyond the tolerance still raises for review — a real physical difference, not counting noise" do
@@ -391,12 +412,12 @@ module Enrichment
       assert_equal "John Schoenherr", @edition.reload.cover_artist # the richer candidate won, as before
     end
 
-    test "cluster_candidates partitions by the same_edition relation, bridging via undated records (single linkage)" do
+    test "cluster_candidates groups by edition signature, ignoring publish_date — reprints of one edition are one card" do
       c = ->(pub, **over) { DUNE_RESPONSE.merge(_isfdb_pub_id: pub, **over).stringify_keys }
       candidates = [
         c.call(1, publish_date: "1990", cover_artists: [ "A" ]),
-        c.call(2, publish_date: "1985", cover_artists: [ "A" ]),  # different year — direct compare with #1 disagrees
-        c.call(3, publish_date: "",     cover_artists: [ "A" ]),  # undated — bridges #1 and #2
+        c.call(2, publish_date: "1985", cover_artists: [ "A" ]),  # different reprint year, same edition
+        c.call(3, publish_date: "",     cover_artists: [ "A" ]),  # undated, same edition
         c.call(4, publish_date: "2000", cover_artists: [ "B" ])   # different cover artist — its own edition
       ]
 
@@ -404,6 +425,36 @@ module Enrichment
 
       assert_equal 2, clusters.size
       assert_equal [ [ 1, 2, 3 ], [ 4 ] ], clusters.map { |g| g.map { |x| x["_isfdb_pub_id"] }.sort }.sort
+    end
+
+    test "cluster_candidates does not let a blank cover artist bridge two genuinely different editions (Fahrenheit 451)" do
+      c = ->(pub, **over) { DUNE_RESPONSE.merge(_isfdb_pub_id: pub, **over).stringify_keys }
+      candidates = [
+        c.call(1, cover_artists: [ "Donna Diamond" ],   page_count: 179, publish_date: "1993-05"),
+        c.call(2, cover_artists: [ "Donna Diamond" ],   page_count: 179, publish_date: "1989-10"),
+        c.call(3, cover_artists: [],                    page_count: 179, publish_date: "2002-03"), # uncredited — really the Donna Diamond printing (same 179pp)
+        c.call(4, cover_artists: [],                    page_count: 179, publish_date: "1995"),
+        c.call(5, cover_artists: [ "Joseph Mugnaini" ], page_count: 191, publish_date: ""),
+        c.call(6, cover_artists: [ "Joseph Mugnaini" ], page_count: 192, publish_date: "") # 1pp off — counting noise, same edition as #5
+      ]
+
+      clusters = IsfdbEditionEnricher.cluster_candidates(candidates)
+
+      assert_equal 2, clusters.size
+      assert_equal [ [ 1, 2, 3, 4 ], [ 5, 6 ] ], clusters.map { |g| g.map { |x| x["_isfdb_pub_id"] }.sort }.sort
+    end
+
+    test "cluster_candidates keeps an uncredited printing as its own card when it matches two credited editions equally" do
+      c = ->(pub, **over) { DUNE_RESPONSE.merge(_isfdb_pub_id: pub, **over).stringify_keys }
+      candidates = [
+        c.call(1, cover_artists: [ "Donna Diamond" ],   page_count: 179),
+        c.call(2, cover_artists: [ "Joseph Mugnaini" ], page_count: 179), # same page count as #1 now
+        c.call(3, cover_artists: [],                    page_count: 179)  # matches both — can't be filed under a guess
+      ]
+
+      clusters = IsfdbEditionEnricher.cluster_candidates(candidates)
+
+      assert_equal 3, clusters.size
     end
 
     test "same_edition_for? re-checks the equivalence rule alone, with no edition needed" do

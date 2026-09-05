@@ -82,32 +82,47 @@ module Enrichment
       new(nil, client: nil).send(:same_edition?, candidates)
     end
 
-    # Partitions a candidate list into groups that are the same real
-    # printing — the review screen (PendingDecision#printing_choice_cards)
+    # Partitions a candidate list into groups that are the same physical
+    # edition — the review screen (PendingDecision#printing_choice_cards)
     # shows one card per group instead of one per raw ISFDB record, so a
-    # book like Fahrenheit 451 (12 records, really two editions) doesn't
-    # present twelve near-identical cards. Same equivalence relation
-    # `#same_edition?` uses, applied *pairwise* — and single-linkage
-    # (union-find), so an undated record legitimately bridges two dated
-    # ones of the same edition into one group rather than three. Groups
-    # come back in first-appearance order; #richest_candidate_for picks
-    # each group's representative for display and, when accepted, its
-    # pub_id and field values (Mark, 2026-09-05: "functionally zero
-    # difference [between the records in a group], so pick whatever" —
-    # the richest is marginally better than the first as the identifier
-    # we stamp, and costs nothing).
+    # book like Fahrenheit 451 (12 records, really two editions — a Donna
+    # Diamond-illustrated Del Rey printing and a Joseph Mugnaini one)
+    # doesn't present twelve near-identical cards.
+    #
+    # NOT #same_edition? applied pairwise, which is what this used to do.
+    # That relation is deliberately blank-tolerant (a record that doesn't
+    # name the cover artist doesn't *disagree* with one that does), and
+    # pairwise + single-linkage turns a blank into a universal bridge: an
+    # uncredited 179pp Del Rey record is "the same edition" as both the
+    # Donna Diamond 179pp one *and* (page-count tolerance) the Joseph
+    # Mugnaini 191pp one, chaining all three into a single group. Live
+    # 2026-09-05: Fahrenheit collapsed to one card, "12 near-identical
+    # records", instead of two.
+    #
+    # Instead: group by an exact edition signature — cover art, publisher,
+    # binding, page extent, language, the ISFDB work/series — then fold
+    # groups whose signatures don't actually conflict, but only when the
+    # fold is *unambiguous*. A group that's blank on some field and could
+    # fold into two different fuller groups (that uncredited printing)
+    # stays its own card rather than being filed under a guess. Two
+    # fully-stated groups differing only by a few pages (191 vs 192 —
+    # counting noise on a wiki) do fold; a blank field *and* a page gap
+    # together do not — tolerances don't stack, the same rule
+    # #same_edition? now follows.
+    #
+    # publish_date is deliberately not part of the signature: one edition
+    # reprinted across years is still one card for "which do I own".
+    # #same_edition? — the *un-reviewed* auto-merge gate — does keep the
+    # year, so a silent metadata merge can't cross a reprint gap; here a
+    # human is looking at the card and picking, so the looser identity is
+    # the right one.
+    #
+    # Groups come back in first-appearance order; #richest_candidate_for
+    # picks each group's representative for display and, when accepted,
+    # its pub_id and field values (Mark, 2026-09-05: "functionally zero
+    # difference [between the records in a group], so pick whatever").
     def self.cluster_candidates(candidates)
-      parent = (0...candidates.size).to_a
-      find = lambda do |i|
-        i = parent[i] while parent[i] != i
-        i
-      end
-      candidates.each_index do |i|
-        (i + 1...candidates.size).each do |j|
-          parent[find.call(j)] = find.call(i) if same_edition_for?([ candidates[i], candidates[j] ])
-        end
-      end
-      candidates.each_index.group_by { |i| find.call(i) }.values.map { |group| group.map { |i| candidates[i] } }
+      new(nil, client: nil).send(:cluster_candidates, candidates)
     end
 
     def self.richest_candidate_for(candidates)
@@ -552,7 +567,20 @@ module Enrichment
       return false unless agrees_where_known?(candidates) { |c| c["language"].presence }
 
       candidates.map { |c| c["publisher"] }.combination(2).all? { |a, b| publisher_equivalent?(a, b) } &&
-        page_counts_equivalent?(candidates)
+        page_counts_equivalent?(candidates, exact: !cover_artists_all_stated?(candidates))
+    end
+
+    # #same_edition?'s page-count tolerance is safe only when the cover
+    # artist — the other soft identity signal for an illustrated edition —
+    # is actually stated on every candidate and agrees. If some candidate
+    # leaves it blank we're already leaning on "blank isn't a
+    # disagreement" to call these one edition; don't *also* stretch the
+    # page count on top of that (Mark, 2026-09-05: "is it right for
+    # automerge? this sounds no different" — a blank credit plus a page
+    # gap is two guesses, not one). #agrees_where_known? above still lets
+    # a blank credit through; this only tightens what that blank costs.
+    def cover_artists_all_stated?(candidates)
+      candidates.all? { |c| Array(c["cover_artists"]).any? }
     end
 
     # True when every candidate that actually states a value for
@@ -573,11 +601,94 @@ module Enrichment
 
     PAGE_COUNT_TOLERANCE = 0.1 # 10% of the larger count — see #same_edition?
 
-    def page_counts_equivalent?(candidates)
+    # `exact:` drops the tolerance entirely — page counts must be
+    # identical. Callers pass it when something else in the comparison is
+    # already relying on a blank field not counting as a disagreement
+    # (see #cover_artists_all_stated? and #signatures_compatible?): one
+    # soft match per pair, not two.
+    def page_counts_equivalent?(candidates, exact: false)
       pages = candidates.filter_map { |c| c["page_count"] }.uniq
       return true if pages.size <= 1
+      return false if exact
 
       (pages.max - pages.min) <= pages.max * PAGE_COUNT_TOLERANCE
+    end
+
+    # See the class-method wrapper for the what and why. Group by exact
+    # signature, then fold non-conflicting groups until stable.
+    def cluster_candidates(candidates)
+      groups = candidates.group_by { |c| edition_signature(c) }.values
+      fold_compatible_groups(groups)
+    end
+
+    # The identity of a physical edition for the review list. Everything a
+    # collector would use to tell two printings apart *except* publish_date
+    # (see the wrapper comment). page_count is in here so exact grouping
+    # keeps 179pp and 191pp apart up front; #signatures_compatible? then
+    # re-folds a few-page wiki-counting difference back together.
+    def edition_signature(c)
+      {
+        binding: c["binding"].to_s.downcase,
+        title_id: c["_isfdb_title_id"],
+        series_id: c["_isfdb_series_id"],
+        authors: Array(c["authors"]).sort,
+        language: c["language"].to_s,
+        cover_artists: Array(c["cover_artists"]).sort,
+        publisher: normalize_name(c["publisher"]),
+        page_count: c["page_count"]
+      }
+    end
+
+    # Repeatedly fold together the first two groups whose signatures don't
+    # conflict, later-into-earlier, until nothing more folds. Only an
+    # *unambiguous* pair folds: a group compatible with more than one
+    # other is left alone (the uncredited-printing-bridges-two-editions
+    # case), and compatibility has to hold looking from the partner back
+    # too, so a blank group can't quietly annex a fuller one that has
+    # other equally-good matches.
+    def fold_compatible_groups(groups)
+      loop do
+        pair = foldable_pair(groups)
+        break unless pair
+
+        lo, hi = pair
+        groups[lo].concat(groups.delete_at(hi))
+      end
+      groups
+    end
+
+    def foldable_pair(groups)
+      reps = groups.map { |g| richest_candidate(g) }
+      groups.each_index do |i|
+        partners = groups.each_index.select { |j| j != i && signatures_compatible?(reps[i], reps[j]) }
+        next unless partners.one?
+
+        j = partners.first
+        back = groups.each_index.select { |k| k != j && signatures_compatible?(reps[j], reps[k]) }
+        return [ i, j ].minmax if back.one?
+      end
+      nil
+    end
+
+    # Two candidates describe one edition for the review list when every
+    # signature field either matches exactly or is blank on a side — with
+    # page count allowed a small variance, but only when nothing else in
+    # this pair is already leaning on the blank-isn't-a-disagreement rule
+    # (same "tolerances don't stack" principle as #same_edition?).
+    def signatures_compatible?(a, b)
+      sa, sb = edition_signature(a), edition_signature(b)
+      wildcard = false
+      (sa.keys - [ :page_count ]).each do |k|
+        next if sa[k] == sb[k]
+        return false unless blankish?(sa[k]) || blankish?(sb[k])
+
+        wildcard = true
+      end
+      page_counts_equivalent?([ a, b ], exact: wildcard)
+    end
+
+    def blankish?(value)
+      value.nil? || value == "" || value == []
     end
 
     # Among equivalent candidates, prefer the one that actually says the

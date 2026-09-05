@@ -1417,19 +1417,47 @@ Joseph Mugnaini cover / 191-192pp), and then the screen rendered all 12
 raw records flat. Three of them were byte-for-byte identical; two others
 were too.
 
-`Enrichment::IsfdbEditionEnricher.cluster_candidates` now partitions the
-candidates by the same equivalence relation `#same_edition?` uses,
-applied *pairwise* with single-linkage — so an undated record
-legitimately bridges two dated ones of the same edition into one group
-rather than three. `PendingDecision#printing_choice_cards` renders one
-card per group, showing `#richest_candidate_for` (fullest date, has a
-cover artist / a cover image — `#candidate_completeness` gained
-`cover_url` for exactly this, so the representative reliably has an image
-to show). Fahrenheit 451 → 2 cards. Accepting a card applies that
-representative's `pub_id` and values; Mark on which record to stamp:
-*"functionally zero difference [between records in a group], so pick
-whatever"* — the richest is a marginally better identifier for free. A
-card standing for more than one record carries an `info_note` saying so.
+`Enrichment::IsfdbEditionEnricher.cluster_candidates` partitions the
+candidates and `PendingDecision#printing_choice_cards` renders one card
+per group, showing `#richest_candidate_for` (fullest date, has a cover
+artist / a cover image — `#candidate_completeness` gained `cover_url` for
+exactly this, so the representative reliably has an image to show).
+Accepting a card applies that representative's `pub_id` and values; Mark
+on which record to stamp: *"functionally zero difference [between records
+in a group], so pick whatever"* — the richest is a marginally better
+identifier for free. A card standing for more than one record carries an
+`info_note` saying so.
+
+###### The clustering relation is *not* `#same_edition?` pairwise
+
+First cut was: union-find, single-linkage, `same_edition_for?([a, b])`
+as the link test. It collapsed Fahrenheit 451 to **one** card, "12
+near-identical records" (live, 2026-09-05). `#same_edition?` is
+deliberately blank-tolerant — an ISFDB record that doesn't name the
+cover artist doesn't *disagree* with one that does — and pairwise +
+single-linkage turns a blank into a universal bridge: the uncredited
+179pp Del Rey record is "the same edition" as both the Donna Diamond
+179pp one *and* (10% page tolerance: 179 vs 191) the Joseph Mugnaini
+one, chaining all three. The gate itself was fine — run on all 12 at
+once it sees two distinct named artists and correctly hands off to a
+human; only the transitive pairwise chain was wrong.
+
+`cluster_candidates` now groups by an exact `#edition_signature`
+(binding, ISFDB title/series, authors, language, cover artists,
+normalised publisher, page count — **not** `publish_date`; one edition
+reprinted across years is one card for "which do I own"), then
+`#fold_compatible_groups` folds groups whose signatures don't conflict,
+but only when the fold is *unambiguous from both sides*
+(`#signatures_compatible?`): a blank-on-some-field group that matches two
+fuller groups equally well stays its own card. Two fully-stated groups
+differing only by a few pages (191 vs 192) still fold; a blank field
+**and** a page gap together do not — tolerances don't stack.
+
+That last rule also closed a matching soft spot in the auto-merge gate
+(Mark: *"is it right for automerge? this sounds no different"*):
+`#same_edition?` now passes `exact:` to `#page_counts_equivalent?`
+whenever any candidate leaves the cover artist blank, so a blank credit
+plus a tolerated page gap can't silently auto-merge either.
 
 ### Addendum: reconciling an edition on demand, not just when something raised a conflict
 
