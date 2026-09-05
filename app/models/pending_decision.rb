@@ -120,16 +120,23 @@ class PendingDecision < ApplicationRecord
   end
 
   # Display shape for the enrichment_printing_choice screen: the Edition's
-  # current state (reference), then one card per ISFDB printing that
-  # shares the ISBN. Each candidate card carries a radio in its header
+  # current state (reference), then one card per *real* ISFDB printing
+  # that shares the ISBN — candidates that are the same printing
+  # (Enrichment::IsfdbEditionEnricher.cluster_candidates: several ISFDB
+  # records for one physical book, differing only in how completely each
+  # was filled in, or not at all) collapse into a single card showing
+  # their richest representative. Each card carries a radio in its header
   # ("this is my printing") and per-field checkboxes; only the picked
   # card's checkboxes submit (Stimulus printing-choice / #fields_disabled).
   def printing_choice_cards
     record = entity
     return nil unless kind == "enrichment_printing_choice" && record.is_a?(Edition)
 
-    candidates = payload["candidates"] || []
-    { edition: edition_card(record), candidates: candidates.each_with_index.map { |c, i| candidate_card(c, first: i.zero?) } }
+    clusters = Enrichment::IsfdbEditionEnricher.cluster_candidates(payload["candidates"] || [])
+    cards = clusters.each_with_index.map do |cluster, i|
+      candidate_card(Enrichment::IsfdbEditionEnricher.richest_candidate_for(cluster), first: i.zero?, record_count: cluster.size)
+    end
+    { edition: edition_card(record), candidates: cards }
   end
 
   # edition_reconciliation only (folded in 2026-09-04 — previously a
@@ -234,7 +241,7 @@ class PendingDecision < ApplicationRecord
     FieldRow.new(name: name, value: value)
   end
 
-  def candidate_card(candidate, first:)
+  def candidate_card(candidate, first:, record_count: 1)
     pub_id = candidate["_isfdb_pub_id"].to_s
     format, format_detail = Enrichment::IsfdbEditionEnricher::FORMAT_BY_PTYPE[candidate["binding"].to_s.downcase]
     cover = candidate_cover(pub_id)
@@ -251,7 +258,8 @@ class PendingDecision < ApplicationRecord
       fields: rows,
       cover: cover, cover_selectable: cover.present?,
       select_name: "pub_id", select_value: pub_id, selected: first,
-      input_scope: "pub#{pub_id}_", fields_disabled: !first
+      input_scope: "pub#{pub_id}_", fields_disabled: !first,
+      info_note: ("#{record_count} near-identical ISFDB records — picking this applies the most complete one" if record_count > 1)
     )
   end
 

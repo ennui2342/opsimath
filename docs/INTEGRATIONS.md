@@ -1404,6 +1404,33 @@ entity's live `field_sources` shows every disputed field genuinely
 carries the printing choice's source — real evidence a write reached it,
 not an assumption about what a past accept applied.
 
+##### The review screen shows one card per *edition*, not per ISFDB record
+
+Mark, still looking at Fahrenheit 451's 12-card printing choice:
+*"many of the editions are identical in the fields presented, so I don't
+understand why they haven't been merged. What field is keeping them
+separate that I'm not seeing?"* Nothing was — `#same_edition?` is a
+yes/no *gate* on whether the whole decision auto-resolves without a
+human, not a dedup pass. It correctly said "no, hand to a human" (there
+really are two editions in those 12 — Donna Diamond cover / 179pp vs
+Joseph Mugnaini cover / 191-192pp), and then the screen rendered all 12
+raw records flat. Three of them were byte-for-byte identical; two others
+were too.
+
+`Enrichment::IsfdbEditionEnricher.cluster_candidates` now partitions the
+candidates by the same equivalence relation `#same_edition?` uses,
+applied *pairwise* with single-linkage — so an undated record
+legitimately bridges two dated ones of the same edition into one group
+rather than three. `PendingDecision#printing_choice_cards` renders one
+card per group, showing `#richest_candidate_for` (fullest date, has a
+cover artist / a cover image — `#candidate_completeness` gained
+`cover_url` for exactly this, so the representative reliably has an image
+to show). Fahrenheit 451 → 2 cards. Accepting a card applies that
+representative's `pub_id` and values; Mark on which record to stamp:
+*"functionally zero difference [between records in a group], so pick
+whatever"* — the richest is a marginally better identifier for free. A
+card standing for more than one record carries an `info_note` saying so.
+
 ### Addendum: reconciling an edition on demand, not just when something raised a conflict
 
 The publisher-sweep analysis (2026-09-04) found the pending

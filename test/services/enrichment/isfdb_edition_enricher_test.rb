@@ -391,6 +391,21 @@ module Enrichment
       assert_equal "John Schoenherr", @edition.reload.cover_artist # the richer candidate won, as before
     end
 
+    test "cluster_candidates partitions by the same_edition relation, bridging via undated records (single linkage)" do
+      c = ->(pub, **over) { DUNE_RESPONSE.merge(_isfdb_pub_id: pub, **over).stringify_keys }
+      candidates = [
+        c.call(1, publish_date: "1990", cover_artists: [ "A" ]),
+        c.call(2, publish_date: "1985", cover_artists: [ "A" ]),  # different year — direct compare with #1 disagrees
+        c.call(3, publish_date: "",     cover_artists: [ "A" ]),  # undated — bridges #1 and #2
+        c.call(4, publish_date: "2000", cover_artists: [ "B" ])   # different cover artist — its own edition
+      ]
+
+      clusters = IsfdbEditionEnricher.cluster_candidates(candidates)
+
+      assert_equal 2, clusters.size
+      assert_equal [ [ 1, 2, 3 ], [ 4 ] ], clusters.map { |g| g.map { |x| x["_isfdb_pub_id"] }.sort }.sort
+    end
+
     test "same_edition_for? re-checks the equivalence rule alone, with no edition needed" do
       merged = [
         DUNE_RESPONSE.merge(_isfdb_pub_id: 111_111).stringify_keys,

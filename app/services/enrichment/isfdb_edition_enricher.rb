@@ -82,6 +82,38 @@ module Enrichment
       new(nil, client: nil).send(:same_edition?, candidates)
     end
 
+    # Partitions a candidate list into groups that are the same real
+    # printing — the review screen (PendingDecision#printing_choice_cards)
+    # shows one card per group instead of one per raw ISFDB record, so a
+    # book like Fahrenheit 451 (12 records, really two editions) doesn't
+    # present twelve near-identical cards. Same equivalence relation
+    # `#same_edition?` uses, applied *pairwise* — and single-linkage
+    # (union-find), so an undated record legitimately bridges two dated
+    # ones of the same edition into one group rather than three. Groups
+    # come back in first-appearance order; #richest_candidate_for picks
+    # each group's representative for display and, when accepted, its
+    # pub_id and field values (Mark, 2026-09-05: "functionally zero
+    # difference [between the records in a group], so pick whatever" —
+    # the richest is marginally better than the first as the identifier
+    # we stamp, and costs nothing).
+    def self.cluster_candidates(candidates)
+      parent = (0...candidates.size).to_a
+      find = lambda do |i|
+        i = parent[i] while parent[i] != i
+        i
+      end
+      candidates.each_index do |i|
+        (i + 1...candidates.size).each do |j|
+          parent[find.call(j)] = find.call(i) if same_edition_for?([ candidates[i], candidates[j] ])
+        end
+      end
+      candidates.each_index.group_by { |i| find.call(i) }.values.map { |group| group.map { |i| candidates[i] } }
+    end
+
+    def self.richest_candidate_for(candidates)
+      new(nil, client: nil).send(:richest_candidate, candidates)
+    end
+
     # Public wrapper around the private #attach_candidate_covers — also
     # edition-independent (it only touches the decision and the raw
     # candidate list). `isfdb:backfill_printing_choice_covers` uses this
@@ -562,6 +594,7 @@ module Enrichment
     def candidate_completeness(c)
       [
         c["publish_date"].to_s.length,
+        c["cover_url"].present? ? 1 : 0,
         Array(c["cover_artists"]).any? ? 1 : 0,
         c["language"].present? ? 1 : 0,
         c["page_count"].present? ? 1 : 0

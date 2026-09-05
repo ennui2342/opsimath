@@ -12,8 +12,12 @@
   <%= entity.works.flat_map { |w| w.work_contributors.where(role: "author").map { |wc| wc.contributor.name } }.uniq.join(", ").presence || "Unknown author" %>
 </p>
 <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
-  ISBN <span class="font-mono"><%= pending_decision.payload["isbn"] %></span> matches
-  <%= cards[:candidates].size %> ISFDB printings — pick the one you own, then choose which details to apply.
+  ISBN <span class="font-mono"><%= pending_decision.payload["isbn"] %></span>
+  <% if cards[:candidates].one? %>
+    matched several ISFDB records that all look like the same printing — confirm to apply the most complete one, or reject if it's wrong.
+  <% else %>
+    matches <%= cards[:candidates].size %> ISFDB printings — pick the one you own, then choose which details to apply.
+  <% end %>
 </p>
 
 <%= form_with url: accept_pending_decision_path(pending_decision, kind: kind_filter), method: :post,

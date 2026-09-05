@@ -94,7 +94,13 @@ Three selection idioms:
   `input_scope` keeps the ids distinct, `fields_disabled` +
   `printing_choice_controller.js` keep only the picked card's checkboxes
   live so the form never submits fields from a printing you didn't
-  choose.
+  choose. One card per *real* printing, not per ISFDB record —
+  `Enrichment::IsfdbEditionEnricher.cluster_candidates` collapses the
+  several near-identical records ISFDB (a wiki) often holds for one
+  physical book into a single card showing the richest of them (an
+  `info_note` says how many it stands for); accepting applies that
+  representative's `pub_id` and values. See `docs/INTEGRATIONS.md`'s
+  reused-ISBN addendum.
 - **Checkboxes, mixed freely across N cards** — "which *source*, per
   field": the edition-metadata screen (below). `field_value_prefix` makes
   every checkbox in a card self-describing (`field_picks[]` =

@@ -183,6 +183,49 @@ class PendingDecisionTest < ActiveSupport::TestCase
     assert_not second.cover_selectable # no cover downloaded for this printing
   end
 
+  test "printing_choice_cards collapses several ISFDB records for the same printing into one card, showing the richest" do
+    edition = Edition.create!
+    pending = PendingDecision.create!(kind: "enrichment_printing_choice", payload: {
+      "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "isbn" => "0345342968",
+      "candidates" => [
+        # "Donna Diamond" edition — three records, differing only by date / completeness
+        { "_isfdb_pub_id" => 847_371, "publisher" => "Del Rey / Ballantine", "publish_date" => "1993-05", "binding" => "pb", "page_count" => 179, "cover_artists" => [ "Donna Diamond" ], "cover_url" => "x" },
+        { "_isfdb_pub_id" => 13_009, "publisher" => "Del Rey / Ballantine", "publish_date" => "1989-10", "binding" => "pb", "page_count" => 179, "cover_artists" => [ "Donna Diamond" ] },
+        { "_isfdb_pub_id" => 273_842, "publisher" => "Del Rey / Ballantine", "publish_date" => "", "binding" => "pb", "page_count" => 179, "cover_artists" => [ "Donna Diamond" ] },
+        # "Joseph Mugnaini" edition — two records, genuinely a different printing
+        { "_isfdb_pub_id" => 588_139, "publisher" => "Del Rey / Ballantine", "publish_date" => "", "binding" => "pb", "page_count" => 191, "cover_artists" => [ "Joseph Mugnaini" ] },
+        { "_isfdb_pub_id" => 601_533, "publisher" => "Del Rey / Ballantine", "publish_date" => "", "binding" => "pb", "page_count" => 191, "cover_artists" => [ "Joseph Mugnaini" ] }
+      ]
+    })
+
+    cards = pending.printing_choice_cards[:candidates]
+
+    assert_equal 2, cards.size
+    diamond = cards.find { |c| c.fields.find { |f| f.name == "cover_artist" }&.value == "Donna Diamond" }
+    mugnaini = cards.find { |c| c.fields.find { |f| f.name == "cover_artist" }&.value == "Joseph Mugnaini" }
+
+    assert_equal "847371", diamond.select_value          # the richest of its three (has a date and a cover_url)
+    assert_equal "1993-05", diamond.fields.find { |f| f.name == "publish_date" }.value
+    assert_match(/3 near-identical ISFDB records/, diamond.info_note)
+    assert_match(/2 near-identical ISFDB records/, mugnaini.info_note)
+  end
+
+  test "printing_choice_cards leaves genuinely different printings as separate cards" do
+    edition = Edition.create!
+    pending = PendingDecision.create!(kind: "enrichment_printing_choice", payload: {
+      "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "isbn" => "x",
+      "candidates" => [
+        { "_isfdb_pub_id" => 1, "publisher" => "HarperCollins", "publish_date" => "1993", "binding" => "pb", "page_count" => 464 },
+        { "_isfdb_pub_id" => 2, "publisher" => "Triad Grafton", "publish_date" => "1986", "binding" => "pb", "page_count" => 464 }
+      ]
+    })
+
+    cards = pending.printing_choice_cards[:candidates]
+
+    assert_equal 2, cards.size
+    assert(cards.none? { |c| c.info_note.present? }) # no "N records" note — each is a single record
+  end
+
   test "printing_choice_cards is nil for other kinds" do
     assert_nil PendingDecision.new(kind: "enrichment_conflict").printing_choice_cards
   end
