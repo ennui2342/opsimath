@@ -26,6 +26,13 @@ namespace :goodreads do
   task rebuild: :environment do
     abort "Refusing to run without CONFIRM=yes" unless ENV["CONFIRM"] == "yes"
 
+    # A rebuild replays the whole library at once. GoodreadsSyncState is
+    # wiped below, so the RSS backfill step would read every shelf item as
+    # new and fire a Discord notification for each — the same flood the
+    # CSV importer is deliberately silent to avoid (GoodreadsSyncJob's own
+    # header comment). Bulk replay isn't live activity; keep it quiet.
+    Notifications.notifiers = [ Notifications::LogNotifier.new ]
+
     ActiveRecord::Base.connection.tables.each do |table|
       next if %w[users sessions api_tokens schema_migrations ar_internal_metadata].include?(table)
       next if table.start_with?("solid_queue_", "solid_cache_")
