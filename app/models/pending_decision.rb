@@ -46,13 +46,12 @@ class PendingDecision < ApplicationRecord
   # is about, whatever its kind. Falls back through: the entity Edition's
   # work titles, the entity Work's own title (edition_reconciliation), the
   # payload's own `title` (entity-less Goodreads-sync kinds), then a
-  # generic placeholder.
+  # generic placeholder. Memoized: the index/#advance sort the whole
+  # pending queue by this (PendingDecisionsController, 2026-09-04) and
+  # then the view renders it again for the same in-memory records — worth
+  # avoiding the double #entity lookup that'd otherwise cost.
   def display_title
-    record = entity
-    return record.works.map(&:title).join(", ").presence || "Edition ##{record.id}" if record.is_a?(Edition)
-    return record.title if record.is_a?(Work)
-
-    payload["title"].presence || "Untitled #{kind}"
+    @display_title ||= compute_display_title
   end
 
   # Display-shaped view derived live from payload["fields"] (a plain
@@ -186,6 +185,14 @@ class PendingDecision < ApplicationRecord
   end
 
   private
+
+  def compute_display_title
+    record = entity
+    return record.works.map(&:title).join(", ").presence || "Edition ##{record.id}" if record.is_a?(Edition)
+    return record.title if record.is_a?(Work)
+
+    payload["title"].presence || "Untitled #{kind}"
+  end
 
   def reconciliation_incoming_card
     item = feed_item

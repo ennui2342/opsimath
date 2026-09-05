@@ -302,7 +302,11 @@ Rules:
 
 `pending_decisions/index` — the one queue, every kind (including
 `edition_reconciliation`) filtered from the same index via the kind pills
-below. `w-full max-w-3xl`; `<h1>`; an optional one-line description; then a
+below. Rows sort alphabetically by `#display_title` (2026-09-04, Mark) —
+in Ruby, not SQL, since it's a derived value rather than a real column;
+`PendingDecisionsController#advance` (accept/reject/resolve's "next"
+item) uses the same order, so working the queue top-to-bottom always
+means A→Z. `w-full max-w-3xl`; `<h1>`; an optional one-line description; then a
 `divide-y … rounded-lg border` `<ul>` of `<li>` rows, each a full-width
 `link_to` (`flex items-center justify-between gap-4 px-4 py-3
 hover:bg-gray-50 dark:hover:bg-gray-800`) with the subject on the left and a

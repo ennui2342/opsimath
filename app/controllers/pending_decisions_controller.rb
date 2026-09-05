@@ -3,23 +3,24 @@
 # with a Turbo Stream swapping straight to the next pending decision
 # in place, not a full page redirect back to the index.
 #
-# Every `.order(:created_at, ...)` here carries `:id` as a tiebreaker —
-# found live in CI (2026-09-04): several PendingDecisions created in
-# rapid succession within one request/test can land on the same
-# `created_at` timestamp, and Postgres doesn't fall back to insertion
-# order for a tied sort with no secondary key — `order(:created_at)`
-# alone advanced to a different pending decision than the one actually
-# next, nondeterministically. `:id` is monotonic with insertion here, so
-# it's a correct, cheap tiebreaker.
+# Default order is alphabetical by #display_title (Mark, 2026-09-04) —
+# not a real column (it's derived per-kind from payload/entity, see
+# PendingDecision#display_title), so both the index and #advance sort in
+# Ruby rather than in SQL. `[title, id]` as the sort key rather than title
+# alone for the same reason `order(:created_at, ...)` used to carry `:id`
+# — a stable tiebreaker for the rare exact-title match. Fine at today's
+# scale (low hundreds of pending decisions, one extra #entity lookup per
+# row already memoized by #display_title itself) — revisit if this queue
+# ever grows enough to need pagination.
 class PendingDecisionsController < ApplicationController
   before_action :set_pending_decision, only: [ :show, :accept, :reject, :resolve ]
 
   def index
     @kind = params[:kind].presence
     @kind_counts = PendingDecision.pending.group(:kind).count
-    scope = PendingDecision.pending.order(:created_at, :id)
+    scope = PendingDecision.pending
     scope = scope.where(kind: @kind) if @kind
-    @pending_decisions = scope
+    @pending_decisions = sort_by_title(scope)
   end
 
   def show
@@ -60,9 +61,9 @@ class PendingDecisionsController < ApplicationController
 
   def advance
     @kind = params[:kind].presence
-    next_scope = PendingDecision.pending.order(:created_at, :id)
+    next_scope = PendingDecision.pending
     next_scope = next_scope.where(kind: @kind) if @kind
-    @next_decision = next_scope.first
+    @next_decision = sort_by_title(next_scope).first
 
     respond_to do |format|
       format.turbo_stream { render "advance" }
@@ -74,5 +75,9 @@ class PendingDecisionsController < ApplicationController
         end
       end
     end
+  end
+
+  def sort_by_title(scope)
+    scope.to_a.sort_by { |pd| [ pd.display_title.downcase, pd.id ] }
   end
 end

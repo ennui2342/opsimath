@@ -32,6 +32,17 @@ class PendingDecisionsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a", text: /The Gold Coast/
   end
 
+  test "index lists pending decisions alphabetically by title, not creation order" do
+    sign_in_as users(:one) # @pending ("The Gold Coast") was created first, in setup
+    PendingDecision.create!(kind: "reread_conflict", payload: { "title" => "Anathem" })
+    PendingDecision.create!(kind: "reread_conflict", payload: { "title" => "Neuromancer" })
+
+    get pending_decisions_url
+
+    titles = response.parsed_body.css("ul a span.text-gray-900").map { |el| el.text.strip }
+    assert_equal [ "Anathem", "Neuromancer", "The Gold Coast" ], titles
+  end
+
   test "index labels an entity-less kind (reread_conflict) from the payload title, not 'unknown entity'" do
     sign_in_as users(:one)
     PendingDecision.create!(kind: "reread_conflict", payload: {
@@ -67,6 +78,17 @@ class PendingDecisionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "HarperVoyager", @edition.reload.publisher
     assert_equal "accepted", @pending.reload.status
     assert_match other.id.to_s, response.body
+  end
+
+  test "advance picks the alphabetically-first remaining decision, not the next one created" do
+    sign_in_as users(:one) # @pending is "The Gold Coast"
+    created_first = PendingDecision.create!(kind: "reread_conflict", payload: { "title" => "Zenith" })
+    created_second_but_alphabetically_first = PendingDecision.create!(kind: "reread_conflict", payload: { "title" => "Anathem" })
+
+    post accept_pending_decision_url(@pending), as: :turbo_stream
+
+    assert_match created_second_but_alphabetically_first.id.to_s, response.body
+    assert_no_match "Zenith", response.body
   end
 
   test "reject leaves the entity untouched and resolves the decision" do
