@@ -311,6 +311,18 @@ module Enrichment
       assert_equal "enrichment_printing_choice", PendingDecision.sole.kind
     end
 
+    test "candidates that are byte-for-byte identical except pub_id still merge when _isfdb_title_id is nil on both — Array#one? without a block checks truthiness, not count, and nil isn't truthy" do
+      a = DUNE_RESPONSE.merge(_isfdb_pub_id: 111_111, _isfdb_title_id: nil)
+      b = DUNE_RESPONSE.merge(_isfdb_pub_id: 222_222, _isfdb_title_id: nil)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ a, b ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "x")
+
+      result = IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal :success, result.status
+      assert_empty PendingDecision.where(kind: "enrichment_printing_choice")
+    end
+
     test "candidates crediting different authors raise for review" do
       a = DUNE_RESPONSE.merge(_isfdb_pub_id: 111_111, authors: [ "Frank Herbert" ])
       b = DUNE_RESPONSE.merge(_isfdb_pub_id: 222_222, authors: [ "Brian Herbert" ])

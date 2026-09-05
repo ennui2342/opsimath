@@ -463,9 +463,20 @@ module Enrichment
     #   equivalence dimensions: constant per ISBN query, purely
     #   cosmetic/derived, or (title, cover_url) already superseded by a
     #   more authoritative field above.
+    # `.size == 1`, deliberately not the bare `.uniq.one?` this used to
+    # read — `Array#one?` with no block checks how many elements are
+    # *truthy*, not the array's length. `_isfdb_title_id` is legitimately
+    # nil for plenty of real ISFDB records, and `[nil].one?` is false (nil
+    # isn't truthy) even though the array only has one distinct value —
+    # a real bug found live 2026-09-05: two byte-for-byte identical
+    # candidates, both with a nil title_id, wrongly failed this and
+    # reopened a genuinely-correct merge. `binding` never actually hit
+    # this (its `.to_s` guarantees a truthy string, even for nil), but
+    # made explicit here too rather than leaving it correct by luck of
+    # that side effect.
     def same_edition?(candidates)
-      return false unless candidates.map { |c| c["binding"].to_s.downcase }.uniq.one?
-      return false unless candidates.map { |c| c["_isfdb_title_id"] }.uniq.one?
+      return false unless candidates.map { |c| c["binding"].to_s.downcase }.uniq.size == 1
+      return false unless candidates.map { |c| c["_isfdb_title_id"] }.uniq.size == 1
       return false unless agrees_where_known?(candidates) { |c| c["authors"] }
       return false unless agrees_where_known?(candidates) { |c| c["_isfdb_series_id"] }
       return false unless agrees_where_known?(candidates) { |c| Array(c["cover_artists"]).sort.presence }

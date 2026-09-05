@@ -29,19 +29,24 @@ namespace :isfdb do
     puts "resolved=#{resolved} left=#{left}"
   end
 
-  desc "One-time remediation for the 2026-09-05 same_edition? audit: reopen every accepted enrichment_printing_choice decision the corrected algorithm (title_id/authors/series_id/cover_artists/year/language, not just binding/publisher/page_count) would NOT have merged — see docs/INTEGRATIONS.md. Leaves the currently-applied field values in place; reopening puts it back in front of a human, same as any other pending decision"
-  task reopen_bad_printing_merges: :environment do
+  desc "Reconciles every enrichment_printing_choice decision a sweep (or a human) has ever resolved against the current same_edition? — in either direction. Needed twice on 2026-09-05: once for the field-coverage fix (title_id/authors/series_id/cover_artists/year/language, not just binding/publisher/page_count), then again for an Array#one?-on-nil bug that wrongly reopened some already-correct merges. Only touches a decision whose edition already has an isfdb EnrichmentRecord matching one of its own candidates (i.e., something was actually resolved before) — a genuinely never-touched pending decision is left alone regardless of what same_edition? says now. See docs/INTEGRATIONS.md"
+  task reconcile_printing_merges: :environment do
     reopened = 0
-    kept = 0
-    PendingDecision.where(kind: "enrichment_printing_choice", status: "accepted").find_each do |pending_decision|
+    reclosed = 0
+    PendingDecision.where(kind: "enrichment_printing_choice").find_each do |pending_decision|
+      edition = pending_decision.entity
+      next unless edition
+
       candidates = pending_decision.payload["candidates"] || []
-      if Enrichment::IsfdbEditionEnricher.same_edition_for?(candidates)
-        kept += 1
-      else
-        pending_decision.update!(status: "pending", resolved_at: nil)
-        reopened += 1
-      end
+      pub_ids = candidates.map { |c| c["_isfdb_pub_id"].to_s }
+      next unless EnrichmentRecord.where(entity: edition, provider: "isfdb", external_id: pub_ids).exists?
+
+      correct_status = Enrichment::IsfdbEditionEnricher.same_edition_for?(candidates) ? "accepted" : "pending"
+      next if pending_decision.status == correct_status
+
+      pending_decision.update!(status: correct_status, resolved_at: correct_status == "accepted" ? Time.current : nil)
+      correct_status == "accepted" ? (reclosed += 1) : (reopened += 1)
     end
-    puts "reopened=#{reopened} kept=#{kept}"
+    puts "reopened=#{reopened} reclosed=#{reclosed}"
   end
 end
