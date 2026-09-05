@@ -1302,23 +1302,62 @@ this backlog every case where either disagreed also disagreed on
 they're real facts this app tracks and a future dataset might disagree on
 them without tripping the other checks.
 
-True blast radius, re-audited across every dimension: **63 of the 164**
-accepted decisions should not have merged (up from the 13 the
-cover-artist check alone found) — including `#798`, *The Anubis Gates*,
-the exact HarperCollins-UK-1993-vs-Triad-Grafton-1986 case that motivated
-building `enrichment_printing_choice` in the first place, silently
-re-collapsed by the first cut of this "fix." `bin/rails
-isfdb:reopen_bad_printing_merges` re-runs the corrected `#same_edition?`
+Audited blast radius across every dimension: **63 of the 164** accepted
+decisions should not have merged (up from the 13 the cover-artist check
+alone found) — including `#798`, *The Anubis Gates*, the exact
+HarperCollins-UK-1993-vs-Triad-Grafton-1986 case that motivated building
+`enrichment_printing_choice` in the first place, silently re-collapsed by
+the first cut of this "fix."
+
+##### The same correction round found a second, unrelated real bug
+
+Reconciling the fix above against production gave `reopened=73`, not the
+predicted 63 — a real discrepancy, chased down rather than shrugged off.
+`candidates.map { |c| c["_isfdb_title_id"] }.uniq.one?` is wrong: `Array#one?`
+with no block checks how many elements are *truthy*, not the array's
+length. `_isfdb_title_id` is legitimately `nil` on plenty of real ISFDB
+records, and `[nil].one?` is `false` even though the array has exactly
+one distinct value — so two candidates that agreed on literally
+*everything*, both with a nil title id (real case: *Troubled Waters*,
+pub 52417 vs 441462, byte-for-byte identical), got wrongly flagged as
+pointing at different books. `binding`'s own `.uniq.one?` never actually
+hit this (`.to_s` guarantees a truthy string even for a nil binding), but
+was rewritten to the same explicit `.uniq.size == 1` rather than staying
+correct by luck of that side effect.
+
+`bin/rails isfdb:reconcile_printing_merges` (replacing the earlier
+one-directional `isfdb:reopen_bad_printing_merges`, which had no way to
+undo its own mistake) re-runs the corrected `#same_edition?`
 (`IsfdbEditionEnricher.same_edition_for?` — deliberately re-checking only
 the equivalence rule itself, not the full `#resolve_candidate` cascade,
 since its earlier "matches the year already on file" tier would read
 `@edition.publish_date` — which might already *be* a bad merge's own
-mistaken write) against each accepted decision's stored candidates and
-reopens (`status: "pending"`) whichever now fail it, leaving the
-currently-applied (possibly wrong) field values in place — the review
-screen shows the edition's current state alongside every real candidate
-either way, so picking the right one there overwrites the wrong data as
-part of the normal accept flow. The remaining 101 stay accepted.
+mistaken write) against every decision a sweep or a human has ever
+actually resolved (an isfdb `EnrichmentRecord` already exists matching
+one of its own candidates — a genuinely never-touched pending decision is
+left alone regardless of what `#same_edition?` says now), correcting
+`status` in either direction. Reopening/reclosing leaves the
+currently-applied field values exactly as they are — the review screen
+shows the edition's current state alongside every real candidate either
+way, so picking the right one there overwrites wrong data as part of the
+normal accept flow; reclosing doesn't need to touch field values at all,
+since a decision reclosed this way was already correctly resolved the
+first time.
+
+**Final state, independently re-verified against live data rather than
+trusted from the task's own printed counters:** of 198 total
+`enrichment_printing_choice` decisions, **101 accepted** (every one
+re-confirmed genuinely equivalent under the corrected rule) and **97
+pending** (34 never touched by any sweep, plus the 63 real cases).
+Spot-checked both ends: Fahrenheit 451 correctly back to `pending`,
+Troubled Waters correctly back to `accepted`.
+
+The lesson stated plainly, since it took two rounds to learn on this one
+feature: a summary count ("resolved=162", "reopened=73") is not
+verification. Both real bugs here were caught only because Mark looked
+at an actual merged or reopened record and the numbers didn't add up —
+cross-check a headline number against the real data before reporting it
+as done, especially right after touching equivalence/merge logic.
 
 ### Addendum: reconciling an edition on demand, not just when something raised a conflict
 
