@@ -156,6 +156,25 @@ module Enrichment
       assert_equal %w[111111 426303].sort, decision.candidate_covers.map { |a| a.filename.base }.sort # one per printing
     end
 
+    test "raising an enrichment_printing_choice supersedes a co-located enrichment_conflict for the same edition + isfdb source" do
+      isfdb_conflict = PendingDecision.create!(kind: "enrichment_conflict", payload: {
+        "entity_type" => "Edition", "entity_id" => @edition.id, "source" => "isfdb", "fields" => %w[publisher page_count]
+      })
+      goodreads_conflict = PendingDecision.create!(kind: "enrichment_conflict", payload: {
+        "entity_type" => "Edition", "entity_id" => @edition.id, "source" => "goodreads", "fields" => %w[publisher]
+      })
+      a = DUNE_RESPONSE.merge(publisher: "Ace Books", publish_date: "2010", _isfdb_pub_id: 426_303)
+      b = DUNE_RESPONSE.merge(publisher: "New English Library", publish_date: "1985", _isfdb_pub_id: 111_111)
+      stub_request(:get, "#{BASE_URL}/isbn/0441172717?all=true").to_return(status: 200, body: [ a, b ].to_json)
+      stub_request(:get, "https://isfdb.org/covers/dune.jpg").to_return(status: 200, body: "img", headers: { "Content-Type" => "image/jpeg" })
+
+      IsfdbEditionEnricher.enrich(@edition, client: @client)
+
+      assert_equal "accepted", isfdb_conflict.reload.status  # subsumed by the printing choice
+      assert_equal "pending", goodreads_conflict.reload.status # a different source's dispute — left alone
+      assert PendingDecision.pending.exists?(kind: "enrichment_printing_choice")
+    end
+
     test "when the known year matches no candidate, raises an enrichment_printing_choice rather than guessing newest" do
       @edition.update!(publish_date: "1999") # doesn't match either candidate below
       newer_printing = DUNE_RESPONSE.merge(publisher: "Ace Books", publish_date: "2010", _isfdb_pub_id: 426_303)

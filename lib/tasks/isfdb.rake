@@ -75,10 +75,12 @@ namespace :isfdb do
     puts "backfilled=#{touched}"
   end
 
-  desc "Resolves a pending enrichment_conflict decision whose disputed fields were already fully covered by a separately-accepted enrichment_printing_choice decision for the same entity+source — the printing choice's own accept now does this prospectively (PendingDecisionResolver#resolve_superseded_conflict), this catches ones raised before that existed. Only resolves a conflict where every disputed field already carries field_sources[field] == 'isfdb' on the entity — real proof an isfdb write actually reached it, not just an assumption about which fields a past accept covered. Safe to re-run"
+  desc "Resolves a pending enrichment_conflict that a co-located enrichment_printing_choice for the same entity+source supersedes — the printing choice's own flag/accept now does this prospectively (IsfdbEditionEnricher#supersede_field_conflicts, PendingDecisionResolver#resolve_superseded_conflict); this catches ones from before those existed. A *pending* printing choice supersedes unconditionally (its screen covers every field a conflict can dispute); an *accepted* one only if every disputed field already carries field_sources[field] == source on the entity — real proof an isfdb write reached it, not an assumption about what a past accept covered. Safe to re-run"
   task resolve_superseded_conflicts: :environment do
     resolved = 0
-    PendingDecision.where(kind: "enrichment_printing_choice", status: "accepted").find_each do |printing_choice|
+    covered_fields = PendingDecision::EDITION_FIELD_ORDER + %w[cover_image]
+
+    PendingDecision.where(kind: "enrichment_printing_choice").find_each do |printing_choice|
       entity_type = printing_choice.payload["entity_type"]
       entity_id = printing_choice.payload["entity_id"]
       source = printing_choice.payload["source"]
@@ -91,7 +93,13 @@ namespace :isfdb do
       next unless record
 
       disputed = conflict.payload["fields"] || []
-      next unless disputed.all? { |f| record.field_sources[f] == source }
+      supersedes =
+        if printing_choice.pending?
+          disputed.all? { |f| covered_fields.include?(f) }
+        else
+          disputed.all? { |f| record.field_sources[f] == source }
+        end
+      next unless supersedes
 
       conflict.update!(status: "accepted", resolved_at: Time.current)
       resolved += 1

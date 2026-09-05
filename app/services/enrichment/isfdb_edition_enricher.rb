@@ -192,7 +192,26 @@ module Enrichment
       decision = existing || PendingDecision.new(kind: "enrichment_printing_choice")
       decision.update!(payload: payload)
       attach_candidate_covers(decision, candidates)
+      supersede_field_conflicts
       decision
+    end
+
+    # A printing choice's own review screen shows and lets the reviewer
+    # pick *every* field an enrichment_conflict can be about (see
+    # PendingDecision#printing_choice_cards). So the moment this decision
+    # exists, a separate field-level conflict for the same Edition + isfdb
+    # source is pure redundant queue noise — resolving the printing
+    # choice settles those fields anyway. Mark, 2026-09-05, seeing both in
+    # the queue for one book: "I assume the edition choice makes the
+    # enrichment conflict moot, right?" — right, and it should never have
+    # shown both. (accept_printing_choice has its own, stricter version
+    # of this for a conflict raised *after* a printing choice already
+    # existed — there it can only close one out if the accept genuinely
+    # covered every disputed field.)
+    def supersede_field_conflicts
+      PendingDecision.pending.where(kind: "enrichment_conflict")
+                     .where("payload @> ?", { "entity_type" => "Edition", "entity_id" => @edition.id, "source" => "isfdb" }.to_json)
+                     .find_each { |conflict| conflict.update!(status: "accepted", resolved_at: Time.current) }
     end
 
     def attach_candidate_covers(decision, candidates)

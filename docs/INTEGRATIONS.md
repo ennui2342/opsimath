@@ -1377,27 +1377,32 @@ missing them for any reason, safe to re-run any time.
 
 *"There's both an enrichment conflict and edition choice [for the same
 book]. I assume the edition choice makes the enrichment conflict moot,
-right?"* Right, and it wasn't wired that way. An `enrichment_conflict`
-and an `enrichment_printing_choice` can both get raised against the same
-Edition from two different enrichment attempts at different times, asking
-two different questions ("which value" vs. "which printing") — 57 pairs
-existed at the time of this check, and picking the right printing had
-never once resolved the separate conflict sitting alongside it.
-`PendingDecisionResolver#accept_printing_choice` now calls
-`#resolve_superseded_conflict` after committing a choice: if a pending
-`enrichment_conflict` exists for the same entity+source *and* every field
-it disputes is among the ones just applied, it's answered by the same act
-and gets marked accepted too — genuinely, not just because a printing
-choice happened at all (a reviewer who deliberately left a disputed field
-unchecked hasn't actually resolved that dispute, so the conflict stays
-open). 33 already-accepted printing-choice decisions had this exact
-staleness pre-dating the fix; `bin/rails isfdb:resolve_superseded_conflicts`
-cleans those up — deliberately not relying on "this printing choice
-probably used the default field list" as its own proof, since there's no
-record of what a past accept actually applied; it instead checks the
-entity's live `field_sources` for every disputed field is genuinely
-`"isfdb"`, real evidence an isfdb write reached it rather than an
-assumption about the past.
+right?"* Right — and a first pass at this was still too timid (only
+resolved the conflict when the printing choice was *accepted*, which
+left Mark still seeing both in the queue for Fahrenheit 451 because he
+hadn't resolved the printing choice yet). The real rule: an
+`enrichment_printing_choice` and a same-entity + same-source
+`enrichment_conflict` should **never coexist**. The printing screen shows
+and lets the reviewer pick every field a conflict can dispute
+(`PendingDecision::EDITION_FIELD_ORDER + cover_image`), so the moment a
+printing choice exists the field-level conflict is pure redundant queue
+noise. `IsfdbEditionEnricher#flag_printing_choice` now calls
+`#supersede_field_conflicts` — a co-located pending isfdb conflict is
+marked accepted right there, unconditionally (a different source's
+dispute, e.g. goodreads, is a genuinely separate question and left
+alone). `PendingDecisionResolver#accept_printing_choice` keeps its own,
+*stricter* version (`#resolve_superseded_conflict`) for a conflict raised
+*after* a printing choice already existed: there it only closes one out
+when the accept genuinely covered every disputed field — a reviewer who
+deliberately left one unchecked hasn't resolved that dispute.
+
+57 both-pending pairs plus 33 accepted-printing-choice-with-stale-conflict
+existed pre-fix; `bin/rails isfdb:resolve_superseded_conflicts` cleans
+both up. For a *pending* printing choice it supersedes unconditionally
+(the coverage guarantee above); for an *accepted* one it checks the
+entity's live `field_sources` shows every disputed field genuinely
+carries the printing choice's source — real evidence a write reached it,
+not an assumption about what a past accept applied.
 
 ### Addendum: reconciling an edition on demand, not just when something raised a conflict
 
