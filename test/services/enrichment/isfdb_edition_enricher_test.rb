@@ -399,6 +399,32 @@ module Enrichment
       assert_not_requested :get, /isfdb-adapter/
     end
 
+    test "attach_candidate_covers_for re-downloads covers a decision lost (e.g. accepted, then reopened) without a new isbn fetch" do
+      pending = PendingDecision.create!(kind: "enrichment_printing_choice", payload: { "entity_type" => "Edition", "entity_id" => 0 })
+      candidates = [
+        DUNE_RESPONSE.merge(_isfdb_pub_id: 111_111, cover_url: "https://isfdb.org/covers/a.jpg").stringify_keys,
+        DUNE_RESPONSE.merge(_isfdb_pub_id: 222_222, cover_url: "https://isfdb.org/covers/b.jpg").stringify_keys
+      ]
+      stub_request(:get, %r{https://isfdb\.org/covers/}).to_return(status: 200, body: "img", headers: { "Content-Type" => "image/jpeg" })
+
+      assert_equal 0, pending.candidate_covers.count
+      IsfdbEditionEnricher.attach_candidate_covers_for(pending, candidates)
+
+      assert_equal %w[111111 222222].sort, pending.candidate_covers.map { |a| a.filename.base }.sort
+      assert_not_requested :get, /isfdb-adapter/
+    end
+
+    test "attach_candidate_covers_for skips a candidate that already has its cover, matching the dedup #flag_printing_choice itself relies on" do
+      pending = PendingDecision.create!(kind: "enrichment_printing_choice", payload: { "entity_type" => "Edition", "entity_id" => 0 })
+      pending.candidate_covers.attach(io: StringIO.new("already-here"), filename: "111111.jpg", content_type: "image/jpeg")
+      candidates = [ DUNE_RESPONSE.merge(_isfdb_pub_id: 111_111, cover_url: "https://isfdb.org/covers/a.jpg").stringify_keys ]
+
+      IsfdbEditionEnricher.attach_candidate_covers_for(pending, candidates)
+
+      assert_not_requested :get, "https://isfdb.org/covers/a.jpg"
+      assert_equal "already-here", pending.candidate_covers.sole.download
+    end
+
     test "commit_choice applies only the checked fields from the chosen candidate, no conflict gate" do
       @edition.update!(publisher: "Wrong Publisher On File") # would normally be a conflict
       chosen = DUNE_RESPONSE.merge(publisher: "New English Library", publish_date: "1985", page_count: 412, _isfdb_pub_id: 111_111)

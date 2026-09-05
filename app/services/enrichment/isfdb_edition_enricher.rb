@@ -72,7 +72,7 @@ module Enrichment
     # Public wrapper around the private #same_edition? alone — doesn't
     # need an edition at all (the check is purely a function of the
     # candidate list, never `@edition`), so no edition argument here.
-    # `isfdb:reopen_bad_printing_merges` uses this specifically rather
+    # `isfdb:reconcile_printing_merges` uses this specifically rather
     # than #resolve_candidate_for: it needs to re-run *only* the
     # equivalence rule that was actually wrong, not the full cascade —
     # #resolve_candidate's earlier "matches the year already on file"
@@ -80,6 +80,23 @@ module Enrichment
     # be the bad merge's own mistaken write.
     def self.same_edition_for?(candidates)
       new(nil, client: nil).send(:same_edition?, candidates)
+    end
+
+    # Public wrapper around the private #attach_candidate_covers — also
+    # edition-independent (it only touches the decision and the raw
+    # candidate list). `isfdb:backfill_printing_choice_covers` uses this
+    # to re-download covers for a decision that lost them: accepting a
+    # printing choice purges `candidate_covers` (no longer needed once
+    # resolved — see #flag_printing_choice's own comment), but reopening
+    # a wrongly-accepted decision back to pending (`same_edition?`
+    # correction, `isfdb:reconcile_printing_merges`) never re-fetches
+    # them, since nothing about *that* operation implied a fresh fetch
+    # was needed — a real gap found live 2026-09-05: a reopened decision
+    # with real cover_url data on several candidates but zero attached.
+    # Already-present covers aren't re-downloaded (mirrors
+    # #attach_candidate_covers' own dedup-by-pub-id).
+    def self.attach_candidate_covers_for(decision, candidates)
+      new(nil, client: nil).send(:attach_candidate_covers, decision, candidates)
     end
 
     def initialize(edition, client:)

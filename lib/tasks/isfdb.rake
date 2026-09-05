@@ -45,8 +45,57 @@ namespace :isfdb do
       next if pending_decision.status == correct_status
 
       pending_decision.update!(status: correct_status, resolved_at: correct_status == "accepted" ? Time.current : nil)
-      correct_status == "accepted" ? (reclosed += 1) : (reopened += 1)
+      if correct_status == "accepted"
+        reclosed += 1
+      else
+        # Reopening puts this back in front of a human — but accepting it
+        # the first time purged its candidate_covers (no longer needed
+        # once resolved), and nothing about "this needs review again"
+        # implies a fresh fetch, so without this the review screen would
+        # show every candidate with no cover at all. Real gap found live
+        # 2026-09-05 — see isfdb:backfill_printing_choice_covers, which
+        # this duplicates inline so a future reopen doesn't need a
+        # separate manual step to notice and fix it again.
+        Enrichment::IsfdbEditionEnricher.attach_candidate_covers_for(pending_decision, candidates)
+        reopened += 1
+      end
     end
     puts "reopened=#{reopened} reclosed=#{reclosed}"
+  end
+
+  desc "Re-downloads candidate cover images for pending enrichment_printing_choice decisions that are missing them — accepting a decision purges candidate_covers (no longer needed once resolved), but reopening one back to pending (isfdb:reconcile_printing_merges, before it did this inline) never re-fetched them. Safe to re-run — skips a decision that already has every cover it can get (mirrors IsfdbEditionEnricher#attach_candidate_covers' own dedup)"
+  task backfill_printing_choice_covers: :environment do
+    touched = 0
+    PendingDecision.pending.where(kind: "enrichment_printing_choice").find_each do |pending_decision|
+      candidates = pending_decision.payload["candidates"] || []
+      before = pending_decision.candidate_covers.count
+      Enrichment::IsfdbEditionEnricher.attach_candidate_covers_for(pending_decision, candidates)
+      touched += 1 if pending_decision.candidate_covers.count > before
+    end
+    puts "backfilled=#{touched}"
+  end
+
+  desc "Resolves a pending enrichment_conflict decision whose disputed fields were already fully covered by a separately-accepted enrichment_printing_choice decision for the same entity+source — the printing choice's own accept now does this prospectively (PendingDecisionResolver#resolve_superseded_conflict), this catches ones raised before that existed. Only resolves a conflict where every disputed field already carries field_sources[field] == 'isfdb' on the entity — real proof an isfdb write actually reached it, not just an assumption about which fields a past accept covered. Safe to re-run"
+  task resolve_superseded_conflicts: :environment do
+    resolved = 0
+    PendingDecision.where(kind: "enrichment_printing_choice", status: "accepted").find_each do |printing_choice|
+      entity_type = printing_choice.payload["entity_type"]
+      entity_id = printing_choice.payload["entity_id"]
+      source = printing_choice.payload["source"]
+      conflict = PendingDecision.pending.where(kind: "enrichment_conflict")
+                                 .where("payload @> ?", { "entity_type" => entity_type, "entity_id" => entity_id, "source" => source }.to_json)
+                                 .first
+      next unless conflict
+
+      record = conflict.entity
+      next unless record
+
+      disputed = conflict.payload["fields"] || []
+      next unless disputed.all? { |f| record.field_sources[f] == source }
+
+      conflict.update!(status: "accepted", resolved_at: Time.current)
+      resolved += 1
+    end
+    puts "resolved=#{resolved}"
   end
 end

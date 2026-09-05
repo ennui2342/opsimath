@@ -84,6 +84,32 @@ module Enrichment
         record, candidate, fields: fields, cover_blob: @pending_decision.candidate_cover(pub_id)&.blob
       )
       @pending_decision.candidate_covers.purge_later if @pending_decision.candidate_covers.attached?
+      resolve_superseded_conflict(record, fields)
+    end
+
+    # A printing-choice decision and a field-level enrichment_conflict can
+    # both get raised for the *same* Edition, from two different
+    # enrichment attempts at different times asking two different
+    # questions ("which printing" vs "which value") — found live
+    # 2026-09-05 (Mark: "there's both an enrichment conflict and edition
+    # choice. I assume the edition choice makes the enrichment conflict
+    # moot, right?" — right). Once a printing choice picks the real
+    # printing and applies its fields, any separate conflict over those
+    # *same* fields for the *same* entity+source is answered by the same
+    # act — but only genuinely: this only closes it out when every field
+    # the conflict was disputing is actually among the ones just applied
+    # here, not just because a printing choice happened at all (a
+    # reviewer who deliberately unchecked a field the conflict cares
+    # about hasn't actually resolved that dispute).
+    def resolve_superseded_conflict(record, applied_fields)
+      conflict = PendingDecision.pending.where(kind: "enrichment_conflict")
+                                 .where("payload @> ?", { "entity_type" => record.class.name, "entity_id" => record.id,
+                                                           "source" => @pending_decision.payload["source"] }.to_json)
+                                 .first
+      return unless conflict
+      return unless (conflict.payload["fields"] || []).all? { |f| applied_fields.include?(f) }
+
+      conflict.update!(status: "accepted", resolved_at: Time.current)
     end
 
     def accept_enrichment(selected_fields)

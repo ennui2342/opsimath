@@ -1359,6 +1359,46 @@ at an actual merged or reopened record and the numbers didn't add up —
 cross-check a headline number against the real data before reporting it
 as done, especially right after touching equivalence/merge logic.
 
+##### Two more real gaps, found by Mark actually looking at the reopened Fahrenheit 451 decision
+
+*"None of the alternate editions have cover images."* Accepting a
+printing choice purges its `candidate_covers` (no longer needed once
+resolved) — but reopening one back to `pending` (the reconciliation
+above) never re-downloaded them, since nothing about "this needs review
+again" implied a fresh fetch was needed. 62 of the then-pending decisions
+had real `cover_url` data on their candidates and zero attached covers.
+Fixed two ways: `isfdb:reconcile_printing_merges` now re-attaches covers
+inline whenever it reopens a decision (`IsfdbEditionEnricher.attach_candidate_covers_for`,
+a public wrapper around the same `#attach_candidate_covers` that ran at
+raise time — dedups by pub id, so a decision that already has some of its
+covers only fetches what's missing), and a standalone `bin/rails
+isfdb:backfill_printing_choice_covers` catches any pending decision
+missing them for any reason, safe to re-run any time.
+
+*"There's both an enrichment conflict and edition choice [for the same
+book]. I assume the edition choice makes the enrichment conflict moot,
+right?"* Right, and it wasn't wired that way. An `enrichment_conflict`
+and an `enrichment_printing_choice` can both get raised against the same
+Edition from two different enrichment attempts at different times, asking
+two different questions ("which value" vs. "which printing") — 57 pairs
+existed at the time of this check, and picking the right printing had
+never once resolved the separate conflict sitting alongside it.
+`PendingDecisionResolver#accept_printing_choice` now calls
+`#resolve_superseded_conflict` after committing a choice: if a pending
+`enrichment_conflict` exists for the same entity+source *and* every field
+it disputes is among the ones just applied, it's answered by the same act
+and gets marked accepted too — genuinely, not just because a printing
+choice happened at all (a reviewer who deliberately left a disputed field
+unchecked hasn't actually resolved that dispute, so the conflict stays
+open). 33 already-accepted printing-choice decisions had this exact
+staleness pre-dating the fix; `bin/rails isfdb:resolve_superseded_conflicts`
+cleans those up — deliberately not relying on "this printing choice
+probably used the default field list" as its own proof, since there's no
+record of what a past accept actually applied; it instead checks the
+entity's live `field_sources` for every disputed field is genuinely
+`"isfdb"`, real evidence an isfdb write reached it rather than an
+assumption about the past.
+
 ### Addendum: reconciling an edition on demand, not just when something raised a conflict
 
 The publisher-sweep analysis (2026-09-04) found the pending

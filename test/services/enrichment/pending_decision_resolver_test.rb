@@ -201,6 +201,57 @@ module Enrichment
       assert_empty PendingDecision.pending
     end
 
+    test "accepting a printing choice resolves a separate enrichment_conflict on the same entity when every disputed field was applied" do
+      edition = Edition.create!(publisher: "Wrong On File")
+      printing_choice = PendingDecision.create!(kind: "enrichment_printing_choice", payload: {
+        "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "isbn" => "0586065504",
+        "candidates" => [
+          { "_isfdb_pub_id" => 35246, "publisher" => "Triad Grafton", "publish_date" => "1986-05", "binding" => "pb", "page_count" => 464 }
+        ]
+      })
+      conflict = PendingDecision.create!(kind: "enrichment_conflict", payload: {
+        "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "fields" => %w[publisher publish_date]
+      })
+
+      PendingDecisionResolver.accept(printing_choice, pub_id: "35246") # default fields — a superset of publisher/publish_date
+
+      assert_equal "accepted", conflict.reload.status
+      assert_not_nil conflict.resolved_at
+    end
+
+    test "accepting a printing choice leaves an unrelated field-level conflict alone when it wasn't actually applied" do
+      edition = Edition.create!(publisher: "Wrong On File")
+      printing_choice = PendingDecision.create!(kind: "enrichment_printing_choice", payload: {
+        "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "isbn" => "0586065504",
+        "candidates" => [
+          { "_isfdb_pub_id" => 35246, "publisher" => "Triad Grafton", "publish_date" => "1986-05", "binding" => "pb", "page_count" => 464 }
+        ]
+      })
+      # a conflict disputing a field the reviewer specifically didn't check
+      conflict = PendingDecision.create!(kind: "enrichment_conflict", payload: {
+        "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "fields" => %w[publisher page_count]
+      })
+
+      PendingDecisionResolver.accept(printing_choice, selected_fields: %w[publisher], pub_id: "35246") # page_count not checked
+
+      assert_equal "pending", conflict.reload.status
+    end
+
+    test "accepting a printing choice never touches a conflict from a different source" do
+      edition = Edition.create!(publisher: "Wrong On File")
+      printing_choice = PendingDecision.create!(kind: "enrichment_printing_choice", payload: {
+        "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "isbn" => "0586065504",
+        "candidates" => [ { "_isfdb_pub_id" => 35246, "publisher" => "Triad Grafton", "binding" => "pb" } ]
+      })
+      goodreads_conflict = PendingDecision.create!(kind: "enrichment_conflict", payload: {
+        "entity_type" => "Edition", "entity_id" => edition.id, "source" => "goodreads", "fields" => %w[publisher]
+      })
+
+      PendingDecisionResolver.accept(printing_choice, pub_id: "35246")
+
+      assert_equal "pending", goodreads_conflict.reload.status
+    end
+
     test "accepting an enrichment_printing_choice with no explicit fields applies every EDITION_FIELD_ORDER field, cover_artist included" do
       edition = Edition.create!(publisher: "Wrong On File")
       pending = PendingDecision.create!(kind: "enrichment_printing_choice", payload: {
