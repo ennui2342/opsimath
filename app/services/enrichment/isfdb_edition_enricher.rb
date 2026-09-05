@@ -88,12 +88,12 @@ module Enrichment
       new(nil, client: nil).send(:same_edition?, candidates)
     end
 
-    # Partitions a candidate list into groups that are the same physical
-    # edition — the review screen (PendingDecision#printing_choice_cards)
+    # Partitions a candidate list into groups that are the same ISFDB
+    # printing — the review screen (PendingDecision#printing_choice_cards)
     # shows one card per group instead of one per raw ISFDB record, so a
-    # book like Fahrenheit 451 (12 records, really two editions — a Donna
-    # Diamond-illustrated Del Rey printing and a Joseph Mugnaini one)
-    # doesn't present twelve near-identical cards.
+    # book that has the same printing entered two or three times (a wiki:
+    # independent contributors re-cataloguing a book they own) doesn't
+    # present two or three near-identical cards.
     #
     # NOT #same_edition? applied pairwise, which is what this used to do.
     # That relation is deliberately blank-tolerant (a record that doesn't
@@ -102,26 +102,27 @@ module Enrichment
     # uncredited 179pp Del Rey record is "the same edition" as both the
     # Donna Diamond 179pp one *and* (page-count tolerance) the Joseph
     # Mugnaini 191pp one, chaining all three into a single group. Live
-    # 2026-09-05: Fahrenheit collapsed to one card, "12 near-identical
-    # records", instead of two.
+    # 2026-09-05: Fahrenheit 451 collapsed to one card, "12 near-identical
+    # records".
     #
-    # Instead: group by an exact edition signature — cover art, publisher,
-    # binding, page extent, language, the ISFDB work/series — then fold
-    # groups whose signatures don't actually conflict, but only when the
-    # fold is *unambiguous*. A group that's blank on some field and could
-    # fold into two different fuller groups (that uncredited printing)
-    # stays its own card rather than being filed under a guess. Two
-    # fully-stated groups differing only by a few pages (191 vs 192 —
-    # counting noise on a wiki) do fold; a blank field *and* a page gap
-    # together do not — tolerances don't stack, the same rule
-    # #same_edition? now follows.
+    # Instead: group by an exact printing signature — cover art, publisher,
+    # binding, page extent, language, the ISFDB work/series, *and the
+    # publish year* — then fold groups whose signatures don't actually
+    # conflict, but only when the fold is *unambiguous*. A group that's
+    # blank on some field and could fold into two different fuller groups
+    # (an uncredited printing that matches two credited editions; an
+    # undated record that matches both a 1993 and a 2001 printing —
+    # Chanur's Legacy #71) stays its own card rather than being filed
+    # under a guess. Two fully-stated groups differing only by a few pages
+    # (191 vs 192 — counting noise on a wiki) do fold; a blank field *and*
+    # a page gap together do not — tolerances don't stack, the same rule
+    # #same_edition? follows.
     #
-    # publish_date is deliberately not part of the signature: one edition
-    # reprinted across years is still one card for "which do I own".
-    # #same_edition? — the *un-reviewed* auto-merge gate — does keep the
-    # year, so a silent metadata merge can't cross a reprint gap; here a
-    # human is looking at the card and picking, so the looser identity is
-    # the right one.
+    # The publish year is in the signature (Mark, 2026-09-05, looking at
+    # #71: "the publish days are different. Why are they collapsed?") — so
+    # a book with a deep reprint history gets one card per year, matching
+    # what #same_edition? (the un-reviewed auto-merge gate) already does.
+    # Trade-off Mark accepted: Fahrenheit 451 goes back to ~7 cards.
     #
     # Groups come back in first-appearance order; #richest_candidate_for
     # picks each group's representative for display and, when accepted,
@@ -651,11 +652,18 @@ module Enrichment
       fold_compatible_groups(groups)
     end
 
-    # The identity of a physical edition for the review list. Everything a
-    # collector would use to tell two printings apart *except* publish_date
-    # (see the wrapper comment). page_count is in here so exact grouping
-    # keeps 179pp and 191pp apart up front; #signatures_compatible? then
-    # re-folds a few-page wiki-counting difference back together.
+    # The identity of a printing for the review list — everything a
+    # collector would use to tell two apart, including the publish *year*
+    # (Mark, 2026-09-05, looking at Chanur's Legacy #71 — four DAW
+    # paperbacks identical but for 1993/2001/undated dates, collapsed to
+    # one card: "the publish days are different. Why are they collapsed?").
+    # A blank year is `blankish?`, so an undated ISFDB record still folds
+    # into a dated printing via #signatures_compatible? — but only when
+    # exactly one dated printing matches; Chanur's undated record matches
+    # both the 1993 and 2001 ones, so it stays its own card.
+    # page_count is in here so exact grouping keeps 179pp and 191pp apart
+    # up front; #signatures_compatible? then re-folds a few-page
+    # wiki-counting difference back together.
     def edition_signature(c)
       {
         binding: c["binding"].to_s.downcase,
@@ -665,6 +673,7 @@ module Enrichment
         language: c["language"].to_s,
         cover_artists: Array(c["cover_artists"]).sort,
         publisher: normalize_name(c["publisher"]),
+        year: c["publish_date"].to_s[0, 4],
         page_count: c["page_count"]
       }
     end

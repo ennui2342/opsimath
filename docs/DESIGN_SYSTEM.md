@@ -93,17 +93,18 @@ Three selection idioms:
   adopts the whole ISFDB pub wholesale (it's a "which book is this" call,
   not a per-field "which value" one — `Enrichment::IsfdbEditionEnricher#commit_choice`
   resets every bibliographic field to the pub, clearing ones it leaves
-  blank). One card per *real* edition, not per ISFDB record —
+  blank). One card per *distinct ISFDB printing*, not per ISFDB record —
   `Enrichment::IsfdbEditionEnricher.cluster_candidates` groups the
-  several near-identical records ISFDB (a wiki) often holds for one
-  physical book by an exact edition signature (cover artist, publisher,
-  binding, pages, language, ISFDB work/series — not `publish_date`) and
-  folds non-conflicting groups only when unambiguous, so a blank field
-  can't bridge two genuinely different editions (it did: Fahrenheit 451
-  → 1 card, fixed 2026-09-05). Each card shows the richest of its records
-  (an `info_note` says how many it stands for); accepting applies that
-  representative's `pub_id` and values. See `docs/INTEGRATIONS.md`'s
-  reused-ISBN addendum.
+  duplicate records ISFDB (a wiki) often holds for one printing by an
+  exact signature (cover artist, publisher, binding, pages, language,
+  ISFDB work/series, **publish year**) and folds non-conflicting groups
+  only when unambiguous — so a blank field can't bridge two different
+  editions, and distinct known years stay distinct cards (Mark on
+  Chanur's Legacy #71: *"the publish days are different, why are they
+  collapsed?"* — a deep-reprint book like Fahrenheit 451 is ~7 cards,
+  accepted). Each card shows the richest of its records (an `info_note`
+  says how many it stands for). See `docs/INTEGRATIONS.md`'s reused-ISBN
+  addendum.
 - **Checkboxes, mixed freely across N cards** — "which *source*, per
   field": the edition-metadata screen (below). `field_value_prefix` makes
   every checkbox in a card self-describing (`field_picks[]` =

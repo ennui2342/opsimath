@@ -1418,18 +1418,15 @@ entity's live `field_sources` shows every disputed field genuinely
 carries the printing choice's source — real evidence a write reached it,
 not an assumption about what a past accept applied.
 
-##### The review screen shows one card per *edition*, not per ISFDB record
+##### The review screen shows one card per distinct ISFDB printing, not per raw record
 
 Mark, still looking at Fahrenheit 451's 12-card printing choice:
 *"many of the editions are identical in the fields presented, so I don't
 understand why they haven't been merged. What field is keeping them
 separate that I'm not seeing?"* Nothing was — `#same_edition?` is a
 yes/no *gate* on whether the whole decision auto-resolves without a
-human, not a dedup pass. It correctly said "no, hand to a human" (there
-really are two editions in those 12 — Donna Diamond cover / 179pp vs
-Joseph Mugnaini cover / 191-192pp), and then the screen rendered all 12
-raw records flat. Three of them were byte-for-byte identical; two others
-were too.
+human, not a dedup pass, so the screen rendered all 12 raw records flat
+even though several were byte-for-byte identical.
 
 `Enrichment::IsfdbEditionEnricher.cluster_candidates` partitions the
 candidates and `PendingDecision#printing_choice_cards` renders one card
@@ -1437,10 +1434,12 @@ per group, showing `#richest_candidate_for` (fullest date, has a cover
 artist / a cover image — `#candidate_completeness` gained `cover_url` for
 exactly this, so the representative reliably has an image to show).
 Accepting a card applies that representative's `pub_id` and values; Mark
-on which record to stamp: *"functionally zero difference [between records
-in a group], so pick whatever"* — the richest is a marginally better
-identifier for free. A card standing for more than one record carries an
-`info_note` saying so.
+on which record to stamp within a group: *"functionally zero difference
+[between records in a group], so pick whatever"* — the richest is a
+marginally better identifier for free. A card standing for more than one
+record carries an `info_note` saying so. It groups *duplicate records of
+one printing*, not printings — see the next note for why distinct years
+stay on distinct cards.
 
 ###### The clustering relation is *not* `#same_edition?` pairwise
 
@@ -1458,14 +1457,27 @@ human; only the transitive pairwise chain was wrong.
 
 `cluster_candidates` now groups by an exact `#edition_signature`
 (binding, ISFDB title/series, authors, language, cover artists,
-normalised publisher, page count — **not** `publish_date`; one edition
-reprinted across years is one card for "which do I own"), then
+normalised publisher, **publish year**, page count), then
 `#fold_compatible_groups` folds groups whose signatures don't conflict,
 but only when the fold is *unambiguous from both sides*
 (`#signatures_compatible?`): a blank-on-some-field group that matches two
 fuller groups equally well stays its own card. Two fully-stated groups
 differing only by a few pages (191 vs 192) still fold; a blank field
 **and** a page gap together do not — tolerances don't stack.
+
+The publish year is in the signature because Mark, looking at Chanur's
+Legacy #71 — four DAW paperbacks identical but for 1993/2001/undated
+dates, collapsed to one card — asked *"the publish days are different.
+Why are they collapsed?"* An earlier cut left `publish_date` out (one
+edition reprinted across years = one card); the representative pick then
+had to choose a year, and `#richest_candidate` chose the *fullest* date
+string, so a book you own the first printing of got stamped with a later
+reissue's date. Year back in the signature means one card per distinct
+known year — matching `#same_edition?` — with the accepted trade-off
+that a deep-reprint book like Fahrenheit 451 shows ~7 cards, not 2. An
+undated ISFDB record is `blankish?`, so it still folds into a dated
+printing when exactly one matches; Chanur's undated record matches both
+1993 and 2001, so it stays its own card.
 
 That last rule also closed a matching soft spot in the auto-merge gate
 (Mark: *"is it right for automerge? this sounds no different"*):

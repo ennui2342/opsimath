@@ -179,31 +179,27 @@ class PendingDecisionTest < ActiveSupport::TestCase
     assert_not second.selected
   end
 
-  test "printing_choice_cards collapses several ISFDB records for the same printing into one card, showing the richest" do
+  test "printing_choice_cards folds duplicate ISFDB records for one printing but keeps distinct publish years apart" do
     edition = Edition.create!
     pending = PendingDecision.create!(kind: "enrichment_printing_choice", payload: {
-      "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "isbn" => "0345342968",
+      "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "isbn" => "0886775590",
       "candidates" => [
-        # "Donna Diamond" edition — three records, differing only by date / completeness
-        { "_isfdb_pub_id" => 847_371, "publisher" => "Del Rey / Ballantine", "publish_date" => "1993-05", "binding" => "pb", "page_count" => 179, "cover_artists" => [ "Donna Diamond" ], "cover_url" => "x" },
-        { "_isfdb_pub_id" => 13_009, "publisher" => "Del Rey / Ballantine", "publish_date" => "1989-10", "binding" => "pb", "page_count" => 179, "cover_artists" => [ "Donna Diamond" ] },
-        { "_isfdb_pub_id" => 273_842, "publisher" => "Del Rey / Ballantine", "publish_date" => "", "binding" => "pb", "page_count" => 179, "cover_artists" => [ "Donna Diamond" ] },
-        # "Joseph Mugnaini" edition — two records, genuinely a different printing
-        { "_isfdb_pub_id" => 588_139, "publisher" => "Del Rey / Ballantine", "publish_date" => "", "binding" => "pb", "page_count" => 191, "cover_artists" => [ "Joseph Mugnaini" ] },
-        { "_isfdb_pub_id" => 601_533, "publisher" => "Del Rey / Ballantine", "publish_date" => "", "binding" => "pb", "page_count" => 191, "cover_artists" => [ "Joseph Mugnaini" ] }
+        # Chanur's Legacy — DAW paperback, Michael Whelan cover, 415pp: the 1993
+        # printing entered twice, one genuine 2001 reprint, one undated record.
+        { "_isfdb_pub_id" => 272_054, "publisher" => "DAW Books", "publish_date" => "1993-09", "binding" => "pb", "page_count" => 415, "cover_artists" => [ "Michael Whelan" ] },
+        { "_isfdb_pub_id" => 278_986, "publisher" => "DAW Books", "publish_date" => "1993-09", "binding" => "pb", "page_count" => 415, "cover_artists" => [ "Michael Whelan" ], "cover_url" => "x" },
+        { "_isfdb_pub_id" => 245_465, "publisher" => "DAW Books", "publish_date" => "2001-05", "binding" => "pb", "page_count" => 415, "cover_artists" => [ "Michael Whelan" ] },
+        { "_isfdb_pub_id" => 6_625, "publisher" => "DAW Books", "publish_date" => "", "binding" => "pb", "page_count" => 415, "cover_artists" => [ "Michael Whelan" ] }
       ]
     })
 
     cards = pending.printing_choice_cards[:candidates]
 
-    assert_equal 2, cards.size
-    diamond = cards.find { |c| c.fields.find { |f| f.name == "cover_artist" }&.value == "Donna Diamond" }
-    mugnaini = cards.find { |c| c.fields.find { |f| f.name == "cover_artist" }&.value == "Joseph Mugnaini" }
-
-    assert_equal "847371", diamond.select_value          # the richest of its three (has a date and a cover_url)
-    assert_equal "1993-05", diamond.fields.find { |f| f.name == "publish_date" }.value
-    assert_match(/3 ISFDB records for this printing/, diamond.info_note)
-    assert_match(/2 ISFDB records for this printing/, mugnaini.info_note)
+    assert_equal 3, cards.size # 1993 (2 records folded), 2001, undated
+    y1993 = cards.find { |c| c.fields.find { |f| f.name == "publish_date" }&.value == "1993-09" }
+    assert_equal "278986", y1993.select_value # richest of the two 1993 records (has a cover_url)
+    assert_match(/2 ISFDB records for this printing/, y1993.info_note)
+    assert_equal 1, cards.count { |c| c.info_note.present? } # only the folded one carries the note
   end
 
   test "printing_choice_cards leaves genuinely different printings as separate cards" do

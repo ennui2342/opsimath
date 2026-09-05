@@ -412,36 +412,49 @@ module Enrichment
       assert_equal "John Schoenherr", @edition.reload.cover_artist # the richer candidate won, as before
     end
 
-    test "cluster_candidates groups by edition signature, ignoring publish_date — reprints of one edition are one card" do
+    test "cluster_candidates folds byte-identical duplicate records but keeps distinct publish years apart" do
       c = ->(pub, **over) { DUNE_RESPONSE.merge(_isfdb_pub_id: pub, **over).stringify_keys }
       candidates = [
-        c.call(1, publish_date: "1990", cover_artists: [ "A" ]),
-        c.call(2, publish_date: "1985", cover_artists: [ "A" ]),  # different reprint year, same edition
-        c.call(3, publish_date: "",     cover_artists: [ "A" ]),  # undated, same edition
-        c.call(4, publish_date: "2000", cover_artists: [ "B" ])   # different cover artist — its own edition
+        c.call(1, publish_date: "1993-09", cover_artists: [ "A" ]),
+        c.call(2, publish_date: "1993-09", cover_artists: [ "A" ]), # ISFDB entered the 1993 printing twice
+        c.call(3, publish_date: "2001-05", cover_artists: [ "A" ]), # a genuinely later printing — its own card
+        c.call(4, publish_date: "2000",    cover_artists: [ "B" ])  # different cover artist too
       ]
 
       clusters = IsfdbEditionEnricher.cluster_candidates(candidates)
 
-      assert_equal 2, clusters.size
-      assert_equal [ [ 1, 2, 3 ], [ 4 ] ], clusters.map { |g| g.map { |x| x["_isfdb_pub_id"] }.sort }.sort
+      assert_equal [ [ 1, 2 ], [ 3 ], [ 4 ] ], clusters.map { |g| g.map { |x| x["_isfdb_pub_id"] }.sort }.sort
     end
 
-    test "cluster_candidates does not let a blank cover artist bridge two genuinely different editions (Fahrenheit 451)" do
+    test "cluster_candidates folds an undated record into the one dated printing it matches, but leaves it alone when it matches two" do
+      c = ->(pub, **over) { DUNE_RESPONSE.merge(_isfdb_pub_id: pub, **over).stringify_keys }
+
+      one_match = [
+        c.call(1, publish_date: "1993-09", cover_artists: [ "A" ]),
+        c.call(2, publish_date: "",        cover_artists: [ "A" ]) # undated — only the 1993 printing to match
+      ]
+      assert_equal [ [ 1, 2 ] ], IsfdbEditionEnricher.cluster_candidates(one_match).map { |g| g.map { |x| x["_isfdb_pub_id"] }.sort }
+
+      two_matches = [
+        c.call(1, publish_date: "1993-09", cover_artists: [ "A" ]),
+        c.call(2, publish_date: "2001-05", cover_artists: [ "A" ]),
+        c.call(3, publish_date: "",        cover_artists: [ "A" ]) # undated — matches both, can't be filed under a guess (Chanur's Legacy #71)
+      ]
+      assert_equal 3, IsfdbEditionEnricher.cluster_candidates(two_matches).size
+    end
+
+    test "cluster_candidates does not let a blank cover artist bridge two genuinely different editions of the same year" do
       c = ->(pub, **over) { DUNE_RESPONSE.merge(_isfdb_pub_id: pub, **over).stringify_keys }
       candidates = [
-        c.call(1, cover_artists: [ "Donna Diamond" ],   page_count: 179, publish_date: "1993-05"),
-        c.call(2, cover_artists: [ "Donna Diamond" ],   page_count: 179, publish_date: "1989-10"),
-        c.call(3, cover_artists: [],                    page_count: 179, publish_date: "2002-03"), # uncredited — really the Donna Diamond printing (same 179pp)
-        c.call(4, cover_artists: [],                    page_count: 179, publish_date: "1995"),
-        c.call(5, cover_artists: [ "Joseph Mugnaini" ], page_count: 191, publish_date: ""),
-        c.call(6, cover_artists: [ "Joseph Mugnaini" ], page_count: 192, publish_date: "") # 1pp off — counting noise, same edition as #5
+        c.call(1, cover_artists: [ "Donna Diamond" ],   page_count: 179, publish_date: "1989"),
+        c.call(2, cover_artists: [],                    page_count: 179, publish_date: "1989"), # uncredited — really the Donna Diamond printing (same 179pp, same year)
+        c.call(3, cover_artists: [ "Joseph Mugnaini" ], page_count: 191, publish_date: "1989"),
+        c.call(4, cover_artists: [ "Joseph Mugnaini" ], page_count: 192, publish_date: "1989")  # 1pp off — counting noise, same as #3
       ]
 
       clusters = IsfdbEditionEnricher.cluster_candidates(candidates)
 
-      assert_equal 2, clusters.size
-      assert_equal [ [ 1, 2, 3, 4 ], [ 5, 6 ] ], clusters.map { |g| g.map { |x| x["_isfdb_pub_id"] }.sort }.sort
+      assert_equal [ [ 1, 2 ], [ 3, 4 ] ], clusters.map { |g| g.map { |x| x["_isfdb_pub_id"] }.sort }.sort
     end
 
     test "cluster_candidates keeps an uncredited printing as its own card when it matches two credited editions equally" do
