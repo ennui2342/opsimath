@@ -22,7 +22,7 @@ module Settings
       variant.destroy!
       result = @handler.retract(removed_labels: [ label ], preferred_label: preferred)
       redirect_to settings_authority_path(@vocabulary),
-                  notice: "Removed variant “#{label}” — re-enriched #{result.editions_reprocessed} edition(s)."
+                  notice: "Removed variant “#{label}” — re-checked #{result.editions_reprocessed} edition(s), #{result.conflicts_raised} conflict(s) re-raised."
     end
 
     private

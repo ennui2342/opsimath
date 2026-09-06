@@ -6,6 +6,8 @@ module Settings
       sign_in_as users(:one)
       Notifications.notifiers = []
       @edition = Edition.create!(publisher: "Pan Macmillan UK", field_sources: { "publisher" => "goodreads" })
+      EnrichmentRecord.create!(entity: @edition, provider: "goodreads", external_id: "g", fetched_at: 1.day.ago,
+                               fields: { "publisher" => "Pan Macmillan UK" }, raw_payload: { "publisher" => "Pan Macmillan UK" })
       EnrichmentRecord.create!(entity: @edition, provider: "isfdb", external_id: "1", fetched_at: Time.current,
                                fields: { "publisher" => "Pan Books" },
                                raw_payload: { "publisher" => "Pan Books", "binding" => "pb", "_isfdb_pub_id" => 1 })
@@ -33,6 +35,16 @@ module Settings
     end
 
     test "establishing from a conflict screen responds with turbo_stream and advances past the resolved decision" do
+      # a second, unrelated conflict so the turbo response has to render a
+      # real _decision_comparison from this controller's view context
+      other = Edition.create!(publisher: "Wrong", field_sources: { "publisher" => "goodreads" })
+      Work.create!(title: "Another Book", literary_form: "novel").tap { |w| EditionContent.create!(work: w, edition: other) }
+      EnrichmentRecord.create!(entity: other, provider: "isfdb", external_id: "2", fetched_at: Time.current,
+                               fields: { "publisher" => "Also Wrong" }, raw_payload: {})
+      PendingDecision.create!(kind: "enrichment_conflict", payload: {
+        "entity_type" => "Edition", "entity_id" => other.id, "source" => "isfdb", "fields" => [ "publisher" ]
+      })
+
       post settings_authority_terms_url("publisher"),
            params: { preferred_label: "Pan Books", "variant_labels[]": [ "Pan Macmillan UK", "Pan Books" ], from_decision_id: @decision.id },
            as: :turbo_stream
@@ -40,6 +52,7 @@ module Settings
       assert_response :success
       assert_match "turbo-stream", @response.media_type
       assert_equal "accepted", @decision.reload.status
+      assert_select "turbo-stream[target=pending_decision] template", /Another Book/ # advanced to the next one, rendered ok
     end
 
     test "the 'other' preferred option uses the free-text value" do
@@ -56,19 +69,19 @@ module Settings
       assert_response :not_found
     end
 
-    test "retract re-enriches and can re-raise the conflict" do
+    test "retract restores the pre-term value and re-raises the conflict" do
       term = AuthorityTerm.create!(vocabulary: "publisher", preferred_label: "Pan Books")
       term.register_variant("Pan Macmillan UK")
       Authority::Publishers.apply(term)
       assert_empty PendingDecision.pending
+      assert_equal "Pan Books", @edition.reload.publisher
 
       delete settings_authority_term_url("publisher", term)
 
       assert_redirected_to settings_authority_path("publisher")
       assert_not AuthorityTerm.exists?(term.id)
-      # edition kept "Pan Books"; ISFDB record still says "Pan Books" for
-      # this one so nothing re-raises here — the sweep ran, that's the point
-      assert_equal "Pan Books", @edition.reload.publisher
+      assert_equal "Pan Macmillan UK", @edition.reload.publisher # restored from the goodreads record
+      assert PendingDecision.pending.where(kind: "enrichment_conflict").exists?
     end
   end
 end

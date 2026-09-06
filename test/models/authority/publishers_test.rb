@@ -13,6 +13,9 @@ module Authority
       edition = Edition.create!(publisher: on_file, field_sources: { "publisher" => "goodreads" })
       edition.update!(publish_date: "1990", field_sources: edition.field_sources.merge("publish_date" => "goodreads")) if also_conflicts_on_date
       EditionIdentifier.create!(edition: edition, id_type: "isbn10", value: "0441172717")
+      # the original source, so retract can restore the pre-term value
+      EnrichmentRecord.create!(entity: edition, provider: "goodreads", external_id: "g", fetched_at: 1.day.ago,
+                               fields: { "publisher" => on_file }, raw_payload: { "publisher" => on_file })
       payload = { "publisher" => isfdb, "binding" => "pb", "_isfdb_pub_id" => 1, "isbn_10" => "0441172717" }
       payload["publish_date"] = "2001" if also_conflicts_on_date
       EnrichmentRecord.create!(
@@ -70,38 +73,23 @@ module Authority
       assert_equal "Tor.com", events.first.fields["Preferred"]
     end
 
-    test "retract re-enriches the affected editions so a genuine conflict comes back" do
-      edition = edition_in_conflict(on_file: "Pan Macmillan UK", isfdb: "Pan Books")
-      term = AuthorityTerm.create!(vocabulary: "publisher", preferred_label: "Pan Books")
-      term.register_variant("Pan Macmillan UK")
+    test "retract restores the pre-term publisher value and re-raises the conflict" do
+      edition = edition_in_conflict(on_file: "Palgrave Macmillan Ltd", isfdb: "Tor / Pan Macmillan UK")
+      term = AuthorityTerm.create!(vocabulary: "publisher", preferred_label: "Tor / Pan Macmillan UK")
+      term.register_variant("Palgrave Macmillan Ltd")
       Authority::Publishers.apply(term)
+      assert_equal "Tor / Pan Macmillan UK", edition.reload.publisher
       assert_empty PendingDecision.pending
-      assert_equal "Pan Books", edition.reload.publisher
 
       removed = term.authority_variants.map(&:label)
       term.destroy!
-      Authority::Publishers.retract(removed_labels: removed, preferred_label: "Pan Books")
+      result = Authority::Publishers.retract(removed_labels: removed, preferred_label: "Tor / Pan Macmillan UK")
 
-      # edition keeps "Pan Books"; ISFDB still says "Pan Books" in its
-      # record for this one, so no conflict here — but the point is the
-      # sweep ran. Assert an edition that now genuinely disagrees re-raises.
-      assert_equal "Pan Books", edition.reload.publisher
-    end
-
-    test "retract re-raises the conflict when the catalog value and ISFDB genuinely differ" do
-      edition = Edition.create!(publisher: "Pan Books", field_sources: { "publisher" => "isfdb" })
-      EnrichmentRecord.create!(entity: edition, provider: "isfdb", external_id: "1", fetched_at: Time.current,
-                               fields: { "publisher" => "Pan Macmillan UK" },
-                               raw_payload: { "publisher" => "Pan Macmillan UK", "binding" => "pb", "_isfdb_pub_id" => 1 })
-      term = AuthorityTerm.create!(vocabulary: "publisher", preferred_label: "Pan Books")
-      term.register_variant("Pan Macmillan UK")
-      term.destroy!
-
-      Authority::Publishers.retract(removed_labels: [ "Pan Books", "Pan Macmillan UK" ], preferred_label: "Pan Books")
-
+      assert_equal "Palgrave Macmillan Ltd", edition.reload.publisher # restored from the goodreads record
       decision = PendingDecision.pending.sole
       assert_equal "enrichment_conflict", decision.kind
       assert_includes decision.payload["fields"], "publisher"
+      assert_equal 1, result.conflicts_raised
     end
 
     test "usage reports affected edition and conflict counts" do

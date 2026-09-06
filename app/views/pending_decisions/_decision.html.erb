@@ -1,14 +1,17 @@
 <div id="pending_decision" class="w-full max-w-5xl" data-controller="decision-shortcuts">
   <% if pending_decision %>
     <% case pending_decision.kind %>
+    <%# fully-qualified so this partial renders correctly from any controller's
+        view context (e.g. Settings::AuthorityTermsController re-rendering the
+        decision after establishing a term) %>
     <% when "reread_conflict" %>
-      <%= render "decision_reread_conflict", pending_decision: pending_decision, kind_filter: kind_filter %>
+      <%= render "pending_decisions/decision_reread_conflict", pending_decision: pending_decision, kind_filter: kind_filter %>
     <% when "enrichment_printing_choice" %>
-      <%= render "decision_printing_choice", pending_decision: pending_decision, kind_filter: kind_filter %>
+      <%= render "pending_decisions/decision_printing_choice", pending_decision: pending_decision, kind_filter: kind_filter %>
     <% when "edition_reconciliation" %>
-      <%= render "decision_edition_reconciliation", pending_decision: pending_decision, kind_filter: kind_filter %>
+      <%= render "pending_decisions/decision_edition_reconciliation", pending_decision: pending_decision, kind_filter: kind_filter %>
     <% else %>
-      <%= render "decision_comparison", pending_decision: pending_decision, kind_filter: kind_filter %>
+      <%= render "pending_decisions/decision_comparison", pending_decision: pending_decision, kind_filter: kind_filter %>
     <% end %>
   <% else %>
     <%= render "pending_decisions/all_done", kind_filter: kind_filter %>

@@ -33,7 +33,7 @@ module Settings
       term.destroy!
       result = @handler.retract(removed_labels: removed, preferred_label: preferred)
       redirect_to settings_authority_path(@vocabulary),
-                  notice: "Retracted “#{preferred}” — re-enriched #{result.editions_reprocessed} edition(s)."
+                  notice: "Retracted “#{preferred}” — re-checked #{result.editions_reprocessed} edition(s), #{result.conflicts_raised} conflict(s) re-raised."
     end
 
     private
@@ -64,7 +64,7 @@ module Settings
 
     def summary(result)
       [
-        ("#{result.editions_rewritten} rewritten" if result.editions_rewritten.positive?),
+        ("#{result.editions_rewritten} edition#{'s' unless result.editions_rewritten == 1} rewritten" if result.editions_rewritten.positive?),
         ("#{result.conflicts_cleared} conflict#{'s' unless result.conflicts_cleared == 1} cleared" if result.conflicts_cleared.positive?)
       ].compact.join(", ").presence || "no records affected"
     end
