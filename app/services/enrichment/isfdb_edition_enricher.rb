@@ -64,6 +64,16 @@ module Enrichment
       new(edition, client: nil).reprocess(data)
     end
 
+    # Public wrapper around #plan_publisher — the same verdict `apply_fields`
+    # would reach for one edition against one proposed publisher string,
+    # with no fetch. Authority::Publishers uses it to tell, after a
+    # re-enrich, whether a bundled decision still needs "publisher" in its
+    # field list (SourceRecorder.create_bundled_decision reuses a decision
+    # without refreshing that list).
+    def self.plan_publisher_for(edition, proposed)
+      new(edition, client: nil).send(:plan_publisher, proposed)
+    end
+
     # Public wrapper around the private #resolve_candidate — the same
     # "confident pick" logic `enrich` uses on a fresh fetch, exposed for
     # `isfdb:resolve_duplicate_printings` to re-run against an already-
@@ -231,7 +241,7 @@ module Enrichment
     def candidate_fields(data)
       format, format_detail = FORMAT_BY_PTYPE[data["binding"].to_s.downcase]
       {
-        "publisher" => data["publisher"].presence,
+        "publisher" => data["publisher"].presence&.then { |p| Authority.resolve("publisher", p) || p },
         "cover_artist" => cover_artist(data),
         "language" => data["language"].presence,
         "page_count" => data["page_count"],
@@ -392,52 +402,50 @@ module Enrichment
       Array(data["cover_artists"]).join(", ").presence
     end
 
-    # Confirmed against real PendingDecision data: of 521 publisher
-    # "conflicts" where one name is a substring of the other, 442 (85%)
-    # are plain generic-suffix noise ("Tor Books" vs "Tor", "DAW" vs "DAW
-    # Books") — genuinely the same publisher. Another slice carries a
-    # real territory qualifier ("Orbit" vs "Orbit (US)", "Roc" vs "Roc
-    # UK") — but since this is an ISBN-keyed lookup, that qualifier
-    # describes the exact printing the ISBN identifies, same as every
-    # other field enrichment already trusts; it's not a competing guess
-    # about the collector's copy.
+    # A publisher pair the enricher can safely merge without a human, in
+    # priority order:
     #
-    # What's left is the case a bare substring test can't tell apart from
-    # those: the extra word is a *distinct name*, not a formatting or
-    # region difference — "Orbit" vs "Futura Orbit" (Futura's Orbit
-    # imprint, later Little, Brown's), "Gollancz" vs "Victor Gollancz",
-    # "Panther" vs "Panther Granada". One name containing the other is a
-    # coincidence there; we can't assume the longer form is the right
-    # one, so it goes to review like any other publisher conflict.
+    #   1. same normalised string ("Tor Books" vs "Tor  Books")
+    #   2. the authority file (Authority::Publishers) says both strings
+    #      resolve to one term — the home for every equivalence a string
+    #      rule can't derive ("Tom Doherty Associates" = "Tor", "Millenium"
+    #      = "Millennium"). Curated on the conflict screen and in settings.
+    #   3. mechanical, generalisable string rules the file shouldn't have
+    #      to carry one entry at a time:
+    #      - the longer name is an imprint/parent form joined by "/" / "&"
+    #        (joined_imprint_form?: "Gollancz" vs "Gollancz / Orion")
+    #      - the only difference is a bracketed/comma qualifier tail
+    #        ("Orbit" vs "Orbit (Hachette)")
+    #      - the only difference is a trailing generic corporate-form word
+    #        ("Ace" vs "Ace Books", "DAW" vs "DAW Ltd")
     #
-    # For the merge-toward-completeness shortcut to fire, the extra text
-    # the longer name carries has to be non-distinguishing:
-    #   - the longer name is an imprint/parent form joined by "/" or "&"
-    #     (joined_imprint_form?: "Gollancz / Orion"), OR
-    #   - the only difference is a bracketed or comma-led qualifier tail
-    #     ("Orbit" vs "Orbit (Hachette)", "Arrow Books" vs "Arrow Books
-    #     (London)"), OR
-    #   - every remaining extra token is a NON_DISTINGUISHING word —
-    #     corporate form, format/imprint line, or territory.
-    # Anything else ("Panther" vs "Panther Granada", "Gollancz" vs "Victor
-    # Gollancz") is a genuine "which publisher is this" question and goes
-    # to review.
-    #
-    # (A substring variant that co-occurs with another genuine conflict
-    # is held back and bundled regardless — see SourceRecorder.integrate.)
+    # The old wide `NON_DISTINGUISHING_PUBLISHER_WORDS` list (2026-08,
+    # tuned against 521 substring conflicts) once also swallowed
+    # descriptive and territorial words — "science", "fiction", "sf",
+    # "uk", "london". That was the guessy part, and it's retired: those
+    # cases go to review, and become one-line authority entries. Mark,
+    # 2026-09-06: deconstruct the fuzzy rules into a managed list, keep
+    # only the deterministic ones.
     NON_DISTINGUISHING_PUBLISHER_WORDS = %w[
-      books book press publishing publications publishers publ editions edition imprint
-      ltd limited inc incorporated co company corp corporation plc pty gmbh group house
-      paperbacks paperback hardback hardcover science fiction fantasy sf the and
-      us usa uk gb can canada au aus australia nz london
+      books book press publishing publications publishers publ editions edition
+      ltd limited inc incorporated co company corp corporation plc pty gmbh
     ].freeze
 
     def plan_publisher(proposed)
       return Plan.new(action: :skipped) if proposed.blank?
 
       current = @edition.publisher
-      return Plan.new(record: @edition, field: :publisher, action: :fill, value: proposed, source: "isfdb") if current.blank?
+      preferred = Authority.resolve("publisher", proposed) || proposed
+      return Plan.new(record: @edition, field: :publisher, action: :fill, value: preferred, source: "isfdb") if current.blank?
       return Plan.new(action: :unchanged) if normalize_name(current) == normalize_name(proposed)
+
+      current_term = Authority.resolve("publisher", current)
+      proposed_term = Authority.resolve("publisher", proposed)
+      if current_term && proposed_term && current_term == proposed_term
+        return Plan.new(action: :unchanged) if current == current_term # already the preferred form
+
+        return Plan.new(record: @edition, field: :publisher, action: :refine, value: current_term, source: "isfdb")
+      end
 
       if substring_variant?(current, proposed) && non_distinguishing_variant?(current, proposed)
         longer = [ current, proposed ].max_by(&:length)
@@ -446,7 +454,7 @@ module Enrichment
         return Plan.new(record: @edition, field: :publisher, action: :refine, value: longer, source: "isfdb")
       end
 
-      Plan.new(record: @edition, field: :publisher, action: :conflict, value: proposed, source: "isfdb", current: current)
+      Plan.new(record: @edition, field: :publisher, action: :conflict, value: preferred, source: "isfdb", current: current)
     end
 
     # Is the difference between two substring-related publisher names one
@@ -627,6 +635,10 @@ module Enrichment
     def publisher_equivalent?(a, b)
       return true if normalize_name(a) == normalize_name(b)
 
+      a_term = Authority.resolve("publisher", a)
+      b_term = Authority.resolve("publisher", b)
+      return true if a_term && b_term && a_term == b_term
+
       substring_variant?(a, b) && non_distinguishing_variant?(a, b)
     end
 
@@ -756,13 +768,12 @@ module Enrichment
       na != nb && (na.include?(nb) || nb.include?(na))
     end
 
-    # "&" and the word "and" are the same connector — "Faber & Faber" and
-    # "Faber and Faber" are one publisher. Collapse both before stripping
-    # punctuation, else the surviving "and" letters break the match
-    # ("faberfaber" vs "faberandfaber").
-    def normalize_name(value)
-      value.to_s.downcase.gsub(/\s*&\s*|\s+and\s+/, " ").gsub(/[^a-z0-9]/, "")
-    end
+    # The shared name-normalisation key — case, the "&"/"and" connector,
+    # and every non-alphanumeric folded away ("Faber & Faber" and "Faber
+    # and Faber" are one publisher). Lives on Authority now so the
+    # authority file and this comparison agree on "the same string";
+    # kept as an instance method here for the call sites that already use it.
+    def normalize_name(value) = Authority.normalize(value)
 
     # publish_date is an EDTF string (see Edition::PUBLISH_DATE_FORMAT),
     # and isfdb-adapter's own date_str already normalizes ISFDB's raw

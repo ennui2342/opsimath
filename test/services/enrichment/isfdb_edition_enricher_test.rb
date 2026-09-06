@@ -665,11 +665,11 @@ module Enrichment
       assert_equal 0, PendingDecision.count
     end
 
-    test "publisher variants differing only by a corporate-form, imprint-line or bracketed-tail qualifier are merged" do
+    test "publisher variants differing only by a generic corporate form or a bracketed/comma tail are still merged mechanically" do
       [
         [ "Bloomsbury", "Bloomsbury Publishing PLC" ],   # legal form
-        [ "Gollancz", "Gollancz Paperbacks" ],           # format line
-        [ "Tor", "Tor Science Fiction" ],                # genre imprint line
+        [ "Ace", "Ace Books" ],                          # generic "Books" suffix
+        [ "DAW", "DAW Ltd" ],                            # legal form
         [ "Arrow Books", "Arrow Books (London)" ],        # bracketed city tail
         [ "Orbit", "Orbit (Hachette)" ],                 # bracketed parent tail
         [ "Berkley Books", "Berkley Books, New York" ]    # comma-led tail
@@ -680,6 +680,42 @@ module Enrichment
         plan = IsfdbEditionEnricher.new(edition, client: nil).send(:plan_publisher, proposed)
         assert_includes %i[refine unchanged], plan.action, "#{current.inspect} vs #{proposed.inspect}"
       end
+    end
+
+    test "the retired fuzzy rules — descriptive/format/genre imprint lines — now go to review, not a silent merge" do
+      # These used to be swallowed by NON_DISTINGUISHING_PUBLISHER_WORDS
+      # ("paperbacks", "science", "fiction"). They're distinct imprints;
+      # whether they're equivalent is now an authority-file call, not a
+      # guess (Mark, 2026-09-06).
+      [
+        [ "Gollancz", "Gollancz Paperbacks" ],
+        [ "Tor", "Tor Science Fiction" ],
+        [ "New English Library", "NEL" ]
+      ].each do |current, proposed|
+        edition = Edition.create!
+        edition.update!(publisher: current)
+        plan = IsfdbEditionEnricher.new(edition, client: nil).send(:plan_publisher, proposed)
+        assert_equal :conflict, plan.action, "#{current.inspect} vs #{proposed.inspect}"
+      end
+    end
+
+    test "an authority-file term makes two publisher strings equivalent — no conflict, catalog value refined to the preferred form" do
+      term = AuthorityTerm.create!(vocabulary: "publisher", preferred_label: "Tor.com")
+      term.register_variant("Tordotcom")
+      edition = Edition.create!(publisher: "Tordotcom")
+
+      plan = IsfdbEditionEnricher.new(edition, client: nil).send(:plan_publisher, "Tor.com")
+
+      assert_equal :refine, plan.action
+      assert_equal "Tor.com", plan.value
+    end
+
+    test "an authority-file term is consulted by publisher_equivalent? for clustering / same_edition?" do
+      term = AuthorityTerm.create!(vocabulary: "publisher", preferred_label: "Pan Books")
+      term.register_variant("Pan Macmillan UK")
+
+      assert IsfdbEditionEnricher.new(nil, client: nil).send(:publisher_equivalent?, "Pan Books", "Pan Macmillan UK")
+      assert_not IsfdbEditionEnricher.new(nil, client: nil).send(:publisher_equivalent?, "Pan Books", "Panther")
     end
 
     test "a distinct extra name is still a conflict even when a tail qualifier is also present" do

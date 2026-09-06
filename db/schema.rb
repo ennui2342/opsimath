@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_04_151453) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_06_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -51,6 +51,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_151453) do
     t.bigint "user_id", null: false
     t.index ["token_digest"], name: "index_api_tokens_on_token_digest", unique: true
     t.index ["user_id"], name: "index_api_tokens_on_user_id"
+  end
+
+  create_table "authority_terms", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "preferred_label", null: false
+    t.datetime "updated_at", null: false
+    t.string "vocabulary", null: false
+    t.index ["vocabulary", "preferred_label"], name: "index_authority_terms_on_vocabulary_and_preferred_label", unique: true
+  end
+
+  create_table "authority_variants", force: :cascade do |t|
+    t.bigint "authority_term_id", null: false
+    t.datetime "created_at", null: false
+    t.string "label", null: false
+    t.string "normalized_label", null: false
+    t.datetime "updated_at", null: false
+    t.string "vocabulary", null: false
+    t.index ["authority_term_id"], name: "index_authority_variants_on_authority_term_id"
+    t.index ["vocabulary", "normalized_label"], name: "index_authority_variants_on_vocabulary_and_normalized_label", unique: true
   end
 
   create_table "awards", force: :cascade do |t|
@@ -423,6 +442,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_151453) do
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "api_tokens", "users"
+  add_foreign_key "authority_variants", "authority_terms"
   add_foreign_key "copies", "editions"
   add_foreign_key "copies", "storage_locations"
   add_foreign_key "edition_contents", "editions"
