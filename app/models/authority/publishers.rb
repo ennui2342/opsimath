@@ -61,7 +61,13 @@ module Authority
       def retract(removed_labels:, preferred_label:)
         keys = removed_labels.map { |l| Authority.normalize(l) }.to_set
         restored = restore(editions_with_normalized_publisher(keys))
-        touched = (editions_with_normalized_publisher(keys).map(&:id) + restored.map(&:id)).uniq
+
+        # only editions the removed term genuinely affected: those on one
+        # of its strings whose publisher now actually conflicts again
+        # (not every edition that merely happens to sit on the preferred
+        # form with nothing wrong)
+        candidates = editions_with_normalized_publisher(keys) | restored
+        touched = candidates.select { |e| genuinely_conflicts?(e) }.map(&:id)
 
         result = run(touched)
         result.editions_restored = restored.size
@@ -140,6 +146,12 @@ module Authority
 
       def isfdb_publisher(edition)
         EnrichmentRecord.latest(entity: edition, provider: "isfdb")&.fields&.dig("publisher")
+      end
+
+      def genuinely_conflicts?(edition)
+        proposed = isfdb_publisher(edition)
+        proposed.present? &&
+          Enrichment::IsfdbEditionEnricher.plan_publisher_for(edition, proposed).action == :conflict
       end
 
       # --- edits -----------------------------------------------------------
