@@ -42,7 +42,7 @@ module Authority
       assert_equal "Pan Books", a.reload.publisher
       assert_equal "Pan Books", b.reload.publisher
       assert_equal 2, result.editions_rewritten
-      assert_equal 2, result.conflicts_cleared
+      assert_equal 2, result.decisions_resolved # publisher was all these decisions disputed
       assert_empty PendingDecision.pending
     end
 
