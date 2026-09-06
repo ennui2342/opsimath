@@ -50,7 +50,10 @@ module Ui
       :input_scope, :fields_disabled, :field_value_prefix, :fields_start_checked,
       keyword_init: true
     )
-    FieldRow = Struct.new(:name, :value, :chip, :selectable, keyword_init: true)
+    # `authority` — set on a controlled field that's genuinely in conflict
+    # (publisher today): a hash { vocabulary:, current:, proposed:, source:,
+    # decision_id: } the "same publisher?" roll-out panel is built from.
+    FieldRow = Struct.new(:name, :value, :chip, :selectable, :authority, keyword_init: true)
 
     def initialize(card:)
       @card = card

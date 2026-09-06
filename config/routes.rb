@@ -23,6 +23,19 @@ Rails.application.routes.draw do
   resources :editions, only: [] do
     resource :metadata, only: [ :show, :update ], controller: "edition_metadata"
   end
+
+  # Settings — authority control is the first section (docs/AUTHORITY_CONTROL.md).
+  namespace :settings do
+    get "/", to: redirect("/settings/authorities")
+    get "authorities", to: "authorities#index"
+    get "authorities/:vocabulary", to: "authorities#show", as: :authority
+    post "authorities/:vocabulary/rescan", to: "authorities#rescan", as: :authority_rescan
+    post "authorities/:vocabulary/terms", to: "authority_terms#create", as: :authority_terms
+    patch "authorities/:vocabulary/terms/:id", to: "authority_terms#update", as: :authority_term
+    delete "authorities/:vocabulary/terms/:id", to: "authority_terms#destroy"
+    post "authorities/:vocabulary/variants", to: "authority_variants#create", as: :authority_variants
+    delete "authorities/:vocabulary/variants/:id", to: "authority_variants#destroy", as: :authority_variant
+  end
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.

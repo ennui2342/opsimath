@@ -3,6 +3,16 @@ class PendingDecision < ApplicationRecord
 
   validates :kind, presence: true
 
+  # The first pending decision in the queue's display order (alphabetical
+  # by #display_title, which is derived per-kind so the sort is in Ruby —
+  # see PendingDecisionsController). Shared by every controller that
+  # advances the queue in place.
+  def self.next_pending(kind: nil)
+    scope = pending
+    scope = scope.where(kind: kind) if kind
+    scope.to_a.min_by { |pd| [ pd.display_title.downcase, pd.id ] }
+  end
+
   # enrichment_printing_choice only: each candidate ISFDB printing's cover,
   # downloaded server-side at raise time (ISFDB's wiki cover URLs
   # Cloudflare-gate hotlinked <img> loads) and keyed by pub id
@@ -295,12 +305,31 @@ class PendingDecision < ApplicationRecord
   def proposed_card(record, source_record)
     disputed = payload["fields"]
     fields = EDITION_FIELD_ORDER.select { |field| source_record.fields.key?(field) }.map do |field|
-      FieldRow.new(name: field, value: format_field(field, source_record.fields[field]), selectable: disputed.include?(field))
+      FieldRow.new(name: field, value: format_field(field, source_record.fields[field]), selectable: disputed.include?(field),
+                   authority: authority_row(field, record, source_record))
     end
     cover_selectable = disputed.include?("cover_image") && source_record.cover_image.attached?
 
     Card.new(label: "#{payload["source"].humanize} · proposed", meta: source_record.fetched_at, proposed: true,
              cover: source_record.cover_image, cover_selectable: cover_selectable, show_empty_cover: false, fields: fields)
+  end
+
+  # The "same publisher?" roll-out panel is offered on the proposed
+  # card's publisher row only when publisher is a *genuine* conflict
+  # (Enrichment::IsfdbEditionEnricher agrees) — not when it's a refine
+  # bundled with another field's real conflict. Establishing a term from
+  # it adds both strings to an authority file so this and every other
+  # queued decision over the same pair settles. Only the "publisher"
+  # vocabulary is wired today.
+  def authority_row(field, record, source_record)
+    return unless field == "publisher" && (payload["fields"] || []).include?("publisher")
+
+    proposed = source_record.fields["publisher"]
+    return if proposed.blank? || record.publisher.blank?
+    return unless Enrichment::IsfdbEditionEnricher.plan_publisher_for(record, proposed).action == :conflict
+
+    { vocabulary: "publisher", current: record.publisher, proposed: proposed,
+      source: payload["source"], decision_id: id }
   end
 
   # format/format_detail are enum-style snake_case values ("mass_market")

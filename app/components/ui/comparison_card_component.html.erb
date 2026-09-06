@@ -60,6 +60,38 @@
             <%= render(Ui::BadgeComponent.new(text: row.chip, variant: :default)) if row.chip.present? %>
           </span>
         </div>
+        <% if (a = row.authority) %>
+          <%# not a nested <form> — the whole review screen is already one; the controller POSTs via fetch %>
+          <div class="relative shrink-0" data-controller="authority-panel"
+               data-authority-panel-url-value="<%= helpers.settings_authority_terms_path(a[:vocabulary]) %>"
+               data-authority-panel-decision-value="<%= a[:decision_id] %>"
+               data-authority-panel-current-value="<%= a[:current] %>"
+               data-authority-panel-proposed-value="<%= a[:proposed] %>">
+            <button type="button" data-action="authority-panel#toggle" title="Same publisher — establish an authority term"
+                    class="rounded border border-conflict-800/40 px-1.5 text-sm leading-tight text-conflict-800 hover:bg-conflict-200 dark:border-conflict-200/40 dark:text-conflict-200 dark:hover:bg-conflict-800">&#8801;</button>
+            <div data-authority-panel-target="panel" hidden
+                 class="absolute right-0 z-20 mt-1 w-72 rounded-md border border-gray-200 bg-white p-3 text-left shadow-lg dark:border-gray-700 dark:bg-gray-900">
+              <p class="mb-2 text-xs font-semibold text-gray-700 dark:text-gray-200">Same publisher? Establish an authority term.</p>
+              <div class="space-y-1.5 text-xs text-gray-700 dark:text-gray-300">
+                <label class="flex items-start gap-1.5">
+                  <input type="radio" name="preferred" value="<%= a[:current] %>" checked class="mt-0.5" data-authority-panel-target="choice">
+                  <span>prefer <b><%= a[:current] %></b> <span class="text-gray-400">(on file)</span></span>
+                </label>
+                <label class="flex items-start gap-1.5">
+                  <input type="radio" name="preferred" value="<%= a[:proposed] %>" class="mt-0.5" data-authority-panel-target="choice">
+                  <span>prefer <b><%= a[:proposed] %></b> <span class="text-gray-400">(<%= a[:source] %>)</span></span>
+                </label>
+                <label class="flex items-center gap-1.5">
+                  <input type="radio" name="preferred" value="__other__" class="mt-0.5" data-authority-panel-target="choice otherRadio">
+                  <input type="text" placeholder="other…" data-authority-panel-target="otherInput" data-action="focus->authority-panel#pickOther"
+                         class="w-full rounded border-gray-300 px-1.5 py-0.5 dark:border-gray-600 dark:bg-gray-800">
+                </label>
+              </div>
+              <button type="button" data-action="authority-panel#submit"
+                      class="mt-2.5 w-full rounded bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600">Establish term</button>
+            </div>
+          </div>
+        <% end %>
       </div>
     <% end %>
   </div>

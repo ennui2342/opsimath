@@ -1,0 +1,68 @@
+<% content_for :title, "#{@handler.label} authority" %>
+
+<div class="w-full max-w-3xl">
+  <p class="mb-1 text-sm text-gray-500 dark:text-gray-400">
+    <%= link_to "Settings", settings_authorities_path, class: "hover:underline" %> ·
+    authority file
+  </p>
+  <h1 class="mb-4 text-2xl font-bold text-gray-900 dark:text-gray-100"><%= @handler.label %></h1>
+
+  <details class="mb-6 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+    <summary class="cursor-pointer text-sm font-medium text-gray-900 dark:text-gray-100">Establish a new term</summary>
+    <%= form_with url: settings_authority_terms_path(@vocabulary), method: :post, class: "mt-3 space-y-3" do |f| %>
+      <label class="block text-sm">
+        <span class="text-gray-600 dark:text-gray-400">Preferred name</span>
+        <%= f.text_field :preferred_label, required: true, class: "mt-1 block w-full rounded-md border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-800" %>
+      </label>
+      <label class="block text-sm">
+        <span class="text-gray-600 dark:text-gray-400">Variants — one per line</span>
+        <%= f.text_area :variant_labels, rows: 3, class: "mt-1 block w-full rounded-md border-gray-300 font-mono text-xs dark:border-gray-600 dark:bg-gray-800" %>
+      </label>
+      <%= f.submit "Establish", class: "rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700" %>
+    <% end %>
+  </details>
+
+  <div class="mb-4 flex items-center justify-between">
+    <p class="text-sm text-gray-500 dark:text-gray-400"><%= @terms.size %> term<%= "s" unless @terms.size == 1 %></p>
+    <%= button_to "Re-scan pending conflicts", settings_authority_rescan_path(@vocabulary),
+          method: :post, class: "rounded-md border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800" %>
+  </div>
+
+  <% if @terms.any? %>
+    <ul class="divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
+      <% @terms.each do |term| %>
+        <% use = @usage[term.id] %>
+        <li class="px-4 py-3">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <span class="font-medium text-gray-900 dark:text-gray-100"><%= term.preferred_label %></span>
+              <span class="ml-2 text-xs text-gray-400 tabular-nums">
+                <%= use[:editions] %> edition<%= "s" unless use[:editions] == 1 %><%= ", #{use[:pending_conflicts]} pending" if use[:pending_conflicts].positive? %>
+              </span>
+              <div class="mt-1.5 flex flex-wrap gap-1.5">
+                <% term.authority_variants.reject { |v| v.normalized_label == Authority.normalize(term.preferred_label) }.each do |variant| %>
+                  <span class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                    <%= variant.label %>
+                    <%= button_to "×", settings_authority_variant_path(@vocabulary, variant),
+                          method: :delete, form_class: "inline", class: "text-gray-400 hover:text-conflict-700", data: { turbo_confirm: "Remove “#{variant.label}”? Affected editions get re-enriched." } %>
+                  </span>
+                <% end %>
+                <%= form_with url: settings_authority_variants_path(@vocabulary), method: :post, class: "inline-flex" do |f| %>
+                  <%= f.hidden_field :authority_term_id, value: term.id %>
+                  <%= f.text_field :label, placeholder: "add variant", class: "w-28 rounded-full border-gray-300 px-2 py-0.5 text-xs dark:border-gray-600 dark:bg-gray-800" %>
+                <% end %>
+              </div>
+            </div>
+            <%= button_to "Retract", settings_authority_term_path(@vocabulary, term),
+                  method: :delete, class: "shrink-0 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-800",
+                  data: { turbo_confirm: "Retract “#{term.preferred_label}”? Catalog values stay; affected editions get re-enriched and conflicts may re-appear." } %>
+          </div>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p class="rounded-lg border border-dashed border-gray-300 px-4 py-8 text-center text-sm text-gray-400 dark:border-gray-700">
+      No terms yet. Establish one above, or use the ≡ button on a publisher conflict in the review queue.
+    </p>
+  <% end %>
+</div>

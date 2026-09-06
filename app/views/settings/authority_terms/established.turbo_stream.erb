@@ -1,0 +1,11 @@
+<%= turbo_stream.update "settings-flash" do %>
+  <div class="my-2 rounded-md border px-4 py-2 text-sm <%= @level == :alert ? "border-conflict-200 bg-conflict-100 text-conflict-800 dark:border-conflict-900 dark:bg-conflict-900 dark:text-conflict-200" : "border-green-200 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950 dark:text-green-200" %>">
+    <%= @message %>
+  </div>
+<% end %>
+
+<% if params[:from_decision_id].present? && @level != :alert %>
+  <%= turbo_stream.replace "pending_decision" do %>
+    <%= render "pending_decisions/decision", pending_decision: @next_decision, kind_filter: @kind %>
+  <% end %>
+<% end %>

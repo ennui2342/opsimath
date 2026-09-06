@@ -65,6 +65,30 @@ class PendingDecisionsControllerTest < ActionDispatch::IntegrationTest
     assert_select "body", /HarperVoyager/
   end
 
+  test "a genuine publisher conflict offers the inline authority-term panel" do
+    sign_in_as users(:one)
+
+    get pending_decision_url(@pending)
+
+    assert_response :success
+    assert_select "div[data-controller='authority-panel'][data-authority-panel-url-value=?]", settings_authority_terms_path("publisher")
+    assert_select "div[data-authority-panel-current-value=?]", "St Martins Pr"
+    assert_select "div[data-authority-panel-proposed-value=?]", "HarperVoyager"
+  end
+
+  test "no authority panel when publisher is not a genuine conflict (e.g. a bundled refine)" do
+    sign_in_as users(:one)
+    # "St Martins Press" vs "St. Martin's Press" normalise equal -> not a conflict,
+    # but list it in the bundle alongside a real one
+    @edition.update!(publisher: "St. Martin's Press")
+    EnrichmentRecord.latest(entity: @edition, provider: "isfdb").update!(fields: { "publisher" => "St Martins Press", "format" => "hardcover" })
+    @pending.update!(payload: @pending.payload.merge("fields" => %w[publisher format]))
+
+    get pending_decision_url(@pending)
+
+    assert_select "[data-controller='authority-panel']", false
+  end
+
   test "accept applies the field, resolves the decision, and responds with the next pending decision" do
     sign_in_as users(:one)
     other = PendingDecision.create!(

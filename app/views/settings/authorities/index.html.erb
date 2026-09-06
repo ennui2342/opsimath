@@ -1,0 +1,24 @@
+<% content_for :title, "Settings" %>
+
+<div class="w-full max-w-3xl">
+  <h1 class="mb-1 text-2xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
+  <p class="mb-6 text-sm text-gray-500 dark:text-gray-400">
+    Authority control — the preferred forms of names, and their variants, that enrichment resolves data to.
+    <%= link_to "About", "https://en.wikipedia.org/wiki/Authority_control", class: "underline", target: "_blank", rel: "noopener" %>.
+  </p>
+
+  <ul class="divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
+    <% @vocabularies.each do |v| %>
+      <li>
+        <%= link_to settings_authority_path(v[:key]),
+              class: "flex items-center justify-between gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800" do %>
+          <span>
+            <span class="font-medium text-gray-900 dark:text-gray-100"><%= v[:handler].label %></span>
+            <span class="block text-xs text-gray-500 dark:text-gray-400">controls <%= v[:handler].controlled_fields.join(", ") %></span>
+          </span>
+          <span class="text-sm text-gray-500 dark:text-gray-400 tabular-nums"><%= v[:term_count] %> term<%= "s" unless v[:term_count] == 1 %></span>
+        <% end %>
+      </li>
+    <% end %>
+  </ul>
+</div>
