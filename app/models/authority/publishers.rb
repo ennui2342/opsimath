@@ -1,34 +1,37 @@
 module Authority
   # The "publisher" vocabulary handler — the catalogue-side behaviour that
-  # sits behind Authority's generic model. Deliberately *surgical*: it
-  # only ever touches the publisher field and the "publisher" entry in a
-  # decision's bundle. It does not re-run full enrichment, so establishing
-  # a publisher term never silently applies other ISFDB fields.
+  # sits behind Authority's generic model.
   #
   # apply(term):
-  #   1. rewrite  — editions whose `publisher` is a *non-preferred*
-  #      variant take the preferred form (decision: "establishing a term
-  #      rewrites the catalogue").
-  #   2. settle   — for every pending enrichment_conflict where the term
-  #      now makes the publisher agree: canonicalise the edition's value
-  #      if needed, drop "publisher" from the bundle, and resolve the
-  #      decision only if publisher was the *only* thing it disputed.
+  #   1. rewrite  — editions whose `publisher` is a *non-preferred* variant
+  #      take the preferred form (decision: "establishing a term rewrites
+  #      the catalogue").
+  #   2. re-enrich — the *tight* set of editions the term actually affects
+  #      (rewritten ones + the ones with a pending publisher conflict the
+  #      term bridges) goes back through Enrichment::IsfdbEditionEnricher.
+  #      reprocess. With the term in place the publisher no longer
+  #      conflicts, so the fetch completes exactly as it would have if
+  #      publisher had never been a problem: safe fills apply, the ISFDB
+  #      cover applies authoritatively (Enrichment::CoverApplier's
+  #      `authoritative:` policy), and the bundled decision either resolves
+  #      or drops to just its genuinely-still-conflicting fields.
   #
   # retract(removed_labels:):
   #   1. restore  — each affected edition's publisher goes back to the
-  #      value its original source's EnrichmentRecord recorded (Mark:
-  #      "the data is always recoverable in the metadata records"), so the
+  #      value its original source's EnrichmentRecord recorded (Mark: "the
+  #      data is always recoverable in the metadata records"), so the
   #      strings genuinely differ again.
-  #   2. re-raise — where the publisher now conflicts, put it back in the
-  #      decision's bundle (re-opening an accepted decision if that's what
-  #      apply left behind).
+  #   2. re-enrich — the same tight set, so the publisher conflict comes
+  #      back where one genuinely exists.
+  #
+  # The re-enrich is scoped by `term_bridges?` — never the whole library,
+  # never editions already on the preferred form with nothing pending.
   module Publishers
     VOCABULARY = "publisher"
 
-    Result = Struct.new(:editions_rewritten, :editions_restored, :conflicts_cleared, :decisions_resolved,
-                        :conflicts_raised, keyword_init: true) do
-      def self.blank = new(editions_rewritten: 0, editions_restored: 0, conflicts_cleared: 0,
-                           decisions_resolved: 0, conflicts_raised: 0)
+    Result = Struct.new(:editions_rewritten, :editions_restored, :editions_reprocessed,
+                        :conflicts_cleared, :conflicts_raised, keyword_init: true) do
+      def self.blank = new(**members.index_with(0))
     end
 
     class << self
@@ -44,43 +47,24 @@ module Authority
       end
 
       def apply(term)
-        result = Result.blank
-        # decide which decisions this term actually bridges *before* the
-        # rewrite makes the strings trivially equal
-        to_settle = publisher_conflicts.select { |d| term_bridges?(d, term) }
+        to_rewrite = editions_on_variants(term)
+        touched = to_rewrite.map(&:id) |
+                  publisher_conflicts.select { |d| term_bridges?(d, term) }.map { |d| d.payload["entity_id"] }
+        rewritten = rewrite(to_rewrite, term.preferred_label)
 
-        result.editions_rewritten = rewrite(editions_on_variants(term), term.preferred_label).size
-
-        to_settle.each do |decision|
-          decision.reload
-          edition = Edition.find(decision.payload["entity_id"])
-          canonicalise(edition)
-          if drop_publisher(decision)
-            result.decisions_resolved += 1
-          else
-            result.conflicts_cleared += 1
-          end
-        end
-
+        result = run(touched)
+        result.editions_rewritten = rewritten
         notify("Publisher term established", term, result)
         result
       end
 
       def retract(removed_labels:, preferred_label:)
         keys = removed_labels.map { |l| Authority.normalize(l) }.to_set
-        result = Result.blank
-        result.editions_restored = restore(editions_with_normalized_publisher(keys)).size
+        restored = restore(editions_with_normalized_publisher(keys))
+        touched = (editions_with_normalized_publisher(keys).map(&:id) + restored.map(&:id)).uniq
 
-        # editions still (or now, post-restore) on a string that no longer
-        # resolves — the conflict may need to come back
-        editions_with_normalized_publisher(keys).each do |edition|
-          proposed = isfdb_publisher(edition)
-          next if proposed.blank?
-          next unless Enrichment::IsfdbEditionEnricher.plan_publisher_for(edition, proposed).action == :conflict
-
-          result.conflicts_raised += 1 if re_raise_publisher(edition)
-        end
-
+        result = run(touched)
+        result.editions_restored = restored.size
         notify("Publisher term retracted",
                Struct.new(:preferred_label, :variant_labels).new(preferred_label, removed_labels), result)
         result
@@ -88,7 +72,34 @@ module Authority
 
       private
 
-      # --- the term's reach ------------------------------------------------
+      # Re-enrich `edition_ids`, reporting the before/after change in which
+      # of them carry a pending publisher conflict.
+      def run(edition_ids)
+        edition_ids = edition_ids.uniq
+        before = pending_publisher_conflict_ids & edition_ids
+        n = reprocess(edition_ids)
+        after = pending_publisher_conflict_ids & edition_ids
+
+        Result.blank.tap do |r|
+          r.editions_reprocessed = n
+          r.conflicts_cleared = (before - after).size
+          r.conflicts_raised = (after - before).size
+        end
+      end
+
+      def reprocess(edition_ids)
+        n = 0
+        Edition.where(id: edition_ids).find_each do |edition|
+          payload = EnrichmentRecord.latest(entity: edition, provider: "isfdb")&.raw_payload
+          next if payload.blank?
+
+          Enrichment::IsfdbEditionEnricher.reprocess(edition, payload)
+          n += 1
+        end
+        n
+      end
+
+      # --- the term's reach --------------------------------------------------
 
       def editions_on_variants(term, include_preferred: false)
         keys = term.authority_variants.pluck(:normalized_label).to_set
@@ -99,8 +110,7 @@ module Authority
       def editions_with_normalized_publisher(keys)
         return [] if keys.empty?
 
-        Edition.where.not(publisher: [ nil, "" ])
-               .select { |e| keys.include?(Authority.normalize(e.publisher)) }
+        Edition.where.not(publisher: [ nil, "" ]).select { |e| keys.include?(Authority.normalize(e.publisher)) }
       end
 
       def publisher_conflicts
@@ -108,60 +118,39 @@ module Authority
                        .select { |d| (d.payload["fields"] || []).include?("publisher") }
       end
 
+      def pending_publisher_conflict_ids
+        publisher_conflicts.map { |d| d.payload["entity_id"] }
+      end
+
       # Does this term bridge a *genuine* publisher disagreement on this
       # decision — the edition's value and the ISFDB value are different
       # strings that both resolve to the term? (Not "publisher happens to
-      # be in the bundle but the two strings already matched", which is
-      # just a stale entry this term had nothing to do with.)
+      # be in the bundle but the two strings already matched", a stale
+      # entry this term had nothing to do with.)
       def term_bridges?(decision, term)
         edition = Edition.find_by(id: decision.payload["entity_id"])
         proposed = isfdb_publisher(edition)
         return false if edition.nil? || proposed.blank?
 
         keys = term.authority_variants.pluck(:normalized_label).to_set
-        current_key = Authority.normalize(edition.publisher)
-        proposed_key = Authority.normalize(proposed)
-        current_key != proposed_key && keys.include?(current_key) && keys.include?(proposed_key)
+        current = Authority.normalize(edition.publisher)
+        proposed = Authority.normalize(proposed)
+        current != proposed && keys.include?(current) && keys.include?(proposed)
       end
 
       def isfdb_publisher(edition)
         EnrichmentRecord.latest(entity: edition, provider: "isfdb")&.fields&.dig("publisher")
       end
 
-      # --- edits ---------------------------------------------------------
+      # --- edits -----------------------------------------------------------
 
+      # Returns the count actually changed.
       def rewrite(editions, preferred)
-        editions.filter_map do |e|
-          next if e.publisher == preferred
-
-          e.update!(publisher: preferred)
-          e
-        end
+        editions.count { |e| e.publisher != preferred && e.update!(publisher: preferred) }
       end
 
-      # If the enricher would now refine the edition's own publisher to a
-      # preferred form, do that write (same as accepting the field would).
-      def canonicalise(edition)
-        plan = Enrichment::IsfdbEditionEnricher.plan_publisher_for(edition, isfdb_publisher(edition))
-        return unless plan.action == :refine
-
-        edition.update!(publisher: plan.value,
-                        field_sources: edition.field_sources.merge("publisher" => "isfdb"))
-      end
-
-      # Drop "publisher" from a decision's bundle. Returns true if that
-      # emptied it (→ decision resolved), false if other fields remain.
-      def drop_publisher(decision)
-        remaining = (decision.payload["fields"] || []) - [ "publisher" ]
-        if remaining.empty?
-          decision.update!(status: "accepted", resolved_at: Time.current, payload: decision.payload.merge("fields" => remaining))
-          true
-        else
-          decision.update!(payload: decision.payload.merge("fields" => remaining))
-          false
-        end
-      end
-
+      # Reset each edition's publisher to the value its original source's
+      # EnrichmentRecord recorded, when that differs from what's on it now.
       def restore(editions)
         editions.filter_map do |e|
           provider = e.field_sources["publisher"].presence || "goodreads"
@@ -173,22 +162,6 @@ module Authority
         end
       end
 
-      # Put "publisher" back on the edition's enrichment_conflict —
-      # re-opening the one apply resolved, or the still-pending one apply
-      # only pruned. Returns true only if it actually changed something.
-      def re_raise_publisher(edition)
-        decision = PendingDecision.where(kind: "enrichment_conflict")
-                                  .where("payload @> ?", { entity_type: "Edition", entity_id: edition.id, source: "isfdb" }.to_json)
-                                  .order(updated_at: :desc).first
-        return false unless decision
-
-        fields = ((decision.payload["fields"] || []) | [ "publisher" ])
-        return false if decision.pending? && fields == decision.payload["fields"] # already listed & pending
-
-        decision.update!(status: "pending", resolved_at: nil, payload: decision.payload.merge("fields" => fields))
-        true
-      end
-
       def notify(title, term, result)
         Notifications.notify(Notifications::Event.new(
           kind: :authority_control, level: :info, title: title,
@@ -198,10 +171,10 @@ module Authority
             "Variants" => Array(term.variant_labels).join(", ").presence || "—",
             "Editions rewritten" => result.editions_rewritten,
             "Editions restored" => result.editions_restored,
+            "Editions re-enriched" => result.editions_reprocessed,
             "Conflicts cleared" => result.conflicts_cleared,
-            "Decisions resolved" => result.decisions_resolved,
             "Conflicts re-raised" => result.conflicts_raised
-          }.compact
+          }
         ))
       end
     end

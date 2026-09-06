@@ -10,7 +10,7 @@ module Settings
       term.register_variant(params[:label].to_s.strip)
       result = @handler.apply(term)
       redirect_to settings_authority_path(@vocabulary),
-                  notice: "Added variant — #{result.editions_rewritten} rewritten, #{result.conflicts_cleared + result.decisions_resolved} conflict(s) cleared."
+                  notice: "Added variant — #{result.editions_rewritten} rewritten, #{result.conflicts_cleared} conflict(s) cleared."
     rescue AuthorityTerm::Conflict, ActiveRecord::RecordInvalid => e
       redirect_to settings_authority_path(@vocabulary), alert: e.message
     end

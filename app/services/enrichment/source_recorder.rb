@@ -134,7 +134,13 @@ module Enrichment
       existing = PendingDecision.where(kind: "enrichment_conflict", status: "pending")
                                  .where("payload @> ?", { entity_type: entity.class.name, entity_id: entity.id, source: provider }.to_json)
                                  .first
-      return existing if existing
+      if existing
+        # a re-fetch can conflict on a different set of fields than last
+        # time (a field settled, or a new one drifted) — keep the decision
+        # but refresh its list so the review screen reflects this fetch
+        existing.update!(payload: existing.payload.merge("fields" => fields)) unless existing.payload["fields"] == fields
+        return existing
+      end
 
       PendingDecision.create!(
         kind: "enrichment_conflict",

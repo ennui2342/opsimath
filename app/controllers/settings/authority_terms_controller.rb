@@ -63,10 +63,9 @@ module Settings
     end
 
     def summary(result)
-      cleared = result.conflicts_cleared + result.decisions_resolved
       [
         ("#{result.editions_rewritten} edition#{'s' unless result.editions_rewritten == 1} rewritten" if result.editions_rewritten.positive?),
-        ("#{cleared} conflict#{'s' unless cleared == 1} cleared" if cleared.positive?)
+        ("#{result.conflicts_cleared} conflict#{'s' unless result.conflicts_cleared == 1} cleared" if result.conflicts_cleared.positive?)
       ].compact.join(", ").presence || "no records affected"
     end
 

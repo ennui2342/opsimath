@@ -42,11 +42,11 @@ module Authority
       assert_equal "Pan Books", a.reload.publisher
       assert_equal "Pan Books", b.reload.publisher
       assert_equal 2, result.editions_rewritten
-      assert_equal 2, result.decisions_resolved # publisher was all these decisions disputed
+      assert_equal 2, result.conflicts_cleared
       assert_empty PendingDecision.pending
     end
 
-    test "apply drops publisher from a bundled conflict but leaves the decision pending for its other fields" do
+    test "apply drops publisher from a bundled conflict but leaves the decision pending for its other genuine conflicts" do
       edition_in_conflict(on_file: "Pan Macmillan UK", isfdb: "Pan Books", also_conflicts_on_date: true)
 
       term = AuthorityTerm.create!(vocabulary: "publisher", preferred_label: "Pan Books")
@@ -57,6 +57,29 @@ module Authority
       decision = PendingDecision.pending.sole
       assert_not_includes decision.payload["fields"], "publisher"
       assert_includes decision.payload["fields"], "publish_date"
+    end
+
+    test "apply lets the rest of the fetch complete when publisher was the only real conflict — safe fills apply, decision resolves" do
+      edition = Edition.create!(publisher: "Pan Macmillan UK", field_sources: { "publisher" => "goodreads" })
+      EnrichmentRecord.create!(entity: edition, provider: "goodreads", external_id: "g", fetched_at: 1.day.ago,
+                               fields: { "publisher" => "Pan Macmillan UK" }, raw_payload: { "publisher" => "Pan Macmillan UK" })
+      EnrichmentRecord.create!(entity: edition, provider: "isfdb", external_id: "1", fetched_at: Time.current,
+                               fields: { "publisher" => "Pan Books", "language" => "eng", "page_count" => 320 },
+                               raw_payload: { "publisher" => "Pan Books", "language" => "eng", "page_count" => 320, "binding" => "pb", "_isfdb_pub_id" => 1 })
+      PendingDecision.create!(kind: "enrichment_conflict", payload: {
+        "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb",
+        "fields" => %w[publisher language page_count]
+      })
+
+      term = AuthorityTerm.create!(vocabulary: "publisher", preferred_label: "Pan Books")
+      term.register_variant("Pan Macmillan UK")
+      Authority::Publishers.apply(term)
+
+      edition.reload
+      assert_equal "Pan Books", edition.publisher
+      assert_equal "eng", edition.language      # the blank fill that was held hostage now applies
+      assert_equal 320, edition.page_count
+      assert_empty PendingDecision.pending      # nothing left to review
     end
 
     test "apply posts a summary notification" do
