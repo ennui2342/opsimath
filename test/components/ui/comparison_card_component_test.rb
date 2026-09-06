@@ -19,6 +19,19 @@ module Ui
       assert_text "eng"
     end
 
+    test "renders the authority-term panel only on a field row that carries :authority" do
+      card = PendingDecision::Card.new(label: "x", proposed: true, fields: [
+        PendingDecision::FieldRow.new(name: "publisher", value: "Tor", selectable: true,
+          authority: { vocabulary: "publisher", current: "Tor", proposed: "Tor Books", source: "isfdb", decision_id: 7 }),
+        PendingDecision::FieldRow.new(name: "language", value: "eng", selectable: true)
+      ])
+
+      render_inline(ComparisonCardComponent.new(card: card))
+
+      assert_selector "div[data-controller='authority-panel'][data-authority-panel-decision-value='7']", count: 1
+      assert_selector "input[type=radio][name='preferred'][value='Tor Books']", visible: :all
+    end
+
     test "shows (blank) rather than an empty value" do
       card = PendingDecision::Card.new(label: "Edition · in catalog", fields: [
         PendingDecision::FieldRow.new(name: "publisher", value: nil, selectable: false)
