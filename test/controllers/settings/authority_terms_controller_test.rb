@@ -53,6 +53,22 @@ module Settings
       assert_not body["risky"]
     end
 
+    test "preview renders the HTML confirm page with the edition table" do
+      # a contradicted row so the risky banner and the ⚠ branch both render
+      other = Edition.create!(publisher: "Pan Macmillan UK", field_sources: { "publisher" => "goodreads" })
+      Work.create!(title: "Some Novel", literary_form: "novel").tap { |w| EditionContent.create!(work: w, edition: other) }
+      EnrichmentRecord.create!(entity: other, provider: "isfdb", external_id: "9", fetched_at: Time.current,
+                               fields: { "publisher" => "Orbit" }, raw_payload: {})
+
+      get settings_authority_terms_preview_url("publisher"),
+          params: { preferred_label: "Pan Books", variant_labels: [ "Pan Macmillan UK" ] }
+
+      assert_response :success
+      assert_select "h1", /Establish/
+      assert_select "table tbody tr", 2
+      assert_select "p", /Check the flagged rows/
+    end
+
     test "establishing from a conflict screen responds with turbo_stream and advances past the resolved decision" do
       # a second, unrelated conflict so the turbo response has to render a
       # real _decision_comparison from this controller's view context
