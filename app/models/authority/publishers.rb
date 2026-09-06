@@ -39,17 +39,20 @@ module Authority
       def usage(term)
         {
           editions: editions_on_variants(term, include_preferred: true).size,
-          pending_conflicts: publisher_conflicts.count { |d| settled_by_term?(d) }
+          pending_conflicts: publisher_conflicts.count { |d| term_bridges?(d, term) }
         }
       end
 
       def apply(term)
         result = Result.blank
+        # decide which decisions this term actually bridges *before* the
+        # rewrite makes the strings trivially equal
+        to_settle = publisher_conflicts.select { |d| term_bridges?(d, term) }
+
         result.editions_rewritten = rewrite(editions_on_variants(term), term.preferred_label).size
 
-        publisher_conflicts.each do |decision|
-          next unless settled_by_term?(decision)
-
+        to_settle.each do |decision|
+          decision.reload
           edition = Edition.find(decision.payload["entity_id"])
           canonicalise(edition)
           if drop_publisher(decision)
@@ -68,7 +71,9 @@ module Authority
         result = Result.blank
         result.editions_restored = restore(editions_with_normalized_publisher(keys)).size
 
-        affected_editions(keys).each do |edition|
+        # editions still (or now, post-restore) on a string that no longer
+        # resolves — the conflict may need to come back
+        editions_with_normalized_publisher(keys).each do |edition|
           proposed = isfdb_publisher(edition)
           next if proposed.blank?
           next unless Enrichment::IsfdbEditionEnricher.plan_publisher_for(edition, proposed).action == :conflict
@@ -103,15 +108,20 @@ module Authority
                        .select { |d| (d.payload["fields"] || []).include?("publisher") }
       end
 
-      # Does the authority file (as it stands now) make this decision's
-      # publisher agree? The real test — not just "the ISFDB string is a
-      # variant", which says nothing about the edition's own value.
-      def settled_by_term?(decision)
+      # Does this term bridge a *genuine* publisher disagreement on this
+      # decision — the edition's value and the ISFDB value are different
+      # strings that both resolve to the term? (Not "publisher happens to
+      # be in the bundle but the two strings already matched", which is
+      # just a stale entry this term had nothing to do with.)
+      def term_bridges?(decision, term)
         edition = Edition.find_by(id: decision.payload["entity_id"])
         proposed = isfdb_publisher(edition)
         return false if edition.nil? || proposed.blank?
 
-        Enrichment::IsfdbEditionEnricher.plan_publisher_for(edition, proposed).action != :conflict
+        keys = term.authority_variants.pluck(:normalized_label).to_set
+        current_key = Authority.normalize(edition.publisher)
+        proposed_key = Authority.normalize(proposed)
+        current_key != proposed_key && keys.include?(current_key) && keys.include?(proposed_key)
       end
 
       def isfdb_publisher(edition)
@@ -163,19 +173,9 @@ module Authority
         end
       end
 
-      # Editions to re-check on retract: those on a now-orphaned string,
-      # plus any whose ISFDB record's publisher was one of the removed
-      # variants (their conflict may need to come back).
-      def affected_editions(keys)
-        ids = editions_with_normalized_publisher(keys).map(&:id)
-        ids += EnrichmentRecord.where(entity_type: "Edition", provider: "isfdb")
-                               .filter_map { |er| er.entity_id if keys.include?(Authority.normalize(er.fields["publisher"])) }
-        Edition.where(id: ids.uniq)
-      end
-
       # Put "publisher" back on the edition's enrichment_conflict —
       # re-opening the one apply resolved, or the still-pending one apply
-      # only pruned. Returns true if a conflict is now (re-)listed.
+      # only pruned. Returns true only if it actually changed something.
       def re_raise_publisher(edition)
         decision = PendingDecision.where(kind: "enrichment_conflict")
                                   .where("payload @> ?", { entity_type: "Edition", entity_id: edition.id, source: "isfdb" }.to_json)
@@ -183,6 +183,8 @@ module Authority
         return false unless decision
 
         fields = ((decision.payload["fields"] || []) | [ "publisher" ])
+        return false if decision.pending? && fields == decision.payload["fields"] # already listed & pending
+
         decision.update!(status: "pending", resolved_at: nil, payload: decision.payload.merge("fields" => fields))
         true
       end
