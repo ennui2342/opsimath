@@ -595,6 +595,34 @@ landing back on a previously-seen rating) must re-trigger a sync, not
 look already-handled. See `docs/INTEGRATIONS.md` for the full reasoning
 and the existing-pipeline precedent this replaces.
 
+## AuthorityTerm / AuthorityVariant
+
+Added 2026-09-06 — see `docs/AUTHORITY_CONTROL.md` for the full design and
+reasoning. Authority control: one **preferred form** of a name and a set
+of **variants** that resolve to it, so enrichment canonicalises textual
+data instead of raising a `PendingDecision` per spelling. SKOS-shaped
+(a `Concept` with one `prefLabel`, many `altLabel`). Generic across
+vocabularies; only `publisher` is wired today (contributor pen-names and
+series titles are the expected next two).
+
+| Field | Notes |
+|---|---|
+| `AuthorityTerm.vocabulary` | `"publisher"` — validated against `Authority::VOCABULARIES`, a registry mapping each vocabulary to its handler |
+| `AuthorityTerm.preferred_label` | the authorized form; what a controlled field (`Edition.publisher`) stores. Unique per vocabulary |
+| `AuthorityVariant.label` / `normalized_label` | the variant string and its `Authority.normalize` key (case / `&`↔`and` / punctuation folded). Unique on `(vocabulary, normalized_label)` — the same string can't mean two things in one vocabulary, but may differ across vocabularies |
+| `AuthorityVariant.vocabulary` | denormalised from the term so that unique index is a real DB constraint |
+
+Every term auto-carries a self-variant (`label == preferred_label`), so
+`Authority.resolve(vocabulary, str)` is a single indexed lookup.
+
+**Establishing** a term rewrites every catalogued record on one of its
+variants to the preferred form, then re-enriches the affected records so
+pending conflicts settle. **Retracting** never un-rewrites — it re-runs
+enrichment so a genuine conflict is raised again. Both post a summary
+notification. The vocabulary handler (`Authority::Publishers`) owns that
+catalogue-side behaviour; the model and the `/settings/authorities` UI
+are vocabulary-agnostic.
+
 ## Operational entities
 
 Cross-cutting concerns, not domain/bibliographic ones — but real enough to

@@ -264,6 +264,25 @@ not just accepting the count:
   bundling below still applies on top — a would-be-safe merge that
   co-occurs with a genuine conflict is held back regardless.
 
+  **Superseded by authority control (2026-09-06 — `docs/AUTHORITY_CONTROL.md`).**
+  After the 2026-09-05 prod rebuild, ~264 pending conflicts across ~197
+  distinct name pairs (163 one-offs) were still genuine publisher
+  disagreements — mostly parent↔imprint (`Tom Doherty Associates ↔ Tor`)
+  and imprint-renamed-over-time (`Panther ↔ Granada`), which no string
+  rule can derive. Mark: *"a mapping we can add to… the algorithmic
+  approach can then be retired as it has more potential for mistakes."*
+  `plan_publisher` now consults an **authority file** first (step 2,
+  before the string rules); establishing a term from the review screen's
+  inline `≡` panel adds both strings as variants and sweeps every queued
+  decision over that pair. `NON_DISTINGUISHING_PUBLISHER_WORDS` is
+  **narrowed to generic corporate forms only** (`books`, `ltd`, `press`,
+  `publishing`, `plc`…) — the descriptive and territorial words
+  (`science`, `fiction`, `sf`, `us`, `uk`, `london`, `paperbacks`,
+  `group`, `house`, `the`) are retired, so `Gollancz` vs `Gollancz
+  Paperbacks` and `Tor` vs `Tor Science Fiction` are conflicts now and
+  become authority entries if they're the same imprint to you. The
+  `joined_imprint_form?` / `qualifier_tail?` mechanical rules stay.
+
   **Retroactive sweep (2026-09-02, `script/publisher_sweep.rb`).** The
   heuristic change was applied back over the existing backlog, since the
   old rule had both silently dropped disagreements (catalog held the
