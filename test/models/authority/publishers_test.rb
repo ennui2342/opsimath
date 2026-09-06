@@ -115,6 +115,38 @@ module Authority
       assert_equal 1, result.conflicts_raised
     end
 
+    test "preview separates the rewrites ISFDB corroborates from the ones nothing would catch" do
+      # ISFDB agrees this is the term
+      ok = Edition.create!(publisher: "Pan Books Ltd")
+      EnrichmentRecord.create!(entity: ok, provider: "isfdb", external_id: "1", fetched_at: Time.current,
+                               fields: { "publisher" => "Tor / Pan Macmillan UK" }, raw_payload: {})
+      # ISFDB names a different publisher
+      contra = Edition.create!(publisher: "Pan Books Ltd")
+      EnrichmentRecord.create!(entity: contra, provider: "isfdb", external_id: "2", fetched_at: Time.current,
+                               fields: { "publisher" => "Pan Books" }, raw_payload: {})
+      # no ISFDB record at all
+      blind = Edition.create!(publisher: "Pan Books Ltd")
+
+      preview = Authority::Publishers.preview(preferred: "Tor / Pan Macmillan UK", variant_labels: [ "Pan Books Ltd" ])
+
+      assert_equal 3, preview.rewritten
+      assert_equal 1, preview.corroborated
+      assert_equal 1, preview.contradicted
+      assert_equal 1, preview.unmatched
+      assert preview.risky?
+      assert_equal %i[contradicted unmatched corroborated],
+                   preview.editions.map { |e| e[:status] } # contradicted/unmatched surfaced first
+    end
+
+    test "preview excludes editions already on the preferred form" do
+      Edition.create!(publisher: "Tor / Pan Macmillan UK")
+      on_variant = Edition.create!(publisher: "Pan Books Ltd")
+
+      preview = Authority::Publishers.preview(preferred: "Tor / Pan Macmillan UK", variant_labels: [ "Pan Books Ltd", "Tor / Pan Macmillan UK" ])
+
+      assert_equal [ on_variant.id ], preview.editions.map { |e| e[:id] }
+    end
+
     test "usage reports affected edition and conflict counts" do
       edition_in_conflict(on_file: "Tordotcom", isfdb: "Tor.com")
       term = AuthorityTerm.create!(vocabulary: "publisher", preferred_label: "Tor.com")

@@ -34,6 +34,24 @@ module Authority
       def self.blank = new(**members.index_with(0))
     end
 
+    # What establishing a term *would* do, before it's done — so the
+    # review screen and settings can show it. Mark, 2026-09-06, after
+    # nearly making `Pan Books Ltd` a variant of `Tor / Pan Macmillan UK`
+    # (would have blindly rewritten 6 old Pan paperbacks): a preview that
+    # separates the rewrites ISFDB corroborates from the ones nothing
+    # would catch.
+    Preview = Struct.new(:preferred, :editions, keyword_init: true) do
+      # editions: [{ id:, title:, publisher:, isfdb:, status: }]
+      #   :corroborated — ISFDB names a publisher that resolves to this term
+      #   :contradicted — ISFDB names a different publisher (rewrite raises a fresh conflict — recoverable)
+      #   :unmatched    — no ISFDB record (blind rewrite, nothing catches a mistake)
+      def rewritten = editions.size
+      def corroborated = editions.count { |e| e[:status] == :corroborated }
+      def contradicted = editions.count { |e| e[:status] == :contradicted }
+      def unmatched = editions.count { |e| e[:status] == :unmatched }
+      def risky? = contradicted.positive? || unmatched.positive?
+    end
+
     class << self
       def label = "Publishers"
 
@@ -44,6 +62,33 @@ module Authority
           editions: editions_on_variants(term, include_preferred: true).size,
           pending_conflicts: publisher_conflicts.count { |d| term_bridges?(d, term) }
         }
+      end
+
+      # Dry run — the editions `apply` would rewrite, each tagged by
+      # whether ISFDB corroborates the rewrite. `variant_labels` may
+      # include the preferred form itself (harmless — filtered).
+      def preview(preferred:, variant_labels:)
+        all_keys = ([ preferred ] + Array(variant_labels)).filter_map { |l| Authority.normalize(l).presence }.to_set
+        rewrite_keys = all_keys - [ Authority.normalize(preferred) ]
+
+        editions = editions_with_normalized_publisher(rewrite_keys).map do |e|
+          isf = isfdb_publisher(e)
+          work = e.works.first
+          { id: e.id, work_id: work&.id, title: e.works.map(&:title).join(", ").presence || "Edition ##{e.id}",
+            publisher: e.publisher, isfdb: isf, status: preview_status(isf, all_keys) }
+        end
+        order = %i[contradicted unmatched corroborated]
+        Preview.new(preferred: preferred,
+                    editions: editions.sort_by { |x| [ order.index(x[:status]), x[:title].downcase ] })
+      end
+
+      # :corroborated — ISFDB names a publisher that resolves to this term
+      # :contradicted — ISFDB names a different publisher
+      # :unmatched    — no ISFDB record to check against
+      def preview_status(isfdb_name, term_keys)
+        return :unmatched if isfdb_name.blank?
+
+        term_keys.include?(Authority.normalize(isfdb_name)) ? :corroborated : :contradicted
       end
 
       def apply(term)

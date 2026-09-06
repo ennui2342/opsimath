@@ -84,6 +84,7 @@ behaviour behind one interface:
 Authority::Publishers
   .label                    → "Publishers"                (settings screen)
   .controlled_fields        → ["Edition#publisher"]       (informational)
+  .preview(preferred:, variant_labels:) → dry run of apply          → Preview
   .apply(term)              → after a term/variant is established   → Result
   .retract(removed_labels:, preferred_label:) → after removal       → Result
   .usage(term)              → { editions:, pending_conflicts: }     (settings screen)
@@ -160,15 +161,27 @@ One transaction:
 
 ### Retracting — `Authority::Publishers.retract`
 
-**No rollback.** Mark's call (*"we should rerun enrichment against those
-records and let it flag up the conflicts again"*): the catalogue keeps
-whatever value it holds, and the affected editions — those whose current
-`publisher`, or whose ISFDB `EnrichmentRecord` publisher, resolved through
-the removed entry — are re-enriched. Without the variant, `plan_publisher`
-sees the strings differ again and raises a conflict *where one genuinely
-exists*. No value-restoration logic, symmetric with `apply`, and
-consistent with how every other enrichment-rule change already propagates
-(`isfdb:reenrich_editions`).
+Mark's call (*"we should rerun enrichment against those records and let it
+flag up the conflicts again"*) — with one correction found on UAT: a bare
+re-enrich does nothing, because `apply` already rewrote the catalogue
+value to the preferred form, so the enricher now sees agreement. So
+retract, in order:
+
+1. **Restore the pre-term value** — for each edition on one of the removed
+   strings, `restore` puts `publisher` back to what that edition's
+   original source (`field_sources["publisher"]`, else `goodreads`)
+   recorded in its `EnrichmentRecord`. The data is recoverable precisely
+   because `apply` never touched the metadata records. Editions where the
+   source value already matches are left alone.
+2. **Re-enrich only the ones that genuinely conflict again** —
+   `genuinely_conflicts?` (`plan_publisher_for(...).action == :conflict`)
+   filters the candidates, so retract doesn't re-run every edition that
+   merely sat on the preferred form. Without the variant, `plan_publisher`
+   sees the restored string differ from ISFDB and raises the conflict
+   *where one genuinely exists*.
+
+Symmetric with `apply`, and consistent with how every other
+enrichment-rule change propagates (`isfdb:reenrich_editions`).
 
 ## UI
 
@@ -203,6 +216,39 @@ here or new conflicts have since arrived).
 `Settings::AuthorityTermsController` / `AuthorityVariantsController` are
 generic — scoped by `:vocabulary`, delegating the catalogue work to
 `Authority.handler(vocabulary)`.
+
+### Preview before establishing — `Authority::Publishers.preview`
+
+Mark (2026-09-06, after an over-broad `Pan Books Ltd` → `Tor / Pan
+Macmillan UK` mapping nearly rewrote six unrelated old Pan paperbacks):
+*"the preview should show the breakdown before you commit — '9 editions
+would be rewritten: 3 with a matching ISFDB conflict, 6 without' — so an
+over-broad mapping like this is visible up front."*
+
+`preview(preferred:, variant_labels:)` is a dry run of `apply`: it finds
+the editions `apply` would rewrite and tags each
+
+| status | meaning |
+|---|---|
+| `:corroborated` | ISFDB names a publisher that resolves to this same term — the rewrite agrees with the catalogue's own external source |
+| `:contradicted` | ISFDB names a *different* publisher — the rewrite would raise a fresh conflict (recoverable, but a signal the mapping may be wrong) |
+| `:unmatched` | no ISFDB record — nothing would catch a mistaken rewrite |
+
+`Preview#risky?` is true if any row is `:contradicted` or `:unmatched`.
+
+- **Settings** — the "Establish a new term" form is a `GET` to
+  `#preview`, which renders a confirm page (`authority_terms/preview`):
+  the three counts, a warning banner when risky, and the full edition
+  table (book, on-file value, what ISFDB says). `#create` refuses to run
+  without `confirm=1` (or a `from_decision_id`) and redirects back to the
+  preview — you can't establish a term from settings without seeing the
+  blast radius.
+- **Inline panel** — `authority_panel_controller.js` fetches the same
+  endpoint as JSON on open and whenever the preferred choice changes,
+  showing a one-line summary (*"Would rewrite 9 editions: 3 match ISFDB,
+  6 not in ISFDB"*) that goes amber when risky. The inline `Establish
+  term` button passes `from_decision_id`, so it skips the confirm page —
+  the panel *is* the preview.
 
 ## Deferred
 

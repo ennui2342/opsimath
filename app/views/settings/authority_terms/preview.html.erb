@@ -1,0 +1,81 @@
+<% content_for :title, "Preview — #{@preview.preferred}" %>
+
+<div class="w-full max-w-3xl">
+  <p class="mb-1 text-sm text-gray-500 dark:text-gray-400">
+    <%= link_to "Settings", settings_authorities_path, class: "hover:underline" %> ·
+    <%= link_to @handler.label, settings_authority_path(@vocabulary), class: "hover:underline" %> ·
+    preview
+  </p>
+  <h1 class="mb-2 text-2xl font-bold text-gray-900 dark:text-gray-100">
+    Establish “<%= @preview.preferred %>”
+  </h1>
+  <p class="mb-5 text-sm text-gray-600 dark:text-gray-400">
+    Variants: <%= safe_join(@variant_labels.map { |v| content_tag(:code, v) }, ", ").presence || "—" %>
+  </p>
+
+  <% if @preview.rewritten.zero? %>
+    <p class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+      No catalogued edition currently uses a variant string — nothing would be rewritten. Establishing the term still affects future enrichment and any pending conflict over this pair.
+    </p>
+  <% else %>
+    <div class="mb-4 grid grid-cols-3 gap-2 text-center">
+      <div class="rounded-lg border border-green-200 bg-green-50 px-2 py-3 dark:border-green-900 dark:bg-green-950">
+        <span class="block text-2xl font-bold tabular-nums text-green-700 dark:text-green-300"><%= @preview.corroborated %></span>
+        <span class="text-xs text-green-800 dark:text-green-300">ISFDB corroborates</span>
+      </div>
+      <div class="rounded-lg border px-2 py-3 <%= @preview.contradicted.positive? ? "border-conflict-300 bg-conflict-100 dark:border-conflict-800 dark:bg-conflict-900" : "border-gray-200 dark:border-gray-700" %>">
+        <span class="block text-2xl font-bold tabular-nums <%= "text-conflict-800 dark:text-conflict-200" if @preview.contradicted.positive? %>"><%= @preview.contradicted %></span>
+        <span class="text-xs text-gray-600 dark:text-gray-400">ISFDB names another</span>
+      </div>
+      <div class="rounded-lg border px-2 py-3 <%= @preview.unmatched.positive? ? "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950" : "border-gray-200 dark:border-gray-700" %>">
+        <span class="block text-2xl font-bold tabular-nums <%= "text-amber-700 dark:text-amber-300" if @preview.unmatched.positive? %>"><%= @preview.unmatched %></span>
+        <span class="text-xs text-gray-600 dark:text-gray-400">no ISFDB record</span>
+      </div>
+    </div>
+
+    <% if @preview.risky? %>
+      <p class="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+        <strong>Check the flagged rows.</strong>
+        <%= "ISFDB names a different publisher for #{@preview.contradicted}" if @preview.contradicted.positive? %><%= " and " if @preview.contradicted.positive? && @preview.unmatched.positive? %><%= "#{@preview.unmatched} #{"has".pluralize(@preview.unmatched)} no ISFDB record to catch a wrong rewrite" if @preview.unmatched.positive? %>. If any of these aren’t really the same imprint, resolve them individually instead.
+      </p>
+    <% end %>
+
+    <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-900 dark:text-gray-400">
+          <tr><th class="px-3 py-2">Book</th><th class="px-3 py-2">On file</th><th class="px-3 py-2">ISFDB says</th></tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+          <% @preview.editions.each do |e| %>
+            <tr class="<%= { contradicted: "bg-conflict-50 dark:bg-conflict-950", unmatched: "bg-amber-50/50 dark:bg-amber-950/40" }[e[:status]] %>">
+              <td class="px-3 py-2">
+                <%= e[:work_id] ? link_to(e[:title], work_path(e[:work_id]), class: "hover:underline") : e[:title] %>
+              </td>
+              <td class="px-3 py-2 font-mono text-xs"><%= e[:publisher] %></td>
+              <td class="px-3 py-2 font-mono text-xs">
+                <% case e[:status] %>
+                <% when :corroborated %><span class="text-green-700 dark:text-green-400"><%= e[:isfdb] %></span>
+                <% when :contradicted %><span class="text-conflict-800 dark:text-conflict-200"><%= e[:isfdb] %> ⚠</span>
+                <% when :unmatched %><span class="text-gray-400 italic">not in ISFDB</span>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+
+  <div class="mt-5 flex items-center gap-3">
+    <%= form_with url: settings_authority_terms_path(@vocabulary), method: :post do %>
+      <%= hidden_field_tag :preferred_label, @preferred %>
+      <% @variant_labels.each do |v| %>
+        <%= hidden_field_tag "variant_labels[]", v %>
+      <% end %>
+      <%= hidden_field_tag :confirm, "1" %>
+      <%= submit_tag(@preview.rewritten.zero? ? "Establish term" : "Establish and rewrite #{@preview.rewritten}",
+            class: "rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700") %>
+    <% end %>
+    <%= link_to "Cancel", settings_authority_path(@vocabulary), class: "text-sm text-gray-500 hover:underline" %>
+  </div>
+</div>

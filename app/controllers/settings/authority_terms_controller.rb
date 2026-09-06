@@ -8,7 +8,29 @@ module Settings
   class AuthorityTermsController < ApplicationController
     before_action :set_vocabulary
 
+    # Dry run — what `create` would rewrite, each edition tagged by
+    # whether ISFDB corroborates it. JSON for the inline panel's compact
+    # summary; HTML for the settings confirm page.
+    def preview
+      @preferred = preferred_label
+      @variant_labels = variant_labels
+      @preview = @handler.preview(preferred: @preferred, variant_labels: @variant_labels)
+      respond_to do |format|
+        format.json do
+          render json: {
+            rewritten: @preview.rewritten, corroborated: @preview.corroborated,
+            contradicted: @preview.contradicted, unmatched: @preview.unmatched, risky: @preview.risky?
+          }
+        end
+        format.html { render :preview }
+      end
+    end
+
     def create
+      # settings goes through the confirm page first; the inline panel has
+      # already shown its own preview, so it passes confirm
+      return redirect_to(preview_path) unless params[:confirm].present? || params[:from_decision_id].present?
+
       @term = AuthorityTerm.find_or_create_by!(vocabulary: @vocabulary, preferred_label: preferred_label)
       variant_labels.each { |label| @term.register_variant(label) }
       @result = @handler.apply(@term)
@@ -47,6 +69,10 @@ module Settings
 
     def term_scope = AuthorityTerm.where(vocabulary: @vocabulary)
 
+    def preview_path
+      settings_authority_terms_preview_path(@vocabulary, preferred_label: preferred_label, variant_labels: variant_labels)
+    end
+
     # The inline panel offers current / proposed / "other" (free text).
     def preferred_label
       raw = params[:preferred_label].to_s.strip
@@ -57,7 +83,7 @@ module Settings
     # blanks and the preferred form itself (which is always a self-variant).
     def variant_labels
       raw = params[:variant_labels]
-      list = raw.is_a?(Array) ? raw : raw.to_s.split(/[\r\n,]+/)
+      list = raw.is_a?(Array) ? raw.flatten : raw.to_s.split(/[\r\n,]+/)
       list.map(&:strip).reject(&:blank?).uniq
           .reject { |l| Authority.normalize(l) == Authority.normalize(preferred_label) }
     end

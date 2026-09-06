@@ -24,14 +24,33 @@ module Settings
       assert_response :redirect
     end
 
-    test "establishing a term from the settings screen rewrites editions and clears the conflict" do
+    test "the settings screen sends you to a preview first, and confirming establishes" do
+      # no confirm -> preview
       post settings_authority_terms_url("publisher"),
            params: { preferred_label: "Pan Books", variant_labels: "Pan Macmillan UK\nPan Macmillan" }
+      assert_response :redirect
+      assert_match "/terms/preview", @response.redirect_url
+      assert_not AuthorityTerm.exists?(vocabulary: "publisher")
+
+      # confirm -> established
+      post settings_authority_terms_url("publisher"),
+           params: { preferred_label: "Pan Books", "variant_labels[]": [ "Pan Macmillan UK", "Pan Macmillan" ], confirm: "1" }
 
       assert_redirected_to settings_authority_path("publisher")
       assert_equal "Pan Books", @edition.reload.publisher
       assert_empty PendingDecision.pending
       assert AuthorityTerm.exists?(vocabulary: "publisher", preferred_label: "Pan Books")
+    end
+
+    test "preview classifies the affected editions by whether ISFDB corroborates the rewrite" do
+      get settings_authority_terms_preview_url("publisher"),
+          params: { preferred_label: "Pan Books", variant_labels: [ "Pan Macmillan UK" ] }, as: :json
+
+      body = JSON.parse(@response.body)
+      assert_equal 1, body["rewritten"]      # @edition, currently "Pan Macmillan UK"
+      assert_equal 1, body["corroborated"]   # its ISFDB record says "Pan Books"
+      assert_equal 0, body["unmatched"]
+      assert_not body["risky"]
     end
 
     test "establishing from a conflict screen responds with turbo_stream and advances past the resolved decision" do
@@ -58,7 +77,7 @@ module Settings
     test "the 'other' preferred option uses the free-text value" do
       post settings_authority_terms_url("publisher"),
            params: { preferred_label: "__other__", preferred_label_other: "Pan",
-                     "variant_labels[]": [ "Pan Macmillan UK", "Pan Books" ] }
+                     "variant_labels[]": [ "Pan Macmillan UK", "Pan Books" ], confirm: "1" }
 
       assert AuthorityTerm.exists?(vocabulary: "publisher", preferred_label: "Pan")
       assert_equal "Pan", Authority.resolve("publisher", "Pan Books")

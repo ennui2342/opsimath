@@ -5,10 +5,12 @@ import { Controller } from "@hotwired/stimulus"
 // already one, and forms don't nest), so the submit posts via fetch and
 // hands the Turbo Stream response back to Turbo — same net effect as a
 // data-turbo-stream form. Opens in place, closes on outside-click / Esc,
-// like cover_picker.
+// like cover_picker. On open (and whenever the preferred choice changes)
+// it fetches a dry-run of what establishing the term would rewrite, so an
+// over-broad mapping is visible before you commit.
 export default class extends Controller {
-  static targets = ["panel", "choice", "otherRadio", "otherInput"]
-  static values = { url: String, decision: String, current: String, proposed: String }
+  static targets = ["panel", "choice", "otherRadio", "otherInput", "preview"]
+  static values = { url: String, previewUrl: String, decision: String, current: String, proposed: String }
 
   connect() {
     this.onDocumentClick = (event) => {
@@ -29,6 +31,7 @@ export default class extends Controller {
     event.preventDefault()
     event.stopPropagation()
     this.panelTarget.hidden = !this.panelTarget.hidden
+    if (!this.panelTarget.hidden) this.refreshPreview()
   }
 
   close() {
@@ -39,16 +42,52 @@ export default class extends Controller {
     if (this.hasOtherRadioTarget) this.otherRadioTarget.checked = true
   }
 
+  chosenPreferred() {
+    const value = this.choiceTargets.find((c) => c.checked)?.value
+    return value === "__other__" ? this.otherInputTarget.value.trim() : value
+  }
+
+  variants() {
+    return [this.currentValue, this.proposedValue]
+  }
+
+  async refreshPreview() {
+    const preferred = this.chosenPreferred()
+    if (!preferred) {
+      this.previewTarget.textContent = ""
+      return
+    }
+    const params = new URLSearchParams({ preferred_label: preferred })
+    this.variants().forEach((v) => params.append("variant_labels[]", v))
+
+    try {
+      const response = await fetch(`${this.previewUrlValue}?${params}`, { headers: { Accept: "application/json" } })
+      if (!response.ok) return
+      const p = await response.json()
+      if (p.rewritten === 0) {
+        this.previewTarget.textContent = "No catalogued edition uses a variant — nothing would be rewritten."
+      } else {
+        const bits = [`${p.corroborated} match ISFDB`]
+        if (p.contradicted) bits.push(`${p.contradicted} ISFDB names another`)
+        if (p.unmatched) bits.push(`${p.unmatched} not in ISFDB`)
+        this.previewTarget.textContent = `Would rewrite ${p.rewritten} edition${p.rewritten === 1 ? "" : "s"}: ${bits.join(", ")}.`
+      }
+      this.previewTarget.classList.toggle("text-amber-700", p.risky)
+      this.previewTarget.classList.toggle("dark:text-amber-400", p.risky)
+      this.previewTarget.classList.toggle("text-gray-500", !p.risky)
+    } catch (e) {
+      /* preview is advisory — a failed fetch just leaves it blank */
+    }
+  }
+
   async submit(event) {
     event.preventDefault()
-    const chosen = this.choiceTargets.find((c) => c.checked)?.value
-    const preferred = chosen === "__other__" ? this.otherInputTarget.value.trim() : chosen
+    const preferred = this.chosenPreferred()
     if (!preferred) return
 
     const body = new URLSearchParams()
     body.append("preferred_label", preferred)
-    body.append("variant_labels[]", this.currentValue)
-    body.append("variant_labels[]", this.proposedValue)
+    this.variants().forEach((v) => body.append("variant_labels[]", v))
     body.append("from_decision_id", this.decisionValue)
 
     const token = document.querySelector('meta[name="csrf-token"]')?.content

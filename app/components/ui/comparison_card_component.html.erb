@@ -64,6 +64,7 @@
           <%# not a nested <form> — the whole review screen is already one; the controller POSTs via fetch %>
           <div class="relative shrink-0" data-controller="authority-panel"
                data-authority-panel-url-value="<%= helpers.settings_authority_terms_path(a[:vocabulary]) %>"
+               data-authority-panel-preview-url-value="<%= helpers.settings_authority_terms_preview_path(a[:vocabulary]) %>"
                data-authority-panel-decision-value="<%= a[:decision_id] %>"
                data-authority-panel-current-value="<%= a[:current] %>"
                data-authority-panel-proposed-value="<%= a[:proposed] %>">
@@ -74,19 +75,20 @@
               <p class="mb-2 text-xs font-semibold text-gray-700 dark:text-gray-200">Same publisher? Establish an authority term.</p>
               <div class="space-y-1.5 text-xs text-gray-700 dark:text-gray-300">
                 <label class="flex items-start gap-1.5">
-                  <input type="radio" name="preferred" value="<%= a[:current] %>" checked class="mt-0.5" data-authority-panel-target="choice">
+                  <input type="radio" name="preferred" value="<%= a[:current] %>" checked class="mt-0.5" data-authority-panel-target="choice" data-action="change->authority-panel#refreshPreview">
                   <span>prefer <b><%= a[:current] %></b> <span class="text-gray-400">(on file)</span></span>
                 </label>
                 <label class="flex items-start gap-1.5">
-                  <input type="radio" name="preferred" value="<%= a[:proposed] %>" class="mt-0.5" data-authority-panel-target="choice">
+                  <input type="radio" name="preferred" value="<%= a[:proposed] %>" class="mt-0.5" data-authority-panel-target="choice" data-action="change->authority-panel#refreshPreview">
                   <span>prefer <b><%= a[:proposed] %></b> <span class="text-gray-400">(<%= a[:source] %>)</span></span>
                 </label>
                 <label class="flex items-center gap-1.5">
-                  <input type="radio" name="preferred" value="__other__" class="mt-0.5" data-authority-panel-target="choice otherRadio">
-                  <input type="text" placeholder="other…" data-authority-panel-target="otherInput" data-action="focus->authority-panel#pickOther"
+                  <input type="radio" name="preferred" value="__other__" class="mt-0.5" data-authority-panel-target="choice otherRadio" data-action="change->authority-panel#refreshPreview">
+                  <input type="text" placeholder="other…" data-authority-panel-target="otherInput" data-action="focus->authority-panel#pickOther input->authority-panel#refreshPreview"
                          class="w-full rounded border-gray-300 px-1.5 py-0.5 dark:border-gray-600 dark:bg-gray-800">
                 </label>
               </div>
+              <p data-authority-panel-target="preview" class="mt-2 text-[11px] leading-snug text-gray-500 dark:text-gray-400"></p>
               <button type="button" data-action="authority-panel#submit"
                       class="mt-2.5 w-full rounded bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600">Establish term</button>
             </div>

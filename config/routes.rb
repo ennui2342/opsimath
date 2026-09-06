@@ -30,6 +30,7 @@ Rails.application.routes.draw do
     get "authorities", to: "authorities#index"
     get "authorities/:vocabulary", to: "authorities#show", as: :authority
     post "authorities/:vocabulary/rescan", to: "authorities#rescan", as: :authority_rescan
+    get "authorities/:vocabulary/terms/preview", to: "authority_terms#preview", as: :authority_terms_preview
     post "authorities/:vocabulary/terms", to: "authority_terms#create", as: :authority_terms
     patch "authorities/:vocabulary/terms/:id", to: "authority_terms#update", as: :authority_term
     delete "authorities/:vocabulary/terms/:id", to: "authority_terms#destroy"
