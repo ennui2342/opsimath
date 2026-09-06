@@ -102,3 +102,33 @@ jobs:
             ${{ env.COVER_COMPARE_IMAGE }}:${{ needs.tag.outputs.tag }}
           cache-from: type=gha,scope=cover-compare
           cache-to: type=gha,mode=max,scope=cover-compare
+
+  # Deploy notification — see the "CI deploy notifications" standard in the
+  # global Claude Code instructions. A dedicated job (not a step tacked onto
+  # one build job) because the two images build in parallel; runs on every
+  # outcome and reports success only if all build jobs succeeded.
+  notify:
+    needs: [tag, build, build-cover-compare]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Discord
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          TAG: ${{ needs.tag.outputs.tag }}
+          BRANCH: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FAILED: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK" ]; then
+            echo "DISCORD_WEBHOOK not set — skipping notification"
+            exit 0
+          fi
+          if [ "$FAILED" = "true" ]; then
+            payload=$(jq -n --arg url "$RUN_URL" --arg br "$BRANCH" \
+              '{embeds:[{title:"❌ opsimath build failed",description:("Push to `\($br)` failed — no deployment. [View logs](\($url))"),color:15158332,footer:{text:"github.com/ennui2342/opsimath"}}]}')
+          else
+            payload=$(jq -n --arg tag "$TAG" \
+              '{embeds:[{title:"✅ opsimath deployed",description:"Image tag `\($tag)` pushed — Flux will reconcile shortly.",color:3066993,footer:{text:"github.com/ennui2342/opsimath"}}]}')
+          fi
+          curl -sf -X POST "$DISCORD_WEBHOOK" -H "Content-Type: application/json" -d "$payload"
