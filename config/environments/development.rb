@@ -1,6 +1,10 @@
 require "active_support/core_ext/integer/time"
 
 Rails.application.configure do
+  # Where links in notifications point (docs/BARGAIN_HUNTING.md): the URL
+  # Mark opens from his phone.
+  config.x.public_url = ENV.fetch("PUBLIC_URL", "http://localhost:3000")
+
   # Settings specified here will take precedence over those in config/application.rb.
 
   # Make code changes take effect immediately without server restart.

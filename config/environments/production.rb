@@ -23,6 +23,10 @@ class AssumeSSLExceptHost
 end
 
 Rails.application.configure do
+  # Where links in notifications point (docs/BARGAIN_HUNTING.md): the URL
+  # Mark opens from his phone.
+  config.x.public_url = ENV.fetch("PUBLIC_URL", "https://opsimath.tail611131.ts.net")
+
   # Settings specified here will take precedence over those in config/application.rb.
 
   # Code is not reloaded between requests.

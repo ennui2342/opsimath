@@ -21,7 +21,7 @@ module Ebay
     end
 
     def summary(id, title, price: "4.99", **extra)
-      { "itemId" => id, "title" => title, "itemWebUrl" => "https://ebay.test/#{id}",
+      { "itemId" => id, "title" => title, "itemWebUrl" => "https://www.ebay.co.uk/itm/#{id}",
         "price" => { "value" => price, "currency" => "GBP" }, "buyingOptions" => [ "FIXED_PRICE" ],
         "condition" => "Good", "itemLocation" => { "country" => "GB" },
         "shippingOptions" => [ { "shippingCostType" => "FIXED", "shippingCost" => { "value" => "2.70" } } ] }.merge(extra)

@@ -37,12 +37,17 @@ module Notifications
 
     private
 
+    # Discord caps an embed description at 4096 characters.
+    DESCRIPTION_LIMIT = 4096
+
     def embed_for(event)
       {
         title: event.title,
+        url: event.url.presence,
+        description: event.description.presence&.truncate(DESCRIPTION_LIMIT),
         color: COLOR_BY_LEVEL.fetch(event.level, COLOR_BY_LEVEL[:info]),
-        fields: event.fields.map { |name, value| { name: name.to_s, value: value.to_s.presence || "—", inline: true } }
-      }
+        fields: Array(event.fields).map { |name, value| { name: name.to_s, value: value.to_s.presence || "—", inline: true } }
+      }.compact
     end
   end
 end

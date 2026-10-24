@@ -9,7 +9,8 @@ Designed 2026-10-24, after a probe against the real wishlist (below).
 **Steps 1 (printings, author status, collecting profile, favourite
 artists) and 2 (eBay search + printing identification) built
 2026-10-24; step 3's `/wishlist` and `/wishlist/:id` (cover picker) built
-2026-10-25, then `/finds`**; step 4 (notifications) not yet.
+2026-10-25, then `/finds` and the Discord digest of new finds**; the
+ending-soon auction alerts and tm tasks wait on target prices being set.
 
 The key requirement is the *printing*, not just the book (Mark: *"for
 older books, I'm basically collecting A-format paperbacks. So I want
@@ -330,7 +331,16 @@ of real listings, as the probe did for search.
 ### 6. Report
 
 - **Discord**: a daily digest of new finds via `DiscordNotifier`, one
-  line each with title, printing, price + postage and a link. Separately,
+  line each with title, printing, price + postage and a link. **Built
+  2026-10-25** (`FindsDigest`, run at the end of `EbaySweepJob`): one
+  embed titled "eBay: N new finds" linking to `/finds` at
+  `config.x.public_url` (production: the HTTPS tailnet host, the URL
+  the phone opens), one line per find — ★, book, cover artist, delivered
+  price, "38% of usual £13.00" or "under your £9.00 target", auction end,
+  eBay link (tracking parameters trimmed) — capped at 25 lines. Each
+  listing announced once (`notified_at`); nothing sent when nothing is
+  new. `Notifications::Event` gained optional `description` and `url`
+  for it. Separately,
   an immediate message for a wanted-printing **auction ending within 24
   hours** under target.
 - **tm task**: only for strong finds (under target price, wanted

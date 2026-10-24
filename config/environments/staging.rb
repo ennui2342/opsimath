@@ -7,6 +7,10 @@ require "active_support/core_ext/integer/time"
 # things relaxed are the ones that assume a TLS-terminating reverse proxy
 # in front: this stack is plain HTTP on localhost:3001.
 Rails.application.configure do
+  # Where links in notifications point (docs/BARGAIN_HUNTING.md): the URL
+  # Mark opens from his phone.
+  config.x.public_url = ENV.fetch("PUBLIC_URL", "http://localhost:3001")
+
   # Code is not reloaded between requests.
   config.enable_reloading = false
 

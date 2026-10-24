@@ -4,7 +4,8 @@ module Notifications
   # replacement for it.
   class LogNotifier
     def notify(event)
-      Rails.logger.info("[notify:#{event.level}] #{event.title} #{event.fields}")
+      Rails.logger.info("[notify:#{event.level}] #{event.title} #{event.fields}#{" #{event.url}" if event.url}")
+      Rails.logger.info(event.description) if event.description.present?
     end
   end
 end

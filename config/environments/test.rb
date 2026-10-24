@@ -4,6 +4,10 @@
 # and recreated between test runs. Don't rely on the data there!
 
 Rails.application.configure do
+  # Where links in notifications point (docs/BARGAIN_HUNTING.md): the URL
+  # Mark opens from his phone.
+  config.x.public_url = ENV.fetch("PUBLIC_URL", "http://www.example.com")
+
   # Settings specified here will take precedence over those in config/application.rb.
 
   # While tests run files are not watched, reloading is not necessary.

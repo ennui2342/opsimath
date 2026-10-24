@@ -1,6 +1,6 @@
-# Searches eBay for every hunted wishlist book, then identifies the
-# printing of a batch of new listings (docs/BARGAIN_HUNTING.md). No
-# notifications yet (build step 4).
+# Searches eBay for every hunted wishlist book, identifies the printing
+# of a batch of new listings, then posts the day's new finds to Discord
+# (docs/BARGAIN_HUNTING.md).
 class EbaySweepJob < ApplicationJob
   queue_as :default
 
@@ -9,6 +9,7 @@ class EbaySweepJob < ApplicationJob
     Rails.logger.info("eBay sweep: #{sweep}")
     identified = Ebay::PrintingIdentifier.run
     Rails.logger.info("eBay printing identification: #{identified}")
-    "sweep: #{sweep}; identify: #{identified}"
+    announced = FindsDigest.run
+    "sweep: #{sweep}; identify: #{identified}; new finds announced: #{announced}"
   end
 end
