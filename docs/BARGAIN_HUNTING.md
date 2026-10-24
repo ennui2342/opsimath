@@ -378,7 +378,16 @@ files (step 3); the favourite-artists page shows the computed list with
 owned counts beside the two exception lists.
 
 When a wishlist item is fulfilled and deleted (the Goodreads
-wishlist → to-read move), its printings and listings go with it.
+wishlist → to-read move), its printings and listings go with it —
+`ShelfSync` removes it with `destroy_all`, so `dependent: :destroy`
+applies (covered by a ShelfSync test; a bare `delete` would instead fail
+the sync on the foreign keys). Nothing else to clean up: the sweep only
+searches current wishlist items, so a bought book is never searched
+again.
+
+`goodreads:rebuild` truncates every book table, which takes the price
+history with it (it hangs off wishlist item ids the rebuild recreates).
+The collecting profile is kept, as configuration.
 
 ## API budget
 

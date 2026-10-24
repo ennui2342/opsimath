@@ -34,7 +34,9 @@ namespace :goodreads do
     Notifications.notifiers = [ Notifications::LogNotifier.new ]
 
     ActiveRecord::Base.connection.tables.each do |table|
-      next if %w[users sessions api_tokens schema_migrations ar_internal_metadata].include?(table)
+      # collecting_profiles is Mark's own configuration (docs/BARGAIN_HUNTING.md),
+      # not book data a rebuild can recreate from source.
+      next if %w[users sessions api_tokens collecting_profiles schema_migrations ar_internal_metadata].include?(table)
       next if table.start_with?("solid_queue_", "solid_cache_")
 
       ActiveRecord::Base.connection.execute("TRUNCATE TABLE #{ActiveRecord::Base.connection.quote_table_name(table)} RESTART IDENTITY CASCADE")

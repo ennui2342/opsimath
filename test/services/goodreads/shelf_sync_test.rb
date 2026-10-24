@@ -116,6 +116,23 @@ module Goodreads
       assert outcome.changed # a real transition happened, even though the edition itself already existed
     end
 
+    # Bargain hunting hangs ISFDB printings and eBay listings off the
+    # wishlist item by foreign key (docs/BARGAIN_HUNTING.md): buying the
+    # book must take them with it, not fail the sync on the constraint.
+    test "to-read removes the wishlist item's bargain-hunting printings and eBay listings with it" do
+      wished = WishlistItem.create!(title: "Europe at Dawn", author_name: "Dave Hutchinson", external_ids: { "goodreads" => "39666185" })
+      wished.wishlist_printings.create!(isfdb_pub_id: 1, binding: "pb")
+      wished.ebay_listings.create!(ebay_item_id: "v1|1|0", title: "Europe at Dawn", found_by: "keyword",
+                                   first_seen_at: Time.current, last_seen_at: Time.current)
+      item = fixture_item("to_read", "39666185")
+
+      ShelfSync.sync(item, "to-read", {})
+
+      assert_not WishlistItem.exists?(wished.id)
+      assert_equal 0, WishlistPrinting.where(wishlist_item_id: wished.id).count
+      assert_equal 0, EbayListing.where(wishlist_item_id: wished.id).count
+    end
+
     test "to-read is a no-op (changed: false) when matching an already-catalogued edition with no wishlist entry to remove" do
       work = Work.create!(title: "Europe at Dawn", literary_form: "novel")
       edition = Edition.create!
