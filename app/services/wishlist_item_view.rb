@@ -28,7 +28,7 @@ class WishlistItemView
     @rule = profile.verdict(item, printings, ignore_override: true)
     @verdict = profile.verdict(item, printings)
     @favourites = profile.favourite_artists
-    @live = item.ebay_listings.select { |l| l.ended_at.nil? && l.status != "dismissed" }.sort_by { |l| l.total || Float::INFINITY }
+    @live = item.ebay_listings.select { |l| l.ended_at.nil? && l.status == "new" }.sort_by { |l| l.total || Float::INFINITY }
   end
 
   def hunted? = verdict.hunt?

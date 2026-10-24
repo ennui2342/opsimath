@@ -1,0 +1,20 @@
+<% content_for :title, "Finds" %>
+
+<div class="w-full max-w-3xl">
+  <h1 class="mb-1 text-2xl font-bold">Finds</h1>
+  <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
+    Listings of covers you want, under your target or well below what that cover usually goes for.
+  </p>
+  <% if @finds.any? %>
+    <div class="space-y-3">
+      <% @finds.each do |find| %>
+        <%= render Ui::FindCardComponent.new(find:) %>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="rounded-lg border border-dashed border-gray-300 p-8 text-center dark:border-gray-700">
+      <p class="text-lg font-medium">Nothing right now</p>
+      <p class="text-sm text-gray-500 dark:text-gray-400">The nightly eBay search adds new listings each morning.</p>
+    </div>
+  <% end %>
+</div>

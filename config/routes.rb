@@ -8,6 +8,10 @@ Rails.application.routes.draw do
   # Bargain hunting (docs/BARGAIN_HUNTING.md): the wishlist, and per book
   # the cover picker + target price + current eBay listings.
   resources :wishlist_items, path: "wishlist", only: [ :index, :show, :update ]
+  resources :finds, only: [ :index ]
+  resources :ebay_listings, only: [ :edit, :update ] do
+    post :dismiss, on: :member
+  end
 
   # The offline shop-lookup PWA (docs/MOBILE.md) — bearer-token, no session.
   namespace :mobile do

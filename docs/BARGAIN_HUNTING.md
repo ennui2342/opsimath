@@ -9,7 +9,7 @@ Designed 2026-10-24, after a probe against the real wishlist (below).
 **Steps 1 (printings, author status, collecting profile, favourite
 artists) and 2 (eBay search + printing identification) built
 2026-10-24; step 3's `/wishlist` and `/wishlist/:id` (cover picker) built
-2026-10-25**; `/finds` and step 4 (notifications) not yet.
+2026-10-25, then `/finds`**; step 4 (notifications) not yet.
 
 The key requirement is the *printing*, not just the book (Mark: *"for
 older books, I'm basically collecting A-format paperbacks. So I want
@@ -381,7 +381,8 @@ EbayListing
   identified_by           cover / text / unknown; null = not tried yet
   cover_scores            jsonb {isfdb_pub_id => {ratio, inliers}} — kept for tuning
   first_seen_at, last_seen_at, ended_at, notified_at
-  status                  new / dismissed
+  status                  new / dismissed / wrong_book
+  identified_by also "manual" — Mark's correction from /finds; never re-identified
 ```
 
 The collecting profile is editable under `/settings` like the authority
@@ -465,6 +466,20 @@ The shop-lookup PWA does get one bargain-hunting addition, shown under
 Three screens, all built from existing patterns (`docs/DESIGN_SYSTEM.md`):
 
 ### `/finds` — the action queue
+
+**Built 2026-10-25.** `Finds.all`: on a chosen cover, live, status
+`new`, and either at/under the target price, or the cover's *cheapest*
+listing at ≤ 60% of the median of that cover's live listings with at
+least 3 of them. One spread find per cover: on real data the first
+version listed several bulk-seller copies of one cover at £3.50–£4
+each — that's the cover's going rate, not several bargains. 44 finds
+became 16 (9 favourite-artist covers), e.g. *The Birthgrave*'s Peter
+Jones Orbit at £25.00 against a £57 median. Favourite artists sort
+first after target-price finds. Each is a `Ui::FindCardComponent`;
+Dismiss removes it in place (Turbo Stream); Wrong printing opens a
+radio list of the book's covers across all formats plus *Can't tell* and
+*Not this book* (status `wrong_book`), saved as `identified_by:
+"manual"` with the cover scores kept. Spec as first written:
 
 The *Queue / index list* pattern, like `/pending_decisions`, with the
 *"All caught up"* empty state. One row per notified-or-flagged listing:

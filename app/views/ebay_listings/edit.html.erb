@@ -1,0 +1,42 @@
+<% content_for :title, "Which printing?" %>
+
+<div class="w-full max-w-3xl">
+  <h1 class="mb-1 text-2xl font-bold">Which printing is this?</h1>
+  <p class="mb-4 text-sm text-gray-500 dark:text-gray-400"><%= @listing.wishlist_item.title %> — <%= @listing.wishlist_item.author_name %></p>
+
+  <div class="mb-4 flex gap-3">
+    <% if @listing.image_url %><%= image_tag @listing.image_url, alt: "eBay photo", class: "h-40 w-28 flex-none rounded object-cover" %><% end %>
+    <%= link_to @listing.title, @listing.url, target: "_blank", rel: "noopener", class: "text-sm hover:underline" %>
+  </div>
+
+  <%= form_with url: ebay_listing_path(@listing), method: :patch do %>
+    <fieldset class="mb-4 divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
+      <legend class="mb-2 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Covers</legend>
+      <% @covers.each do |(format_code, _), printings| %>
+        <% ids = printings.map(&:isfdb_pub_id) %>
+        <% cover_url = printings.filter_map(&:cover_url).first %>
+        <label class="flex items-center gap-3 px-3 py-2">
+          <input type="radio" name="printing" value="<%= ids.join(",") %>" <%= "checked" if (ids & @listing.matched_pub_ids).any? %>
+                 class="h-4 w-4 text-green-600 focus:ring-2 focus:ring-green-600">
+          <% if cover_url %><%= image_tag cover_url, alt: "", loading: "lazy", class: "h-16 w-11 flex-none object-contain" %><% end %>
+          <span class="text-sm">
+            <span class="block font-medium"><%= printings.flat_map(&:artists).uniq.join(", ").presence || "Artist unknown" %></span>
+            <span class="block text-xs text-gray-500 dark:text-gray-400">
+              <%= format_code %> · <%= printings.sort_by { |p| p.year || 9999 }.map { |p| "#{p.publisher.to_s.split(" / ").first} #{p.year || "undated"}" }.uniq.join(", ") %>
+            </span>
+          </span>
+        </label>
+      <% end %>
+      <label class="flex items-center gap-3 px-3 py-2 text-sm">
+        <input type="radio" name="printing" value="unknown" class="h-4 w-4 text-green-600 focus:ring-2 focus:ring-green-600"> Can't tell
+      </label>
+      <label class="flex items-center gap-3 px-3 py-2 text-sm">
+        <input type="radio" name="printing" value="not_this_book" class="h-4 w-4 text-green-600 focus:ring-2 focus:ring-green-600"> Not this book
+      </label>
+    </fieldset>
+    <div class="flex items-center gap-3">
+      <button type="submit" class="rounded-md bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600">Save</button>
+      <%= link_to "Back to finds", finds_path, class: "ml-auto text-sm text-gray-500 hover:underline dark:text-gray-400" %>
+    </div>
+  <% end %>
+</div>

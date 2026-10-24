@@ -268,6 +268,18 @@ checkbox's `<label>`, so tapping anywhere toggles it on a phone. Chosen:
 out two-up on a phone (`grid-cols-2 sm:grid-cols-3 lg:grid-cols-4`).
 Takes a `WishlistItemView::Cover`.
 
+### `Ui::FindCardComponent`
+
+One eBay find on `/finds` (docs/BARGAIN_HUNTING.md). An `<article>`
+whose `id` is the listing's `dom_id` — the Turbo-Stream target the
+Dismiss action removes. The eBay photo and the matched ISFDB cover side
+by side (`h-28 w-20`), so a wrong match shows at a glance; then the book
+(link to its wishlist page), the cover's artist with the favourite ★ and
+printings, the price line with postage, and the reason (`green-700`
+when it's the target price, muted for a spread find). Actions row: a
+small primary "Open on eBay", a secondary "Dismiss" `button_to`, and a
+tertiary "Wrong printing" link pushed right. Takes a `Finds::Find`.
+
 ### `Ui::MarkdownComponent`
 
 Renders stored Markdown (reviews). Styling is the `.markdown` block in
