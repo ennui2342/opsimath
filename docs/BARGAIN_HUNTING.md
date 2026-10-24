@@ -6,7 +6,8 @@ printing Mark actually collects and cheap. Notify via Discord; act on
 finds in the web app.
 
 Designed 2026-10-24, after a probe against the real wishlist (below).
-Not built yet.
+**Build step 1 (printings, author status, collecting profile, favourite
+artists) built 2026-10-24**; steps 2–4 not yet.
 
 The key requirement is the *printing*, not just the book (Mark: *"for
 older books, I'm basically collecting A-format paperbacks. So I want
@@ -100,8 +101,11 @@ WishlistPrinting
   binding            ISFDB code: pb / tp / hc / ebook / audio / digest / …
   publish_date       EDTF string, as Edition.publish_date
   cover_artist, cover_url
-  wanted             boolean — derived from the profile, unless overridden
 ```
+
+No `wanted` column: whether a printing is wanted is decided on read by
+`CollectingProfile#verdict`, so changing the profile or an override
+takes effect at once with nothing to recompute.
 
 Physical bindings only. `ebook`/audio rows are dropped at refresh time,
 not stored. Publisher names are resolved through the existing authority
@@ -114,32 +118,63 @@ is shown as *printing unknown*.
 
 ### 2. What counts as wanted: the collecting profile
 
-One global **collecting profile** sets the default `wanted` flag on every
-printing. A per-item override replaces it for books where the default is
-wrong. The default (agreed with Mark 2026-10-24):
+Mark collects paperbacks for their **cover art and artists**, in a
+format, not for being early printings (*"I'm looking really for
+interesting cover art from artists that I like, and in a format… in
+some cases later editions are more desirable"*). And he buys recent
+books by living authors **new**, to pay the author. So the rule is
+format first, then cover, and some books aren't hunted at all
+(`CollectingProfile#verdict`, agreed 2026-10-24):
 
-- **Older books** (the work has a `pb` printing within the window):
-  wanted = `binding: pb` **and** published within N years of the work's
-  first publication — the earliest printing date ISFDB has for it. The
-  cutoff is relative to each book, not a fixed year, so a 1950s novel's
-  1970s paperback counts as original-era where a 1990s reissue doesn't.
-  N is a profile setting, chosen in build step 1 by checking real books.
-  SF Masterworks, Gateway and similar reprint lines are trade paperbacks
-  and/or outside the window, so the rule excludes them without a
-  blocklist.
-- **Newer books** (no `pb` printing in the window): any physical printing
-  is wanted, since A-format may never have existed for them.
-- **Any country.** US mass-market paperbacks (DAW, Ace, Del Rey…) are
-  wanted as much as UK A-formats. Physically they're the same format.
-- **Book club editions are never wanted** (SF Book Club, Readers Union —
-  publisher matched through the authority file). They're mostly
-  hardbacks so the binding rule usually excludes them already; this
-  covers the exceptions.
+| Book | Rule | Wanted |
+|---|---|---|
+| Has an A-format printing (ISFDB `pb`) | `a_format` | every A-format, any year |
+| No A-format; recent (first published in the last `recent_years`, default 5) **or** author alive | `buy_new` | nothing — not hunted |
+| No A-format; older **and** author dead | `b_format` | B-formats (ISFDB `tp`) |
+| …and never paperbacked at all | `no_paperback` | any physical printing |
+| ISFDB has no printings; author dead | `unknown_printings` | hunted, every listing's printing unknown |
+| ISFDB has no printings; author alive or unknown | `buy_new` | nothing |
+| `printing_override_ids` set | `override` | exactly those printings |
+
+- **Book club editions are never wanted** and don't count as an
+  A-format (`WishlistPrinting::BOOK_CLUB`: "Book Club", SFBC, BCA,
+  `/ BCE`, Readers Union…).
+- **Any country.** US mass-market paperbacks are A-format too.
+- **`buy_new_override`** forces buy-new on or off for one book.
+- **B-format can't be told from C-format.** ISFDB's `tp` covers both
+  (B ≈ 198×129mm, C ≈ 234×153mm). Some C-formats will turn up; judge
+  from the listing.
 - **No condition filter.** "Acceptable" copies are fine; only "For parts
   or not working" is dropped.
+- **Cover choice comes next.** Within the wanted formats, Mark picks the
+  covers he likes per book (*Front end*); printings sharing a cover are
+  one choice and one price group.
 
-The per-item override is just "these printings, explicitly" (a set of
-`isfdb_pub_id`s), picked in the web app (see *Front end*).
+**Author living or dead** comes from ISFDB's author record
+(`Isfdb::WishlistAuthorRefresh`, monthly per item). The author is found
+by searching the surname, then the full name, and comparing full names
+with case and punctuation folded ("J.G. Ballard" = "J. G. Ballard").
+Several matching records are variant spellings of one person ("Ursula
+K. Le Guin" #37 / "Ursula K. LeGuin" #229311); the oldest is the main
+record. An author that can't be identified counts as living, so the
+default leans towards paying the author. On real data: 216 living, 100
+dead, 23 unknown — nearly all non-genre authors ISFDB doesn't hold, plus
+names with accents the adapter can't search (Lem). ISFDB has no dates at
+all for some authors (Ray Faraday Nelson, d. 2022; Ryu Mitsuse, d. 1999),
+so they count as living; `buy_new_override` fixes a book where that
+matters.
+
+**Favourite artists** are worked out from the collection each time:
+artists on at least `favourite_artist_min_owned` (default 5) owned
+editions, plus `favourite_artists_always`, minus
+`favourite_artists_never`. Nothing to maintain as books are catalogued —
+ISFDB enrichment fills in `Edition.cover_artist` and the counts move —
+only the two exception lists. They flag a find, they don't filter: a
+listing whose cover is by a favourite is notified at once, others go to
+the digest and the Finds page. 31 artists at the default threshold
+(Chris Moore 45, Jim Burns 32, Bruce Pennington 19, Peter Jones 18, Fred
+Gambino 18, Michael Whelan 16…); 172 of the wishlist's A-format
+printings have a favourite's cover.
 
 ### 3. Search
 
@@ -306,8 +341,19 @@ Discovery stays daily.
 WishlistItem  (+)
   target_price            integer pence, nullable
   printing_override_ids   bigint[] of isfdb_pub_id, nullable (null = use profile)
+  printings_refreshed_at
+  buy_new_override        boolean, nullable (null = the profile decides)
+  author_isfdb_id         nullable — null after a check = author unknown
+  author_died_date        EDTF, nullable — null with an id = living
+  author_checked_at
 
 WishlistPrinting          (above)
+
+CollectingProfile         single row
+  recent_years                 5
+  favourite_artist_min_owned   5
+  favourite_artists_always     string[]
+  favourite_artists_never      string[]
 
 EbayListing
   ebay_item_id            unique
@@ -328,8 +374,9 @@ EbayListing
   status                  new / dismissed / bought
 ```
 
-The collecting profile (cutoff year, accepted bindings) is a small
-settings record, editable under `/settings` like the authority files.
+The collecting profile is editable under `/settings` like the authority
+files (step 3); the favourite-artists page shows the computed list with
+owned counts beside the two exception lists.
 
 When a wishlist item is fulfilled and deleted (the Goodreads
 wishlist → to-read move), its printings and listings go with it.
@@ -449,6 +496,36 @@ wishlist entry shows, when holding a copy in a shop, whether the shop's
 price is good. A day-old price is fine for that, so the one-way snapshot
 fits. Cheap to add once `EbayListing` exists.
 
+## Step 1 on real data (2026-10-24)
+
+`bin/rails bargains:printings` (★ = favourite artist; `TITLE=`,
+`RULE=`, `SUMMARY=1`), run against a mirror of production: 1,797
+physical printings for the 339 wishlist books.
+
+| Rule | Books |
+|---|---|
+| `a_format` | 145 |
+| `buy_new` | 164 — 53 recent, 45 older by living authors, 66 not in ISFDB |
+| `unknown_printings` (hunted, dead author) | 21 |
+| `b_format` | 8 |
+| `no_paperback` | 1 |
+
+- The B-format books are what the rule intends: older books by dead
+  authors never in A-format — Priest's *The Adjacent*, Aldiss's *Harm*,
+  Goonan's *In War Times*, C. L. Moore's *Black Gods and Scarlet
+  Dreams*.
+- A first version wanted only "original-era" paperbacks (within N
+  years of first publication). Mark rejected it: early covers are often
+  poor and the peak artists came later, so the window was dropped.
+- **ISFDB misses.** 87 items get no printings — mostly ISBNs the mirror
+  doesn't hold, including real SF (*Emphyrio*). A title + author
+  fallback (isfdb-adapter `/search`) would recover many; not built.
+  Retitled US editions are likely missed the same way (*Hello Summer,
+  Goodbye* was *Rax* in the US).
+- **Undated printings**: 238 of 1,797. No longer matters for the rule,
+  which has no date window; only "recent" uses a date, and it uses the
+  book's earliest dated printing.
+
 ## Build order
 
 1. **Printings**: `WishlistPrinting` + refresh job, collecting profile,
@@ -471,7 +548,6 @@ next.
 
 ## Open questions
 
-- **N, the original-era window** — set from real books in build step 1.
 - **Batch item lookup** — `getItems` (up to 20 listings per call) would
   cut the `getItem` cost; check it's available to a standard keyset
   before relying on it.

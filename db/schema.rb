@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_06_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_24_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -77,6 +77,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_06_120000) do
     t.string "name", null: false
     t.datetime "updated_at", null: false
     t.string "wikidata_id"
+  end
+
+  create_table "collecting_profiles", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "favourite_artist_min_owned", default: 5, null: false
+    t.string "favourite_artists_always", default: [], null: false, array: true
+    t.string "favourite_artists_never", default: [], null: false, array: true
+    t.integer "recent_years", default: 5, null: false
+    t.datetime "updated_at", null: false
   end
 
   create_table "contributors", force: :cascade do |t|
@@ -331,18 +340,40 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_06_120000) do
   end
 
   create_table "wishlist_items", force: :cascade do |t|
+    t.datetime "author_checked_at"
+    t.string "author_died_date"
+    t.bigint "author_isfdb_id"
     t.string "author_name"
+    t.boolean "buy_new_override"
     t.string "cover_url"
     t.datetime "created_at", null: false
     t.jsonb "external_ids", default: {}, null: false
     t.text "notes"
+    t.bigint "printing_override_ids", array: true
+    t.datetime "printings_refreshed_at"
     t.integer "priority"
     t.bigint "series_id"
+    t.integer "target_price"
     t.string "title", null: false
     t.datetime "updated_at", null: false
     t.bigint "work_id"
     t.index ["series_id"], name: "index_wishlist_items_on_series_id"
     t.index ["work_id"], name: "index_wishlist_items_on_work_id"
+  end
+
+  create_table "wishlist_printings", force: :cascade do |t|
+    t.string "binding", null: false
+    t.string "cover_artist"
+    t.string "cover_url"
+    t.datetime "created_at", null: false
+    t.string "isbn10"
+    t.string "isbn13"
+    t.bigint "isfdb_pub_id", null: false
+    t.string "publish_date"
+    t.string "publisher"
+    t.datetime "updated_at", null: false
+    t.bigint "wishlist_item_id", null: false
+    t.index ["wishlist_item_id", "isfdb_pub_id"], name: "index_wishlist_printings_on_wishlist_item_id_and_isfdb_pub_id", unique: true
   end
 
   create_table "work_alternate_titles", force: :cascade do |t|
@@ -461,6 +492,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_06_120000) do
   add_foreign_key "storage_locations", "storage_locations", column: "parent_location_id"
   add_foreign_key "wishlist_items", "series"
   add_foreign_key "wishlist_items", "works"
+  add_foreign_key "wishlist_printings", "wishlist_items"
   add_foreign_key "work_alternate_titles", "works"
   add_foreign_key "work_awards", "awards"
   add_foreign_key "work_awards", "works"

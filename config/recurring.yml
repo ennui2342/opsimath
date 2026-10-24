@@ -21,6 +21,10 @@ production:
     class: IsfdbSiblingIsbnRefreshJob
     queue: default
     schedule: every day at 2:40am
+  wishlist_printing_refresh:
+    class: WishlistPrintingRefreshJob
+    queue: default
+    schedule: every day at 2:50am
   mobile_snapshot:
     class: MobileSnapshotJob
     queue: default

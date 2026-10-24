@@ -51,11 +51,33 @@ module Isfdb
       JSON.parse(response.body)
     end
 
+    # ISFDB authors whose canonical name contains `name` (a substring
+    # match, so the caller picks the exact one). [] when none.
+    def search_authors(name, limit: 200)
+      response = get("/authors/search?#{URI.encode_www_form(q: name, limit:)}")
+      raise ServiceError, "isfdb-adapter returned #{response.code} for author search" unless response.is_a?(Net::HTTPSuccess)
+
+      JSON.parse(response.body)
+    end
+
+    # One author's profile (born_date / died_date / …) without the
+    # bibliography (`works=false` — building it costs ~27s for a prolific
+    # author). The long timeout covers an adapter that predates
+    # works=false and builds it anyway. nil if ISFDB has no such author.
+    def author(author_id)
+      response = get("/authors/#{author_id}?works=false", read_timeout: 60)
+      return nil if response.is_a?(Net::HTTPNotFound)
+
+      raise ServiceError, "isfdb-adapter returned #{response.code} for author #{author_id}" unless response.is_a?(Net::HTTPSuccess)
+
+      JSON.parse(response.body)
+    end
+
     private
 
-    def get(path)
+    def get(path, read_timeout: 10)
       uri = URI.join(@base_url, path)
-      Net::HTTP.start(uri.host, uri.port, open_timeout: 5, read_timeout: 10) do |http|
+      Net::HTTP.start(uri.host, uri.port, open_timeout: 5, read_timeout:) do |http|
         http.request(Net::HTTP::Get.new(uri))
       end
     end
