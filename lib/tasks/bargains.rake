@@ -40,3 +40,50 @@ namespace :bargains do
     puts "  wanted printings by a favourite artist: #{favourite_wanted}"
   end
 end
+
+namespace :bargains do
+  desc "Search eBay for hunted wishlist books, then identify a batch of new listings' printings"
+  task sweep: :environment do
+    puts EbaySweepJob.perform_now
+  end
+
+  desc "Identify printings for up to LIMIT (default 1000) unidentified listings, cheapest first"
+  task identify: :environment do
+    puts Ebay::PrintingIdentifier.run(limit: Integer(ENV.fetch("LIMIT", Ebay::PrintingIdentifier::BATCH)))
+  end
+
+  desc "Report live eBay listings per hunted book, grouped by identified printing " \
+       "(✓ wanted, ★ favourite artist). TITLE filters; SUMMARY=1 prints only the totals"
+  task finds: :environment do
+    profile = CollectingProfile.current
+    favourites = profile.favourite_artists
+    gbp = ->(pence) { pence ? format("£%.2f", pence / 100.0) : "?" }
+    items = WishlistItem.includes(:wishlist_printings, :ebay_listings).order(:title)
+    items = items.where("title ILIKE ?", "%#{ENV['TITLE']}%") if ENV["TITLE"]
+
+    items.each do |item|
+      listings = item.ebay_listings.select { |l| l.ended_at.nil? }
+      next if ENV["SUMMARY"] || listings.empty?
+
+      verdict = profile.verdict(item)
+      puts "\n#{item.title} — #{item.author_name}  [#{verdict.rule}, #{listings.size} live]"
+      listings.group_by(&:matched_pub_ids).sort_by { |ids, _| ids.empty? ? 1 : 0 }.each do |ids, group|
+        printings = item.wishlist_printings.select { |p| ids.include?(p.isfdb_pub_id) }
+        label =
+          if group.first.identified_by.nil? then "not identified yet"
+          elsif printings.empty? then "printing unknown"
+          else printings.map { |p| "#{p.publisher} #{p.binding} #{p.publish_date || 'undated'}" }.uniq.first(3).join("; ")
+          end
+        wanted = printings.any? { |p| verdict.wanted?(p) } ? "✓" : " "
+        star = printings.any? { |p| (p.artists & favourites).any? } ? "★" : " "
+        cheapest = group.min_by { |l| l.total || Float::INFINITY }
+        puts format("  %s%s %-60s %3d listing(s), from %s (%s)", wanted, star, label.truncate(60), group.size,
+                    gbp.(cheapest.total), group.map(&:identified_by).compact.tally.map { |k, v| "#{k} #{v}" }.join(", "))
+      end
+    end
+
+    live = EbayListing.live
+    puts "\nlive listings: #{live.count} across #{live.distinct.count(:wishlist_item_id)} books; " \
+         "identified by: #{live.group(:identified_by).count.transform_keys { |k| k || 'not yet' }}"
+  end
+end

@@ -6,6 +6,7 @@ class WishlistItem < ApplicationRecord
   belongs_to :work, optional: true
   belongs_to :series, optional: true
   has_many :wishlist_printings, dependent: :destroy
+  has_many :ebay_listings, dependent: :destroy
 
   validates :title, presence: true
 

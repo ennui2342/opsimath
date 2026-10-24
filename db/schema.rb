@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_24_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_24_200000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -112,6 +112,36 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_24_120000) do
     t.datetime "updated_at", null: false
     t.index ["edition_id"], name: "index_copies_on_edition_id"
     t.index ["storage_location_id"], name: "index_copies_on_storage_location_id"
+  end
+
+  create_table "ebay_listings", force: :cascade do |t|
+    t.datetime "auction_ends_at"
+    t.integer "bid_count"
+    t.string "buying_options", default: [], null: false, array: true
+    t.string "condition"
+    t.jsonb "cover_scores", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.integer "current_bid"
+    t.string "ebay_item_id", null: false
+    t.datetime "ended_at"
+    t.datetime "first_seen_at", null: false
+    t.string "found_by", null: false
+    t.string "identified_by"
+    t.string "image_url"
+    t.datetime "last_seen_at", null: false
+    t.bigint "matched_pub_ids", default: [], null: false, array: true
+    t.datetime "notified_at"
+    t.string "original_currency"
+    t.integer "price"
+    t.string "seller_country"
+    t.integer "shipping"
+    t.string "shipping_type"
+    t.string "status", default: "new", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.string "url"
+    t.bigint "wishlist_item_id", null: false
+    t.index ["wishlist_item_id", "ebay_item_id"], name: "index_ebay_listings_on_wishlist_item_id_and_ebay_item_id", unique: true
   end
 
   create_table "edition_contents", force: :cascade do |t|
@@ -476,6 +506,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_24_120000) do
   add_foreign_key "authority_variants", "authority_terms"
   add_foreign_key "copies", "editions"
   add_foreign_key "copies", "storage_locations"
+  add_foreign_key "ebay_listings", "wishlist_items"
   add_foreign_key "edition_contents", "editions"
   add_foreign_key "edition_contents", "works"
   add_foreign_key "edition_contributors", "contributors"

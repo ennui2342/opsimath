@@ -6,8 +6,9 @@ printing Mark actually collects and cheap. Notify via Discord; act on
 finds in the web app.
 
 Designed 2026-10-24, after a probe against the real wishlist (below).
-**Build step 1 (printings, author status, collecting profile, favourite
-artists) built 2026-10-24**; steps 2–4 not yet.
+**Steps 1 (printings, author status, collecting profile, favourite
+artists) and 2 (eBay search + printing identification) built
+2026-10-24**; steps 3 (web) and 4 (notifications) not yet.
 
 The key requirement is the *printing*, not just the book (Mark: *"for
 older books, I'm basically collecting A-format paperbacks. So I want
@@ -356,21 +357,19 @@ CollectingProfile         single row
   favourite_artists_never      string[]
 
 EbayListing
-  ebay_item_id            unique
-  wishlist_item_id        fk, dependent: :destroy
-  wishlist_printing_id    fk, nullable (unknown printing)
-  identified_by           cover / text / aspects / unknown
-  cover_scores            jsonb {isfdb_pub_id => {ratio, inliers}} — kept for tuning
-  found_by                keyword / gtin
+  wishlist_item_id        fk, dependent: :destroy; unique with ebay_item_id
+  ebay_item_id
   title, url, image_url
-  price, shipping         pence; shipping null = unknown/collection only
-  currency
-  condition
-  buying_options          string[] (AUCTION / FIXED_PRICE / BEST_OFFER)
-  auction_ends_at, bid_count
-  seller_country
-  first_seen_at, last_seen_at, ended_at
-  notified_at
+  price                   pence, GBP (eBay converts); the Buy It Now price
+  current_bid             pence; auctions
+  shipping, shipping_type pence (null = unknown/collection); FIXED / CALCULATED
+  original_currency       when eBay converted
+  condition, buying_options[], auction_ends_at, bid_count, seller_country
+  found_by                keyword / gtin
+  matched_pub_ids         bigint[] isfdb_pub_ids — one printing, or a shared-cover group
+  identified_by           cover / text / unknown; null = not tried yet
+  cover_scores            jsonb {isfdb_pub_id => {ratio, inliers}} — kept for tuning
+  first_seen_at, last_seen_at, ended_at, notified_at
   status                  new / dismissed / bought
 ```
 
@@ -525,6 +524,46 @@ physical printings for the 339 wishlist books.
 - **Undated printings**: 238 of 1,797. No longer matters for the rule,
   which has no date window; only "recent" uses a date, and it uses the
   book's earliest dated printing.
+
+## Step 2 on real data (2026-10-24)
+
+`bin/rails bargains:sweep` (search, then identify a batch),
+`bargains:identify LIMIT=`, `bargains:finds` (per book, live listings
+grouped by identified printing; ✓ wanted, ★ favourite artist). Run
+against a production mirror with the real Browse API:
+
+- **Sweep:** 175 hunted books, 343 API calls, under 4 minutes. 2,449
+  relevant UK listings across 160 books (2,389 by keyword, 60 more only
+  by the wishlisted ISBN).
+- **Identification:** ~1.1 s per listing (one cover-compare call per
+  distinct ISFDB cover). First 300, cheapest first: 179 by cover (60%),
+  20 by title text (7%), 101 unknown (34%). Scheduled nightly at 1,000
+  a run, so a first sweep's backlog clears in about three nights;
+  after that it's the day's new listings.
+- **Cross-check:** of 28 cover-identified listings whose title quotes a
+  year, 20 matched a printing of that year. The other 8 are mostly the
+  right cover from a neighbouring printing with the same art (a 1971
+  Penguin matched to the 1946 Penguin; Grafton reprints to the 1986
+  Grafton; undated ISFDB printings) — benign when collecting by cover.
+  One looks wrong: a 2014 Sphere *Books of Blood* matched to the 1988
+  Warner at ratio 0.085, just over the threshold. Watch for more before
+  raising it.
+- **Cheapest-first means bulk sellers first** ("…, Used; Very Good
+  Book"). Their photos are stock catalogue images, which match ISFDB's
+  scan very strongly (0.4–0.8) — identifying the catalogue edition they
+  listed against, which is usually but not always the copy they ship.
+- **Shared art across formats.** When an A-format and a B-format used
+  the same cover (*Brasyl*: Gollancz `pb` 2008 and `tp`), the photo
+  can't separate them; the group then counts as wanted if any printing
+  in it is.
+- **Wrong books** that pass the title/author check — study guides (York
+  Notes, "Study Texts") for classics — are now filtered as junk. Others
+  (*Nightfall Two*, a different Asimov collection) end up *printing
+  unknown*, which is never notified.
+- ISFDB sometimes stores two cover URLs as `url|url`; the first is used.
+- Not built yet from the search design: the weekly worldwide search for
+  books with no UK listing, and `getItem` item specifics for listings
+  the cover and title can't identify.
 
 ## Build order
 

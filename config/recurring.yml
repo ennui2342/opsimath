@@ -25,6 +25,10 @@ production:
     class: WishlistPrintingRefreshJob
     queue: default
     schedule: every day at 2:50am
+  ebay_sweep:
+    class: EbaySweepJob
+    queue: default
+    schedule: every day at 4:00am
   mobile_snapshot:
     class: MobileSnapshotJob
     queue: default

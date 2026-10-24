@@ -98,7 +98,7 @@ module Isfdb
         binding: ed["binding"],
         publish_date: ed["publish_date"].presence,
         cover_artist: Array(ed["cover_artists"]).join(", ").presence,
-        cover_url: ed["cover_url"].presence,
+        cover_url: ed["cover_url"].to_s.split("|").first.presence, # ISFDB sometimes holds "url|url"
         created_at: now,
         updated_at: now
       }
