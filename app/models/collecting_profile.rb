@@ -28,6 +28,9 @@ class CollectingProfile < ApplicationRecord
 
   def self.current = first || create!
 
+  validates :recent_years, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+  validates :favourite_artist_min_owned, numericality: { only_integer: true, greater_than_or_equal_to: 1 }
+
   # `ignore_override:` gives the rule's own answer — the candidates the
   # cover picker offers, whatever Mark has chosen among them.
   def verdict(item, printings = item.wishlist_printings.to_a, ignore_override: false)
@@ -55,11 +58,18 @@ class CollectingProfile < ApplicationRecord
   # to maintain but the two exception lists.
   # Memoized per instance: a page or report shares one profile.
   def favourite_artists
-    @favourite_artists ||= begin
+    @favourite_artists ||=
+      (owned_artist_counts.select { |_, n| n >= favourite_artist_min_owned }.keys | favourite_artists_always) -
+      favourite_artists_never
+  end
+
+  # {artist => number of Mark's owned editions with their cover}, most first.
+  def owned_artist_counts
+    @owned_artist_counts ||= begin
       owned = Copy.where(disposition: "owned").select(:edition_id)
-      counts = Edition.where(id: owned).where.not(cover_artist: [ nil, "" ])
-                      .pluck(:cover_artist).flat_map { |a| a.split(", ") }.tally
-      (counts.select { |_, n| n >= favourite_artist_min_owned }.keys | favourite_artists_always) - favourite_artists_never
+      Edition.where(id: owned).where.not(cover_artist: [ nil, "" ])
+             .pluck(:cover_artist).flat_map { |a| a.split(", ") }.tally
+             .sort_by { |artist, n| [ -n, artist ] }.to_h
     end
   end
 

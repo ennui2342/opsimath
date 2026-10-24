@@ -1,0 +1,49 @@
+<% content_for :title, "Collecting" %>
+<% counts = @profile.owned_artist_counts %>
+<% shown = counts.select { |artist, n| n >= @profile.favourite_artist_min_owned || @profile.favourite_artists_never.include?(artist) } %>
+<% input = "rounded-md border border-gray-300 px-2 py-1.5 focus:ring-2 focus:ring-green-600 dark:border-gray-700 dark:bg-gray-900" %>
+<% label = "mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" %>
+
+<div class="w-full max-w-3xl">
+  <h1 class="mb-1 text-2xl font-bold">Collecting</h1>
+  <p class="mb-6 text-sm text-gray-500 dark:text-gray-400">What eBay bargain hunting looks for.</p>
+
+  <%= form_with url: settings_collecting_profile_path, method: :patch do %>
+    <div class="mb-6 flex flex-wrap gap-6">
+      <label class="text-sm">
+        <span class="<%= label %>">Buy new if published within (years)</span>
+        <input type="number" name="recent_years" min="0" value="<%= @profile.recent_years %>" class="w-24 <%= input %>">
+        <span class="mt-1 block text-xs text-gray-500 dark:text-gray-400">…or the author is alive, when there's no A-format</span>
+      </label>
+      <label class="text-sm">
+        <span class="<%= label %>">Favourite artist from (owned covers)</span>
+        <input type="number" name="favourite_artist_min_owned" min="1" value="<%= @profile.favourite_artist_min_owned %>" class="w-24 <%= input %>">
+      </label>
+    </div>
+
+    <h2 class="<%= label %>">Favourite artists from your collection (<%= shown.size %>)</h2>
+    <p class="mb-2 text-xs text-gray-500 dark:text-gray-400">Tick any that aren't really favourites — a design studio, say.</p>
+    <ul class="mb-6 divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
+      <% shown.each do |artist, n| %>
+        <li>
+          <label class="flex items-center gap-3 px-3 py-2 text-sm">
+            <input type="hidden" name="shown_artists[]" value="<%= artist %>">
+            <input type="checkbox" name="not_favourite[]" value="<%= artist %>" <%= "checked" if @profile.favourite_artists_never.include?(artist) %>
+                   class="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-2 focus:ring-green-600 dark:border-gray-600 dark:bg-gray-800">
+            <span class="flex-1 <%= "text-gray-400 line-through dark:text-gray-500" if @profile.favourite_artists_never.include?(artist) %>"><%= artist %></span>
+            <span class="tabular-nums text-gray-500 dark:text-gray-400"><%= n %></span>
+          </label>
+        </li>
+      <% end %>
+    </ul>
+
+    <label class="mb-6 block text-sm">
+      <span class="<%= label %>">Always favourites (one per line)</span>
+      <textarea name="favourite_artists_always" rows="4" placeholder="e.g. Richard Powers"
+                class="w-full <%= input %>"><%= @profile.favourite_artists_always.join("\n") %></textarea>
+      <span class="mt-1 block text-xs text-gray-500 dark:text-gray-400">Artists you love but own few covers by — spelt as ISFDB credits them.</span>
+    </label>
+
+    <button type="submit" class="rounded-md bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600">Save</button>
+  <% end %>
+</div>

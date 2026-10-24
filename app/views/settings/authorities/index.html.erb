@@ -1,8 +1,23 @@
 <% content_for :title, "Settings" %>
 
 <div class="w-full max-w-3xl">
-  <h1 class="mb-1 text-2xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
-  <p class="mb-6 text-sm text-gray-500 dark:text-gray-400">
+  <h1 class="mb-6 text-2xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
+
+  <h2 class="mb-2 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Collecting</h2>
+  <ul class="mb-8 rounded-lg border border-gray-200 dark:border-gray-700">
+    <li>
+      <%= link_to settings_collecting_profile_path,
+            class: "flex items-center justify-between gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800" do %>
+        <span>
+          <span class="font-medium text-gray-900 dark:text-gray-100">Collecting profile</span>
+          <span class="block text-xs text-gray-500 dark:text-gray-400">favourite cover artists, and when to buy new instead of hunting on eBay</span>
+        </span>
+      <% end %>
+    </li>
+  </ul>
+
+  <h2 class="mb-2 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Authority control</h2>
+  <p class="mb-3 text-sm text-gray-500 dark:text-gray-400">
     Authority control — the preferred forms of names, and their variants, that enrichment resolves data to.
     <%= link_to "About", "https://en.wikipedia.org/wiki/Authority_control", class: "underline", target: "_blank", rel: "noopener" %>.
   </p>

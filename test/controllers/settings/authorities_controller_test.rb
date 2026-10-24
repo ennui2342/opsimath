@@ -33,9 +33,12 @@ module Settings
       assert_redirected_to settings_authority_path("publisher")
     end
 
-    test "/settings redirects into authorities" do
+    test "/settings is the settings index: collecting profile and authority files" do
       get "/settings"
-      assert_redirected_to "/settings/authorities"
+
+      assert_response :success
+      assert_select "a[href=?]", settings_collecting_profile_path
+      assert_select "a[href=?]", settings_authority_path("publisher")
     end
   end
 end

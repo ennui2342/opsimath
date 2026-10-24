@@ -34,7 +34,9 @@ Rails.application.routes.draw do
 
   # Settings — authority control is the first section (docs/AUTHORITY_CONTROL.md).
   namespace :settings do
-    get "/", to: redirect("/settings/authorities")
+    get "/", to: "authorities#index"
+    # The collecting profile — what bargain hunting looks for (docs/BARGAIN_HUNTING.md).
+    resource :collecting_profile, path: "collecting", only: [ :show, :update ]
     get "authorities", to: "authorities#index"
     get "authorities/:vocabulary", to: "authorities#show", as: :authority
     post "authorities/:vocabulary/rescan", to: "authorities#rescan", as: :authority_rescan

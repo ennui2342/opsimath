@@ -395,9 +395,12 @@ EbayListing
   identified_by also "manual" — Mark's correction from /finds; never re-identified
 ```
 
-The collecting profile is editable under `/settings` like the authority
-files (step 3); the favourite-artists page shows the computed list with
-owned counts beside the two exception lists.
+The collecting profile is editable at `/settings/collecting` (built
+2026-10-25; `/settings` is now an index of Collecting and Authority
+control): the two numbers, the computed favourite artists with owned
+counts and a "not a favourite" tick each (the never list), and an
+"always" list, one artist per line. Never-list entries that drop under
+the threshold aren't shown but are kept.
 
 When a wishlist item is fulfilled and deleted (the Goodreads
 wishlist → to-read move), its printings and listings go with it —
