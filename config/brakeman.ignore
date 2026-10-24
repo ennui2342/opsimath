@@ -1,0 +1,15 @@
+{
+  "ignored_warnings": [
+    {
+      "warning_type": "Cross-Site Scripting",
+      "warning_code": 4,
+      "fingerprint": "91e5ccabfcfba9da7f14b8afb368cdc286a22c3ae0e878c6e08c8d85a9a8ce5e",
+      "check_name": "LinkToHref",
+      "message": "Potentially unsafe model attribute in `link_to` href",
+      "file": "app/views/ebay_listings/edit.html.erb",
+      "line": 9,
+      "note": "EbayListing#link returns the eBay API's listing URL only when it parses as an https URL on www.ebay.co.uk / ebay.com, else nil — never a javascript: URL. Covered by test/models/ebay_listing_test.rb. Brakeman can't see through the method."
+    }
+  ],
+  "brakeman_version": "8.1.0"
+}

@@ -11,11 +11,11 @@ class WishlistItemsControllerTest < ActionDispatch::IntegrationTest
                                      cover_artist: "Peter Jones", cover_url: "https://covers.test/79.jpg", cover_group: 2)
     @item.wishlist_printings.create!(isfdb_pub_id: 4, binding: "tp", publish_date: "2010", publisher: "TaLeKa", cover_group: 4)
     now = Time.current
-    @item.ebay_listings.create!(ebay_item_id: "a", title: "The Birthgrave Orbit 1979", url: "https://ebay.test/a", price: 450, shipping: 270,
+    @item.ebay_listings.create!(ebay_item_id: "a", title: "The Birthgrave Orbit 1979", url: "https://www.ebay.co.uk/itm/a", price: 450, shipping: 270,
                                 found_by: "keyword", matched_pub_ids: [ 2, 3 ], identified_by: "cover", first_seen_at: now, last_seen_at: now)
-    @item.ebay_listings.create!(ebay_item_id: "b", title: "Birthgrave TaLeKa trade paperback", url: "https://ebay.test/b", price: 900,
+    @item.ebay_listings.create!(ebay_item_id: "b", title: "Birthgrave TaLeKa trade paperback", url: "https://www.ebay.co.uk/itm/b", price: 900,
                                 found_by: "keyword", matched_pub_ids: [ 4 ], identified_by: "text", first_seen_at: now, last_seen_at: now)
-    @item.ebay_listings.create!(ebay_item_id: "c", title: "Birthgrave tanith lee pb", url: "https://ebay.test/c", price: 300,
+    @item.ebay_listings.create!(ebay_item_id: "c", title: "Birthgrave tanith lee pb", url: "https://www.ebay.co.uk/itm/c", price: 300,
                                 found_by: "keyword", identified_by: "unknown", first_seen_at: now, last_seen_at: now)
     sign_in_as users(:one)
   end
@@ -34,7 +34,7 @@ class WishlistItemsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "input[type=checkbox][name='covers[]']", count: 2 # the 1979/1985 Orbits share a cover; the tp isn't offered
     assert_select "input[type=checkbox][value='2'][checked]"
-    assert_select "a[href='https://ebay.test/a']", text: /£4.50 \+ £2.70/
+    assert_select "a[href='https://www.ebay.co.uk/itm/a']", text: /£4.50 \+ £2.70/
     assert_select "h2", text: /Other printings and formats \(1\)/
     assert_select "h2", text: /Printing unknown \(1\)/
   end

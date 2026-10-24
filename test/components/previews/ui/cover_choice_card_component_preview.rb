@@ -2,6 +2,7 @@ module Ui
   class CoverChoiceCardComponentPreview < ViewComponent::Preview
     Listing = Struct.new(:url, :price, :current_bid, :shipping, :condition, :auction_ends_at, :total, keyword_init: true) do
       def auction? = !auction_ends_at.nil?
+      def link = url
     end
 
     def chosen_favourite

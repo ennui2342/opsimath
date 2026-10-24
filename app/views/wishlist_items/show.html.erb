@@ -53,7 +53,7 @@
     <ul class="mb-6 divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
       <% others[key].each do |listing| %>
         <li>
-          <%= link_to listing.url, target: "_blank", rel: "noopener", class: "flex items-center gap-3 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800" do %>
+          <%= link_to listing.link, target: "_blank", rel: "noopener", class: "flex items-center gap-3 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800" do %>
             <% if listing.image_url %><%= image_tag listing.image_url, alt: "", loading: "lazy", class: "h-14 w-10 flex-none object-cover" %><% end %>
             <span class="min-w-0 flex-1 truncate text-sm"><%= listing.title %></span>
             <span class="flex-none text-sm font-medium">£<%= gbp.(listing.total) %></span>

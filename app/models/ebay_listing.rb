@@ -9,6 +9,18 @@ class EbayListing < ApplicationRecord
 
   def auction? = buying_options.include?("AUCTION")
 
+  EBAY_HOST = /\A(www\.)?ebay\.(co\.uk|com)\z/
+
+  # The listing URL, only if it's an https eBay link — it comes from
+  # eBay's API, and anything else (a javascript: URL) must never reach an
+  # href. Views link with this, never with `url`.
+  def link
+    uri = URI.parse(url.to_s)
+    url if uri.is_a?(URI::HTTPS) && uri.host.to_s.match?(EBAY_HOST)
+  rescue URI::InvalidURIError
+    nil
+  end
+
   # What it would cost now, delivered: the current bid for an auction
   # (the Buy It Now price if it has one), postage included when known.
   def total

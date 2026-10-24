@@ -4,6 +4,7 @@ module Ui
   class CoverChoiceCardComponentTest < ViewComponent::TestCase
     Listing = Struct.new(:url, :price, :current_bid, :shipping, :condition, :auction_ends_at, :total, keyword_init: true) do
       def auction? = !auction_ends_at.nil?
+      def link = url
     end
 
     def cover(**attrs)
@@ -33,15 +34,15 @@ module Ui
 
     test "lists the cheapest listings with postage, and counts the rest" do
       listings = Array.new(5) do |i|
-        Listing.new(url: "https://ebay.test/#{i}", price: 400 + i, shipping: 270, condition: "Good", total: 670 + i)
+        Listing.new(url: "https://www.ebay.co.uk/itm/#{i}", price: 400 + i, shipping: 270, condition: "Good", total: 670 + i)
       end
       listings[0].auction_ends_at = Time.zone.parse("2026-10-28 19:46")
       listings[0].current_bid = 99
 
       render_inline(CoverChoiceCardComponent.new(cover: cover(listings:)))
 
-      assert_link "£0.99 + £2.70 · Good · auction, ends 28 Oct", href: "https://ebay.test/0"
-      assert_link "£4.01 + £2.70 · Good", href: "https://ebay.test/1"
+      assert_link "£0.99 + £2.70 · Good · auction, ends 28 Oct", href: "https://www.ebay.co.uk/itm/0"
+      assert_link "£4.01 + £2.70 · Good", href: "https://www.ebay.co.uk/itm/1"
       assert_text "+ 2 more"
     end
   end

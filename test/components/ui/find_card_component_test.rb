@@ -9,8 +9,8 @@ module Ui
       @cover = WishlistItemView::Cover.new(id: 2, printings: [ printing ], artists: [ "Peter Jones" ], favourite: true,
                                            chosen: true, listings: [])
       now = Time.current
-      @listing = @item.ebay_listings.create!(ebay_item_id: "x", title: "Tanith Lee The Birthgrave Orbit pb", url: "https://ebay.test/x",
-                                             image_url: "https://ebay.test/x.jpg", price: 450, shipping: 270, condition: "Good",
+      @listing = @item.ebay_listings.create!(ebay_item_id: "x", title: "Tanith Lee The Birthgrave Orbit pb", url: "https://www.ebay.co.uk/itm/x",
+                                             image_url: "https://www.ebay.co.uk/itm/x.jpg", price: 450, shipping: 270, condition: "Good",
                                              found_by: "keyword", first_seen_at: now, last_seen_at: now)
     end
 
@@ -19,7 +19,7 @@ module Ui
     test "shows the eBay photo beside the matched cover, the price, and why it's a find" do
       render_inline(FindCardComponent.new(find: find))
 
-      assert_selector "img[src='https://ebay.test/x.jpg']"
+      assert_selector "img[src='https://www.ebay.co.uk/itm/x.jpg']"
       assert_selector "img[src='https://covers.test/2.jpg']"
       assert_text "★"
       assert_text "£4.50 + £2.70 postage · Good"

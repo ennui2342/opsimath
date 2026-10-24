@@ -6,7 +6,7 @@
 
   <div class="mb-4 flex gap-3">
     <% if @listing.image_url %><%= image_tag @listing.image_url, alt: "eBay photo", class: "h-40 w-28 flex-none rounded object-cover" %><% end %>
-    <%= link_to @listing.title, @listing.url, target: "_blank", rel: "noopener", class: "text-sm hover:underline" %>
+    <%= link_to @listing.title, @listing.link, target: "_blank", rel: "noopener", class: "text-sm hover:underline" %>
   </div>
 
   <%= form_with url: ebay_listing_path(@listing), method: :patch do %>

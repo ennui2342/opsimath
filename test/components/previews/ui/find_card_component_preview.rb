@@ -3,6 +3,7 @@ module Ui
     Listing = Struct.new(:id, :title, :url, :image_url, :price, :current_bid, :shipping, :condition,
                          :auction_ends_at, :bid_count, :total, keyword_init: true) do
       def auction? = !auction_ends_at.nil?
+      def link = url
       def to_key = [ id ]
       def model_name = EbayListing.model_name
       def persisted? = true
