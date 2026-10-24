@@ -28,11 +28,13 @@ class CollectingProfile < ApplicationRecord
 
   def self.current = first || create!
 
-  def verdict(item, printings = item.wishlist_printings.to_a)
+  # `ignore_override:` gives the rule's own answer — the candidates the
+  # cover picker offers, whatever Mark has chosen among them.
+  def verdict(item, printings = item.wishlist_printings.to_a, ignore_override: false)
     first_year = printings.filter_map(&:year).min
     verdict = ->(rule, wanted = []) { Verdict.new(rule:, wanted:, first_year:) }
 
-    if item.printing_override_ids
+    if item.printing_override_ids && !ignore_override
       return verdict.(:override, printings.select { |p| item.printing_override_ids.include?(p.isfdb_pub_id) })
     end
 
@@ -51,11 +53,14 @@ class CollectingProfile < ApplicationRecord
   # the collection on every call, so it keeps up as books are catalogued
   # (and their cover artists filled in by ISFDB enrichment) with nothing
   # to maintain but the two exception lists.
+  # Memoized per instance: a page or report shares one profile.
   def favourite_artists
-    owned = Copy.where(disposition: "owned").select(:edition_id)
-    counts = Edition.where(id: owned).where.not(cover_artist: [ nil, "" ])
-                    .pluck(:cover_artist).flat_map { |a| a.split(", ") }.tally
-    (counts.select { |_, n| n >= favourite_artist_min_owned }.keys | favourite_artists_always) - favourite_artists_never
+    @favourite_artists ||= begin
+      owned = Copy.where(disposition: "owned").select(:edition_id)
+      counts = Edition.where(id: owned).where.not(cover_artist: [ nil, "" ])
+                      .pluck(:cover_artist).flat_map { |a| a.split(", ") }.tally
+      (counts.select { |_, n| n >= favourite_artist_min_owned }.keys | favourite_artists_always) - favourite_artists_never
+    end
   end
 
   # An unknown year isn't recent — the author's status decides those.

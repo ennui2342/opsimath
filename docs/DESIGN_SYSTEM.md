@@ -255,6 +255,19 @@ endpoint. This is the fast path for "relaxed about trusting an
 ISBN-matched ISFDB cover most of the time, but want an easy escape hatch
 per book" (docs/INTEGRATIONS.md's cover-conflict addendum).
 
+### `Ui::CoverChoiceCardComponent`
+
+One cover in the wishlist cover picker (`wishlist_items/show`,
+docs/BARGAIN_HUNTING.md): the ISFDB cover image on top (`h-48`,
+`object-contain` on a grey well), then a checkbox + the artist (a ★ in
+`amber-500` for a favourite artist), a muted `Publisher years · …` line,
+and up to three cheapest live eBay listings as links (`£price + £postage ·
+condition · auction, ends …`, `+ N more`). The whole card is the
+checkbox's `<label>`, so tapping anywhere toggles it on a phone. Chosen:
+`green-600` border + ring; not chosen: grey border at 75% opacity. Lays
+out two-up on a phone (`grid-cols-2 sm:grid-cols-3 lg:grid-cols-4`).
+Takes a `WishlistItemView::Cover`.
+
 ### `Ui::MarkdownComponent`
 
 Renders stored Markdown (reviews). Styling is the `.markdown` block in
@@ -323,6 +336,17 @@ hover:bg-gray-50 dark:hover:bg-gray-800`) with the subject on the left and a
 `Ui::BadgeComponent` on the right. Filter pills (when a queue has kinds)
 are a `flex flex-wrap gap-2` row of `rounded-full px-3 py-1 text-sm` links,
 active one in `conflict`.
+
+### Choice grid (cover picker)
+
+`wishlist_items/show` — "which of these do I want", many-of-N, not a
+triage decision: a grid of `Ui::CoverChoiceCardComponent` checkboxes
+inside one form, the item's own fields (target price, a select) in a
+`flex flex-wrap items-end gap-4` row under it, and one green **Save**.
+No keyboard shortcuts (not a throughput screen); a plain redirect with a
+`notice`, not a Turbo-Stream advance. Secondary lists under the form use
+the queue-list `divide-y … rounded-lg border` `<ul>` with an
+uppercase-xs heading and a count.
 
 ### "All caught up" empty state
 

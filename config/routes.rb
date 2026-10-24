@@ -5,6 +5,10 @@ Rails.application.routes.draw do
 
   resources :works, only: [ :index, :show ]
 
+  # Bargain hunting (docs/BARGAIN_HUNTING.md): the wishlist, and per book
+  # the cover picker + target price + current eBay listings.
+  resources :wishlist_items, path: "wishlist", only: [ :index, :show, :update ]
+
   # The offline shop-lookup PWA (docs/MOBILE.md) — bearer-token, no session.
   namespace :mobile do
     get "/", to: "app#show", as: :app

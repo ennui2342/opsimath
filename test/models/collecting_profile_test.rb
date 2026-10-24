@@ -131,8 +131,9 @@ class CollectingProfileTest < ActiveSupport::TestCase
 
     assert_equal %w[Blacksheep Chris\ Moore].sort, @profile.favourite_artists.sort
 
-    @profile.favourite_artists_always = [ "Bruce Pennington" ]
-    @profile.favourite_artists_never = [ "Blacksheep" ]
+    profile = CollectingProfile.new(favourite_artist_min_owned: 2, favourite_artists_always: [ "Bruce Pennington" ],
+                                    favourite_artists_never: [ "Blacksheep" ])
+    @profile = profile
     assert_equal [ "Bruce Pennington", "Chris Moore" ], @profile.favourite_artists.sort
   end
 end

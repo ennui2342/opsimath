@@ -14,13 +14,8 @@ module Ebay
   #    when it can. Never to overrule a cover match.
   # 3. Otherwise unknown.
   #
-  # Thresholds are looser than Enrichment::CoverApplier's, which compare
-  # two clean scans: a phone photo of a real copy scores lower. Chosen in
-  # the spike (138 listings, docs/BARGAIN_HUNTING.md); to be tuned
-  # against Mark's corrections.
+  # "Same cover" is CoverMatch's threshold.
   class PrintingIdentifier
-    SAME_RATIO = 0.08
-    MIN_INLIERS = 30
     TIE_MARGIN = 0.03
     BATCH = 1000 # ~1.1s each (one cover-compare call per distinct cover): ~18 min a night
     # Dropped from a publisher name before looking for it in a listing
@@ -84,7 +79,7 @@ module Ebay
     def by_cover(printings, scores)
       same = printings.select do |p|
         s = scores[p.isfdb_pub_id]
-        s && s["ratio"] >= SAME_RATIO && s["inliers"] >= MIN_INLIERS
+        s && CoverMatch.same?(s["ratio"], s["inliers"])
       end
       return [ [], nil ] if same.empty?
 

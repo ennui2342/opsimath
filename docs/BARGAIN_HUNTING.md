@@ -8,7 +8,8 @@ finds in the web app.
 Designed 2026-10-24, after a probe against the real wishlist (below).
 **Steps 1 (printings, author status, collecting profile, favourite
 artists) and 2 (eBay search + printing identification) built
-2026-10-24**; steps 3 (web) and 4 (notifications) not yet.
+2026-10-24; step 3's `/wishlist` and `/wishlist/:id` (cover picker) built
+2026-10-25**; `/finds` and step 4 (notifications) not yet.
 
 The key requirement is the *printing*, not just the book (Mark: *"for
 older books, I'm basically collecting A-format paperbacks. So I want
@@ -116,6 +117,16 @@ when matching a listing.
 The 87 items with no ISFDB match (67 unresolved ISBNs + 20 without one)
 get no printings. They're hunted as "any physical copy" and every find
 is shown as *printing unknown*.
+
+**Cover groups.** `WishlistCoverGrouping` (in the same nightly job)
+groups each hunted book's printings by cover art, within a binding —
+the unit Mark chooses in and prices are compared in. Greedy, earliest
+printing first, comparing each cover with one representative per group
+(`CoverMatch` thresholds); a shared cover URL groups for free. Regrouped
+only when a book's printings change (`cover_groups_digest`). First run on
+real data: 2,668 comparisons in about 8 minutes, 1,473 printings → 1,066
+covers (*The Birthgrave*'s 13 A-formats → 6 covers, one per artist plus
+a scan-less DAW; *Brave New World*'s 44 → 20).
 
 ### 2. What counts as wanted: the collecting profile
 
@@ -370,7 +381,7 @@ EbayListing
   identified_by           cover / text / unknown; null = not tried yet
   cover_scores            jsonb {isfdb_pub_id => {ratio, inliers}} — kept for tuning
   first_seen_at, last_seen_at, ended_at, notified_at
-  status                  new / dismissed / bought
+  status                  new / dismissed
 ```
 
 The collecting profile is editable under `/settings` like the authority
@@ -431,8 +442,8 @@ phone. That doesn't make the shop-lookup PWA the right home for them:
   rebuilt once a day and downloaded on wifi (`docs/MOBILE.md`). An
   auction ending this afternoon or a listing sold an hour ago would show
   stale there.
-- **Finds need writes; the PWA has none by design.** Dismiss, wrong
-  printing and bought all write back. `docs/MOBILE.md` keeps the PWA
+- **Finds need writes; the PWA has none by design.** Dismiss and wrong
+  printing both write back. `docs/MOBILE.md` keeps the PWA
   strictly read-only so it never needs offline-sync machinery
   (`PHILOSOPHY.md` principle 15), and lines up Turbo Native for any
   interactive mobile client.
@@ -467,8 +478,10 @@ Actions, with keyboard shortcuts like the decision screens:
 - **Wrong printing** (`w`) — opens a picker to re-assign it to the right
   printing, or to *not this book*. This feedback is also how the
   identification rules get tuned.
-- **Bought** (`b`) — marks the listing; the catalogue update still comes
-  from moving the book to `to-read` on Goodreads, as today.
+
+No "bought" action (Mark): buying is recorded by moving the book to
+`to-read` on Goodreads, which removes the wishlist item and its listings
+on the next sync.
 
 The Discord links point here, not straight to eBay, so the next action
 can be taken in one place.
@@ -481,6 +494,17 @@ wanted-printing listing, and the count of live listings. Sort by best
 find, by price or by title.
 
 ### `/wishlist/:id` — printings and listings for one book
+
+**Built 2026-10-25** (with `/wishlist`): a grid of the rule's candidate
+covers — printings grouped by `WishlistPrinting#cover_group`
+(`WishlistCoverGrouping`) — each a `Ui::CoverChoiceCardComponent` with a
+"want" checkbox; target price; a buy-new select (*as the rule says /
+always hunt / buy new instead*); one Save. Ticking a subset stores those
+covers' printings in `printing_override_ids`; ticking every cover
+clears it, so the rule stays in charge and printings ISFDB adds later
+are still wanted. Listings on none of the offered covers are listed
+underneath by reason: other printings and formats, printing unknown,
+not identified yet. Spec as first written:
 
 - **Printing picker** — the ISFDB printings, rendered with the shared
   edition-card layout (`Ui::EditionCardComponent`), each with a wanted

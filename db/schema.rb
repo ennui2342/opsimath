@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_24_200000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_25_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -375,6 +375,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_24_200000) do
     t.bigint "author_isfdb_id"
     t.string "author_name"
     t.boolean "buy_new_override"
+    t.string "cover_groups_digest"
     t.string "cover_url"
     t.datetime "created_at", null: false
     t.jsonb "external_ids", default: {}, null: false
@@ -394,6 +395,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_24_200000) do
   create_table "wishlist_printings", force: :cascade do |t|
     t.string "binding", null: false
     t.string "cover_artist"
+    t.bigint "cover_group"
     t.string "cover_url"
     t.datetime "created_at", null: false
     t.string "isbn10"
