@@ -13,10 +13,13 @@ production:
   clear_solid_queue_finished_jobs:
     command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
     schedule: every hour at minute 12
-  goodreads_sync:
-    class: GoodreadsSyncJob
-    queue: default
-    schedule: every hour at minute 42
+  # Paused 2026-10-28: Goodreads has removed RSS, so every run 404s and
+  # posts an error to Discord. Mark is looking at alternatives; restore
+  # this entry (or replace it) when there's a new source.
+  # goodreads_sync:
+  #   class: GoodreadsSyncJob
+  #   queue: default
+  #   schedule: every hour at minute 42
   isfdb_sibling_isbn_refresh:
     class: IsfdbSiblingIsbnRefreshJob
     queue: default
