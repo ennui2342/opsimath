@@ -393,8 +393,12 @@ The same grid (`add_books/_edition_grid` partial) is the "which edition
 is this?" page for an edition on file (`edition_changes/edit`): no
 intent row, one green **This is my edition**, and `notes` badges over a
 card's headline — "Yours now" (`:success`) and "Same ISBN" (`:default`)
-— sorted first. On the book page, an edition with a queued printing
-choice gets a `conflict`-family bar under its card linking there.
+— sorted first. On the book page, each queued decision about an
+edition gets a `conflict`-family bar under its card: a printing choice
+links to this picker; anything else says which source differs on which
+fields (`decision_summary`) and links to the review screen with
+`work_id`, which then says "Back to the book" and returns there once
+accepted or rejected instead of advancing through the queue.
 
 ### "All caught up" empty state
 

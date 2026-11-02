@@ -316,4 +316,22 @@ class PendingDecisionsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to pending_decision_url(rec)
     assert rec.reload.pending?
   end
+
+  test "a decision opened from its book page says so on the book, and returns there once settled" do
+    sign_in_as users(:one)
+    work = @edition.works.first
+
+    get work_url(work)
+    assert_select "p", text: /ISFDB's record differs on publisher\./
+    assert_select "a[href=?]", pending_decision_path(@pending, work_id: work.id), text: "Review"
+
+    get pending_decision_url(@pending, work_id: work.id)
+    assert_select "form[action=?]", accept_pending_decision_path(@pending, work_id: work.id)
+    assert_select "a[href=?]", work_path(work), text: "Back to the book"
+
+    post accept_pending_decision_url(@pending, work_id: work.id), params: { fields: [ "publisher" ] }, as: :turbo_stream
+
+    assert_redirected_to work_path(work)
+    assert @pending.reload.accepted?
+  end
 end

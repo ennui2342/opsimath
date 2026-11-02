@@ -60,6 +60,12 @@ class PendingDecisionsController < ApplicationController
   end
 
   def advance
+    # Opened from a book page: back to the book rather than on through the
+    # queue (a redirect answers a Turbo form submission too).
+    if params[:work_id].present? && (work = Work.find_by(id: params[:work_id]))
+      return redirect_to(work_path(work), status: :see_other, notice: "Decision saved.")
+    end
+
     @kind = params[:kind].presence
     next_scope = PendingDecision.pending
     next_scope = next_scope.where(kind: @kind) if @kind
