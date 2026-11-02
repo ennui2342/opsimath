@@ -19,6 +19,15 @@ class AddBooksControllerTest < ActionDispatch::IntegrationTest
     css_select("a").map { |a| a["href"] }.find { |h| h.to_s.include?("found=") }.then { |h| Rack::Utils.parse_query(URI(h).query)["found"] }
   end
 
+  test "the search box carries a barcode scanner, hidden until the browser has one" do
+    get add_book_url
+
+    assert_select "form[data-controller=barcode-scan]" do
+      assert_select "button[hidden][data-action='barcode-scan#open']", text: "Scan barcode"
+      assert_select "[data-barcode-scan-target=overlay][hidden] video"
+    end
+  end
+
   test "search shows each work with choose-edition and want-it" do
     get add_book_url(q: "crossfire kress")
 

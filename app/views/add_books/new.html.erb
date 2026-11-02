@@ -6,11 +6,21 @@
 <div class="w-full max-w-3xl">
   <h1 class="mb-4 text-2xl font-bold">Add a book</h1>
 
-  <%= form_with url: add_book_path, method: :get, class: "mb-6 flex gap-2" do %>
+  <%= form_with url: add_book_path, method: :get, class: "mb-6 flex gap-2", data: { controller: "barcode-scan" } do %>
     <input type="search" name="q" value="<%= @query %>" placeholder="Title and author, or an ISBN" autofocus
-           aria-label="Title and author, or an ISBN"
+           aria-label="Title and author, or an ISBN" data-barcode-scan-target="input"
            class="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-green-600 dark:border-gray-700 dark:bg-gray-900">
+    <button type="button" hidden data-barcode-scan-target="button" data-action="barcode-scan#open" class="<%= secondary %>">Scan barcode</button>
     <button type="submit" class="<%= primary %>">Search</button>
+
+    <%# The camera, full screen while scanning (the PWA's scanner overlay). %>
+    <div hidden data-barcode-scan-target="overlay" class="fixed inset-0 z-50 bg-black">
+      <video data-barcode-scan-target="video" playsinline muted class="h-full w-full object-cover"></video>
+      <div class="pointer-events-none absolute left-1/2 top-1/2 aspect-[5/3] w-[70%] max-w-80 -translate-x-1/2 -translate-y-1/2 rounded-lg border-2 border-white/80"></div>
+      <p data-barcode-scan-target="hint" class="absolute inset-x-0 bottom-12 px-6 text-center text-white"></p>
+      <button type="button" data-action="barcode-scan#close" aria-label="Close scanner"
+              class="absolute right-4 top-4 rounded-full bg-black/60 px-3 py-1 text-xl text-white">✕</button>
+    </div>
   <% end %>
 
   <% if @query.present? && @results.empty? %>

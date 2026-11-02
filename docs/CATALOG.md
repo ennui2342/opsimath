@@ -405,6 +405,11 @@ to change.
      archive.org — so OL covers were silently dropped everywhere,
      including cover grouping and eBay printing identification once OL
      rows have covers (none had yet). It follows up to 3 now.
+   - **Barcode scanning** (2026-11-02): "Scan barcode" beside the search
+     box (`barcode_scan_controller.js`, the PWA scanner's twin) reads an
+     EAN-13 with the browser's `BarcodeDetector` and submits it as an
+     ISBN lookup. Shown only where the browser has one (Chrome on
+     Android / macOS, not Safari); needs HTTPS, which the web app has.
    - **Not yet:** DNF from the add screen (log it on the book page);
      the review text on finishing; pre-selecting the printing from a
      `/finds` listing; editing a new work's literary form (always
