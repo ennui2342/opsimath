@@ -18,7 +18,7 @@ module Enrichment
 
     # Returns the list of fields actually applied (for the flash message).
     def apply(picks)
-      Array(picks).reject(&:blank?).map { |pick| apply_one(pick) }
+      Array(picks).reject(&:blank?).map { |pick| apply_one(pick) }.tap { PendingDecisionSweep.for_edition(@edition.id) }
     end
 
     private

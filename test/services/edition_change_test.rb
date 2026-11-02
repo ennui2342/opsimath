@@ -45,6 +45,7 @@ class EditionChangeTest < ActiveSupport::TestCase
   test "settles the queued printing choice and moots provider conflicts, leaving others" do
     choice = PendingDecision.create!(kind: "enrichment_printing_choice", payload: { entity_type: "Edition", entity_id: @edition.id, source: "isfdb", candidates: [] })
     conflict = PendingDecision.create!(kind: "enrichment_conflict", payload: { entity_type: "Edition", entity_id: @edition.id, source: "isfdb", fields: [ "publisher" ] })
+    @edition.enrichment_records.create!(provider: "goodreads", external_id: "42", fetched_at: Time.current, raw_payload: {}, fields: { "publisher" => "Grafton" })
     goodreads = PendingDecision.create!(kind: "enrichment_conflict", payload: { entity_type: "Edition", entity_id: @edition.id, source: "goodreads", fields: [ "publisher" ] })
     other = PendingDecision.create!(kind: "enrichment_printing_choice", payload: { entity_type: "Edition", entity_id: @edition.id + 1, source: "isfdb", candidates: [] })
 

@@ -24,7 +24,7 @@ class EditionChange
       edition.cover_image.detach # not purge: the blob can be shared with a provider record
       edition.edition_identifiers.where(id_type: IDENTIFIERS).destroy_all
       edition.enrichment_records.where(provider: PROVIDERS).destroy_all
-      AddBook::Create.fill(edition.reload, card)
+      AddBook::Create.fill(edition.reload, card).tap { PendingDecisionSweep.for_edition(edition.id) }
     end
   end
 

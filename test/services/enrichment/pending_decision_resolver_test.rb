@@ -227,6 +227,8 @@ module Enrichment
         "entity_type" => "Edition", "entity_id" => edition.id, "source" => "isfdb", "isbn" => "0586065504",
         "candidates" => [ { "_isfdb_pub_id" => 35246, "publisher" => "Triad Grafton", "binding" => "pb" } ]
       })
+      EnrichmentRecord.create!(entity: edition, provider: "goodreads", external_id: "9", fetched_at: Time.current, raw_payload: {},
+                               fields: { "publisher" => "Grafton" })
       goodreads_conflict = PendingDecision.create!(kind: "enrichment_conflict", payload: {
         "entity_type" => "Edition", "entity_id" => edition.id, "source" => "goodreads", "fields" => %w[publisher]
       })

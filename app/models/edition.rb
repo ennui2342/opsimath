@@ -31,6 +31,9 @@ class Edition < ApplicationRecord
   has_many :readings, dependent: :restrict_with_error
   has_many :enrichment_records, as: :entity, dependent: :destroy
 
+  # Decisions about a deleted edition have nothing left to decide.
+  after_destroy_commit { PendingDecisionSweep.for_edition(id) }
+
   # No presence validation — Goodreads' RSS feed (Phase 2) gives no
   # binding/format signal at all for some editions; forcing a value would
   # fabricate data, same reasoning as publish_date's own EDTF fix. Left

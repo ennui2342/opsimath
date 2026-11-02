@@ -39,6 +39,8 @@ module Enrichment
       else accept_enrichment(selected_fields)
       end
       @pending_decision.update!(status: "accepted", resolved_at: Time.current, payload: @pending_decision.payload)
+      # Accepting one source's values can settle another's disagreement.
+      PendingDecisionSweep.for_edition(@pending_decision.payload["entity_id"]) if @pending_decision.payload["entity_type"] == "Edition"
     end
 
     def reject

@@ -473,6 +473,21 @@ to change.
 8. Later: discovery; then federation. Reviews' route to scifipraxis is
    punted — posting to Goodreads was manual anyway, so nothing is lost.
 
+## Pending decisions stay live (2026-11-02)
+
+Mark: anything that changes an edition outside the review screen can
+leave decisions behind that no longer have anything to decide. Rather
+than each feature cleaning up its own slice, `PendingDecisionSweep`
+holds one rule: a decision about an edition closes when the edition is
+gone (rejected), its source's record is gone (rejected), or every field
+it disputes now agrees — publisher variants by the authority file, covers
+by checksum (accepted, the same close a fresh fetch makes). It runs after
+every interface change to an edition (review-screen accept, metadata cog,
+"Not this printing?"), on any edition's destroy, and nightly at 3:10 over
+the whole queue as a backstop. Measured on the prod copy the day it was
+built: 0 of 418 moot (265 fully live, 52 agreeing on some fields), so it
+prevents cruft rather than clearing a backlog.
+
 ## Settled (2026-11-02)
 
 - **Reviews:** later. Posting to Goodreads was manual, so nothing is lost

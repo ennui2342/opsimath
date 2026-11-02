@@ -32,6 +32,10 @@ production:
     class: EbaySweepJob
     queue: default
     schedule: every day at 4:00am
+  pending_decision_sweep:
+    class: PendingDecisionSweepJob
+    queue: default
+    schedule: every day at 3:10am
   mobile_snapshot:
     class: MobileSnapshotJob
     queue: default
