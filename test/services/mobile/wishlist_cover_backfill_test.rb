@@ -11,10 +11,9 @@ module Mobile
 
     setup do
       @client = Isfdb::Client.new(base_url: BASE_URL)
-      @in_feed = WishlistItem.create!(title: "In The Feed", external_ids: { "goodreads" => "111" })
-      @via_isfdb = WishlistItem.create!(title: "Off The Feed",
-                                        external_ids: { "goodreads" => "222", "isbn13" => "9780765304674" })
-      @no_lookup = WishlistItem.create!(title: "Manual Add") # no goodreads id, no isbn
+      @in_feed = create_want(title: "In The Feed", external_ids: { "goodreads" => "111" })
+      @via_isfdb = create_want(title: "Off The Feed", external_ids: { "goodreads" => "222" }, isbns: [ "9780765304674" ])
+      @no_lookup = create_want(title: "Manual Add") # no goodreads id, no isbn
 
       stub_request(:get, "https://i.gr-assets.com/feed-cover.jpg")
         .to_return(status: 200, body: "feed-bytes", headers: { "Content-Type" => "image/jpeg" })

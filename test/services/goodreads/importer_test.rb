@@ -46,14 +46,14 @@ module Goodreads
       assert_equal "paperback", record.fields["format"]
     end
 
-    test "a wishlist row creates only a WishlistItem, no Work/Edition/Copy" do
+    test "a wishlist row creates a wanted Work and its Want, no Edition/Copy" do
       Importer.import(FIXTURE)
 
-      assert_not Work.exists?(title: "Vagabonds")
-      item = WishlistItem.find_by!(title: "Vagabonds")
-      assert_equal "Hao Jingfang", item.author_name
-      assert_equal "49454725", item.external_ids["goodreads"]
-      assert_equal "9781534422087", item.external_ids["isbn13"]
+      want = Want.joins(:work).find_by!(works: { title: "Vagabonds" })
+      assert_empty want.work.editions
+      assert_equal "Hao Jingfang", want.author_name
+      assert_equal "49454725", want.external_ids["goodreads"]
+      assert_equal "9781534422087", want.seed_isbns.first
     end
 
     test "a currently-reading row opens a Reading with date_started from Date Added" do
@@ -212,11 +212,11 @@ module Goodreads
 
     test "re-running the import against the same file is a no-op" do
       Importer.import(FIXTURE)
-      before = { works: Work.count, editions: Edition.count, readings: Reading.count, wishlist: WishlistItem.count, enrichment_records: EnrichmentRecord.count }
+      before = { works: Work.count, editions: Edition.count, readings: Reading.count, wishlist: Want.count, enrichment_records: EnrichmentRecord.count }
 
       counts = Importer.import(FIXTURE)
 
-      assert_equal before, { works: Work.count, editions: Edition.count, readings: Reading.count, wishlist: WishlistItem.count, enrichment_records: EnrichmentRecord.count }
+      assert_equal before, { works: Work.count, editions: Edition.count, readings: Reading.count, wishlist: Want.count, enrichment_records: EnrichmentRecord.count }
       assert_equal 0, counts.imported_rows
       assert_equal 0, counts.wishlisted
     end

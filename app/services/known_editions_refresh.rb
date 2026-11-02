@@ -36,7 +36,7 @@ class KnownEditionsRefresh
   end
 
   def run
-    works = Work.includes(editions: :edition_identifiers).to_a
+    works = Work.includes(:want, editions: :edition_identifiers).to_a
     isbns_by_id = works.to_h { |w| [ w.id, source_isbns(w) ] }
     refreshes = ProviderEditionRefresh.where(provider: @provider.name).index_by(&:work_id)
     ids_by_work = WorkIdentifier.where(id_type: @id_type).pluck(:work_id, :value).group_by(&:first).transform_values { |v| v.map(&:last) }
@@ -68,12 +68,14 @@ class KnownEditionsRefresh
 
   private
 
-  # ISBN-13 first, then ISBN-10.
+  # The work's own ISBNs, ISBN-13 first, then those it was wanted under —
+  # a wanted book has no edition of its own until one is owned.
   def source_isbns(work)
-    work.editions.flat_map(&:edition_identifiers)
-        .select { |i| i.id_type == "isbn13" || i.id_type == "isbn10" }
-        .sort_by { |i| i.id_type == "isbn13" ? 0 : 1 }
-        .map(&:value).uniq
+    own = work.editions.flat_map(&:edition_identifiers)
+              .select { |i| i.id_type == "isbn13" || i.id_type == "isbn10" }
+              .sort_by { |i| i.id_type == "isbn13" ? 0 : 1 }
+              .map(&:value)
+    (own + Array(work.want&.seed_isbns)).uniq
   end
 
   # Providers::KnownEditions, or nil on a provider failure (left due).

@@ -14,19 +14,19 @@ module Goodreads
       client.send(:parse, body).find { |i| i.goodreads_book_id == goodreads_book_id }
     end
 
-    test "wishlist creates a WishlistItem and only a WishlistItem" do
+    test "wishlist creates a wanted Work and its Want — no Edition or Copy" do
       item = fixture_item("wishlist", "29363290")
 
       outcome = ShelfSync.sync(item, "wishlist", {})
 
-      wishlist_item = WishlistItem.find_by!("external_ids ->> 'goodreads' = ?", "29363290")
-      assert_equal "A Greater Music", wishlist_item.title
-      assert_equal "Bae Suah", wishlist_item.author_name
-      assert_equal "1940953464", wishlist_item.external_ids["isbn10"] # captured for shop-scan matching
-      assert_equal "https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/books/1469296531l/29363290._SY475_.jpg", wishlist_item.cover_url
-      assert wishlist_item.cover_image.attached? # downloaded for the shop-lookup :thumb
-      assert_equal wishlist_item, outcome.entity
-      assert_not Work.exists?(title: "A Greater Music")
+      want = Want.find_by!("external_ids ->> 'goodreads' = ?", "29363290")
+      assert_equal "A Greater Music", want.title
+      assert_equal "Bae Suah", want.author_name
+      assert_equal [ Isbn.to_13("1940953464") ], want.seed_isbns # captured for shop-scan matching
+      assert_equal "https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/books/1469296531l/29363290._SY475_.jpg", want.cover_url
+      assert want.cover_image.attached? # downloaded for the shop-lookup :thumb
+      assert_equal want, outcome.entity
+      assert_empty want.work.editions
       assert outcome.created
       assert outcome.changed
     end
@@ -36,7 +36,7 @@ module Goodreads
       ShelfSync.sync(item, "wishlist", {})
       ShelfSync.sync(item, "wishlist", {})
 
-      assert_equal 1, WishlistItem.where("external_ids ->> 'goodreads' = ?", "29363290").count
+      assert_equal 1, Want.where("external_ids ->> 'goodreads' = ?", "29363290").count
     end
 
     test "wishlist is a no-op (changed: false) when the item is already on the wishlist — the real notification bug" do
@@ -47,14 +47,14 @@ module Goodreads
       # writes for an already-present item — but GoodreadsSyncJob had no
       # way to tell that apart from a genuine addition, and notified
       # "Added to wishlist" for ~100 books that had been there for ages.
-      WishlistItem.create!(title: "A Greater Music", author_name: "Bae Suah", external_ids: { "goodreads" => "29363290" })
+      create_want(title: "A Greater Music", author: "Bae Suah", external_ids: { "goodreads" => "29363290" })
       item = fixture_item("wishlist", "29363290")
 
       outcome = ShelfSync.sync(item, "wishlist", {})
 
       assert_not outcome.created
       assert_not outcome.changed
-      assert_equal 1, WishlistItem.where(external_ids: { "goodreads" => "29363290" }).count
+      assert_equal 1, Want.where(external_ids: { "goodreads" => "29363290" }).count
     end
 
     test "to-read auto-creates Work/Edition/Copy for a genuinely new book" do
@@ -105,32 +105,53 @@ module Goodreads
       assert_equal "0316466409", edition.edition_identifiers.find_by(id_type: "isbn10").value
     end
 
-    test "to-read deletes the matching WishlistItem — the real wishlist-to-catalog transition" do
-      WishlistItem.create!(title: "Europe at Dawn", author_name: "Dave Hutchinson", external_ids: { "goodreads" => "39666185" })
+    test "to-read removes the matching Want — the real wishlist-to-catalog transition" do
+      create_want(title: "Europe at Dawn", author: "Dave Hutchinson", external_ids: { "goodreads" => "39666185" })
       item = fixture_item("to_read", "39666185")
 
       outcome = ShelfSync.sync(item, "to-read", {})
 
-      assert_not WishlistItem.exists?(external_ids: { "goodreads" => "39666185" })
-      assert Work.exists?(title: "Europe at Dawn") # series suffix stripped by RowParser.series_info
+      assert_not Want.exists?(external_ids: { "goodreads" => "39666185" })
+      assert_equal 1, Work.where(title: "Europe at Dawn").count # series suffix stripped by RowParser.series_info; no empty placeholder left
       assert outcome.changed # a real transition happened, even though the edition itself already existed
     end
 
-    # Bargain hunting hangs ISFDB printings and eBay listings off the
-    # wishlist item by foreign key (docs/BARGAIN_HUNTING.md): buying the
-    # book must take them with it, not fail the sync on the constraint.
-    test "to-read removes the wishlist item's bargain-hunting printings and eBay listings with it" do
-      wished = WishlistItem.create!(title: "Europe at Dawn", author_name: "Dave Hutchinson", external_ids: { "goodreads" => "39666185" })
-      wished.wishlist_printings.create!(isfdb_pub_id: 1, binding: "pb")
-      wished.ebay_listings.create!(ebay_item_id: "v1|1|0", title: "Europe at Dawn", found_by: "keyword",
-                                   first_seen_at: Time.current, last_seen_at: Time.current)
+    # Bargain hunting hangs printings and eBay listings off the wanted
+    # Work by foreign key (docs/BARGAIN_HUNTING.md): when the book was
+    # catalogued as a different Work, the edition-less placeholder goes,
+    # taking them with it rather than failing the sync on the constraint.
+    test "to-read onto an already-catalogued edition drops the wanted placeholder with its printings and listings" do
+      wished = create_want(title: "Europe at Dawn", author: "Dave Hutchinson", external_ids: { "goodreads" => "39666185" })
+      placeholder = wished.work
+      add_printing(wished, 1)
+      placeholder.ebay_listings.create!(ebay_item_id: "v1|1|0", title: "Europe at Dawn", found_by: "keyword",
+                                        first_seen_at: Time.current, last_seen_at: Time.current)
+      catalogued = Work.create!(title: "Europe at Dawn", literary_form: "novel") # already in the catalogue, this exact edition
+      edition = Edition.create!
+      EditionContent.create!(work: catalogued, edition:)
+      EditionIdentifier.create!(edition:, id_type: "goodreads", value: "39666185")
       item = fixture_item("to_read", "39666185")
 
       ShelfSync.sync(item, "to-read", {})
 
-      assert_not WishlistItem.exists?(wished.id)
-      assert_equal 0, WishlistPrinting.where(wishlist_item_id: wished.id).count
-      assert_equal 0, EbayListing.where(wishlist_item_id: wished.id).count
+      assert Work.exists?(catalogued.id)
+      assert_not Work.exists?(placeholder.id)
+      assert_equal 0, ProviderEdition.where(work_id: placeholder.id).count
+      assert_equal 0, EbayListing.where(work_id: placeholder.id).count
+    end
+
+    test "to-read of a wanted book not yet catalogued goes onto the want's own Work, not a reconciliation" do
+      wished = create_want(title: "A Greater Music", author: "Bae Suah", external_ids: { "goodreads" => "29363290" })
+      item = fixture_item("wishlist", "29363290") # the same book, now moved to to-read
+
+      outcome = ShelfSync.sync(item, "to-read", {})
+
+      work = wished.work.reload
+      assert_equal 1, work.editions.count
+      assert work.editions.first.copies.exists?(disposition: "owned")
+      assert_not Want.exists?(wished.id)
+      assert_equal 0, PendingDecision.count
+      assert outcome.created
     end
 
     test "to-read is a no-op (changed: false) when matching an already-catalogued edition with no wishlist entry to remove" do

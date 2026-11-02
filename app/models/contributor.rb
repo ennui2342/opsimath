@@ -8,4 +8,13 @@ class Contributor < ApplicationRecord
   has_many :enrichment_records, as: :entity, dependent: :destroy
 
   validates :name, presence: true
+
+  # :living / :dead from the ISFDB author record (ContributorLifeRefresh),
+  # :unknown when it couldn't be identified — CollectingProfile's buy-new
+  # rule treats unknown as living. died_date is EDTF.
+  def life_status
+    return :dead if died_date.present?
+
+    external_ids["isfdb"].present? ? :living : :unknown
+  end
 end

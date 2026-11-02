@@ -21,13 +21,13 @@ module Ui
     private
 
     def find(reason:, **listing_attrs)
-      item = WishlistItem.new(id: 1, title: "The Birthgrave", author_name: "Tanith Lee", target_price: 900)
-      printing = WishlistPrinting.new(isfdb_pub_id: 2, publisher: "Orbit", publish_date: "1979", binding: "pb",
+      want = Want.new(id: 1, work: Work.new(title: "The Birthgrave", literary_form: "novel"), target_price: 900)
+      printing = ProviderEdition.new(provider: "isfdb", provider_id: "2", publisher: "Orbit", publish_date: "1979", binding: "pb",
                                       cover_url: "https://www.isfdb.org/wiki/images/2/2b/BRTHGRVRB1979.jpg")
       cover = WishlistItemView::Cover.new(id: 2, printings: [ printing ], artists: [ "Peter Jones" ], favourite: true, chosen: true, listings: [])
       listing = Listing.new({ id: 1, title: "Tanith Lee The Birthgrave Orbit 1979 paperback", url: "#", image_url: nil,
                               price: 450, shipping: 270, condition: "Good", total: 720 }.merge(listing_attrs))
-      Finds::Find.new(listing:, item:, cover:, median: 1500, count: 6, reason:)
+      Finds::Find.new(listing:, want:, cover:, median: 1500, count: 6, reason:)
     end
   end
 end

@@ -185,7 +185,7 @@ module Mobile
       Edition.where(id: edition_ids).includes(cover_image_attachment: :blob).find_each do |e|
         records["edition:#{e.id}"] = e
       end
-      WishlistItem.where(id: wishlist_ids).includes(cover_image_attachment: :blob).find_each do |w|
+      Want.where(id: wishlist_ids).includes(cover_image_attachment: :blob).find_each do |w|
         records["wishlist:#{w.id}"] = w
       end
       records

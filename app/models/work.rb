@@ -22,6 +22,9 @@ class Work < ApplicationRecord
   # catalogue's own `editions` (docs/CATALOG.md, "Architecture review").
   has_many :provider_editions, dependent: :destroy
   has_many :provider_edition_refreshes, dependent: :destroy
+  # Wanted (docs/CATALOG.md): bargain hunting's book, its eBay listings.
+  has_one :want, dependent: :destroy
+  has_many :ebay_listings, dependent: :destroy
   has_many :work_contributors, dependent: :destroy
   has_many :contributors, through: :work_contributors
   has_many :work_series, dependent: :destroy
@@ -38,8 +41,15 @@ class Work < ApplicationRecord
   has_many :editions, through: :edition_contents
   has_many :readings, dependent: :restrict_with_error
   has_many :reviews, dependent: :restrict_with_error
-  has_many :wishlist_items, dependent: :nullify
   has_many :enrichment_records, as: :entity, dependent: :destroy
 
   validates :title, presence: true
+
+  # The work's authors in credit order (role "author"), as the shop app's
+  # snapshot lists them.
+  def authors
+    work_contributors.select { |wc| wc.role == "author" }
+                     .sort_by { |wc| wc.display_order || Float::INFINITY }
+                     .map(&:contributor)
+  end
 end

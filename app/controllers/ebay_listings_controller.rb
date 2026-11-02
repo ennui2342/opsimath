@@ -15,8 +15,8 @@ class EbayListingsController < ApplicationController
   end
 
   def edit
-    @covers = @listing.wishlist_item.wishlist_printings
-                      .group_by { |p| [ p.binding, p.cover_group || p.isfdb_pub_id ] }
+    @covers = @listing.work.provider_editions.select(&:hunted_printing?)
+                      .group_by { |p| [ p.binding, p.cover_group&.to_i || p.isfdb_pub_id ] }
                       .sort_by { |(format_code, _), ps| [ format_code, ps.filter_map(&:year).min || 9999 ] }
   end
 
@@ -28,7 +28,7 @@ class EbayListingsController < ApplicationController
       @listing.update!(matched_pub_ids: [], identified_by: "manual")
     else
       ids = params[:printing].to_s.split(",").map(&:to_i)
-      known = @listing.wishlist_item.wishlist_printings.map(&:isfdb_pub_id)
+      known = @listing.work.provider_editions.filter_map(&:isfdb_pub_id)
       @listing.update!(matched_pub_ids: ids & known, identified_by: "manual")
     end
     redirect_to finds_path, notice: "Updated “#{@listing.title.truncate(40)}”."
@@ -37,6 +37,6 @@ class EbayListingsController < ApplicationController
   private
 
   def set_listing
-    @listing = EbayListing.includes(wishlist_item: :wishlist_printings).find(params[:id])
+    @listing = EbayListing.includes(work: [ :provider_editions, :want, { work_contributors: :contributor } ]).find(params[:id])
   end
 end

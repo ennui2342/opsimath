@@ -2,12 +2,14 @@ ENV["RAILS_ENV"] ||= "test"
 require_relative "../config/environment"
 require "rails/test_help"
 require_relative "test_helpers/session_test_helper"
+require_relative "test_helpers/wishlist_test_helper"
 require "webmock/minitest"
 
 WebMock.disable_net_connect!(allow_localhost: true)
 
 module ActiveSupport
   class TestCase
+    include WishlistTestHelper
     # Run tests in parallel with specified workers
     parallelize(workers: :number_of_processors)
 

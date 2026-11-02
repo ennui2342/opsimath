@@ -9,7 +9,7 @@
       <% end %>
     </div>
     <div class="min-w-0 flex-1 text-sm">
-      <%= link_to find.item.title, helpers.wishlist_item_path(find.item), class: "block truncate font-medium hover:underline" %>
+      <%= link_to find.want.title, helpers.wishlist_item_path(find.want), class: "block truncate font-medium hover:underline" %>
       <p class="truncate text-xs text-gray-500 dark:text-gray-400">
         <% if find.favourite? %><span title="Favourite artist" class="text-amber-500 dark:text-amber-400">★</span><% end %>
         <%= artist_line %> · <%= find.cover.summary %>

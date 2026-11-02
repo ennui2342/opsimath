@@ -2,20 +2,21 @@ require "test_helper"
 
 class WishlistItemsControllerTest < ActionDispatch::IntegrationTest
   setup do
-    @item = WishlistItem.create!(title: "The Birthgrave", author_name: "Tanith Lee", author_isfdb_id: 105, author_died_date: "2015-05-24")
-    @item.wishlist_printings.create!(isfdb_pub_id: 1, binding: "pb", publish_date: "1977-09", publisher: "Orbit",
-                                     cover_artist: "Gino D'Achille", cover_url: "https://covers.test/77.jpg", cover_group: 1)
-    @item.wishlist_printings.create!(isfdb_pub_id: 2, binding: "pb", publish_date: "1979", publisher: "Orbit",
-                                     cover_artist: "Peter Jones", cover_url: "https://covers.test/79.jpg", cover_group: 2)
-    @item.wishlist_printings.create!(isfdb_pub_id: 3, binding: "pb", publish_date: "1985", publisher: "Orbit",
-                                     cover_artist: "Peter Jones", cover_url: "https://covers.test/79.jpg", cover_group: 2)
-    @item.wishlist_printings.create!(isfdb_pub_id: 4, binding: "tp", publish_date: "2010", publisher: "TaLeKa", cover_group: 4)
+    @item = create_want
+    author_dead!(@item, "2015-05-24")
+    add_printing(@item, 1, binding: "pb", publish_date: "1977-09", publisher: "Orbit",
+                                     cover_artist: "Gino D'Achille", cover_url: "https://covers.test/77.jpg", cover_group: "1")
+    add_printing(@item, 2, binding: "pb", publish_date: "1979", publisher: "Orbit",
+                                     cover_artist: "Peter Jones", cover_url: "https://covers.test/79.jpg", cover_group: "2")
+    add_printing(@item, 3, binding: "pb", publish_date: "1985", publisher: "Orbit",
+                                     cover_artist: "Peter Jones", cover_url: "https://covers.test/79.jpg", cover_group: "2")
+    add_printing(@item, 4, binding: "tp", publish_date: "2010", publisher: "TaLeKa", cover_group: "4")
     now = Time.current
-    @item.ebay_listings.create!(ebay_item_id: "a", title: "The Birthgrave Orbit 1979", url: "https://www.ebay.co.uk/itm/a", price: 450, shipping: 270,
+    @item.work.ebay_listings.create!(ebay_item_id: "a", title: "The Birthgrave Orbit 1979", url: "https://www.ebay.co.uk/itm/a", price: 450, shipping: 270,
                                 found_by: "keyword", matched_pub_ids: [ 2, 3 ], identified_by: "cover", first_seen_at: now, last_seen_at: now)
-    @item.ebay_listings.create!(ebay_item_id: "b", title: "Birthgrave TaLeKa trade paperback", url: "https://www.ebay.co.uk/itm/b", price: 900,
+    @item.work.ebay_listings.create!(ebay_item_id: "b", title: "Birthgrave TaLeKa trade paperback", url: "https://www.ebay.co.uk/itm/b", price: 900,
                                 found_by: "keyword", matched_pub_ids: [ 4 ], identified_by: "text", first_seen_at: now, last_seen_at: now)
-    @item.ebay_listings.create!(ebay_item_id: "c", title: "Birthgrave tanith lee pb", url: "https://www.ebay.co.uk/itm/c", price: 300,
+    @item.work.ebay_listings.create!(ebay_item_id: "c", title: "Birthgrave tanith lee pb", url: "https://www.ebay.co.uk/itm/c", price: 300,
                                 found_by: "keyword", identified_by: "unknown", first_seen_at: now, last_seen_at: now)
     sign_in_as users(:one)
   end

@@ -19,24 +19,24 @@ class WishlistItemView
     def cheapest = listings.first
   end
 
-  attr_reader :item, :verdict, :rule
+  attr_reader :want, :verdict, :rule
 
-  def initialize(item, profile: CollectingProfile.current)
-    @item = item
+  def initialize(want, profile: CollectingProfile.current)
+    @want = want
     @profile = profile
-    printings = item.wishlist_printings.to_a
-    @rule = profile.verdict(item, printings, ignore_override: true)
-    @verdict = profile.verdict(item, printings)
+    printings = want.printings
+    @rule = profile.verdict(want, printings, ignore_override: true)
+    @verdict = profile.verdict(want, printings)
     @favourites = profile.favourite_artists
-    @live = item.ebay_listings.select { |l| l.ended_at.nil? && l.status == "new" }.sort_by { |l| l.total || Float::INFINITY }
+    @live = want.work.ebay_listings.select { |l| l.ended_at.nil? && l.status == "new" }.sort_by { |l| l.total || Float::INFINITY }
   end
 
   def hunted? = verdict.hunt?
 
-  def overridden? = !item.printing_override_ids.nil?
+  def overridden? = !want.printing_override_ids.nil?
 
   def covers
-    @covers ||= rule.wanted.group_by { |p| p.cover_group || p.isfdb_pub_id }.map do |id, printings|
+    @covers ||= rule.wanted.group_by { |p| p.cover_group&.to_i || p.isfdb_pub_id }.map do |id, printings|
       ids = printings.map(&:isfdb_pub_id)
       artists = printings.flat_map(&:artists).uniq
       Cover.new(id:, printings:, artists:, favourite: (artists & @favourites).any?,

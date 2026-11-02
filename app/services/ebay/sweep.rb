@@ -6,7 +6,7 @@ module Ebay
   # - keywords — "<short title> <author>", Books category, UK sellers,
   #   cheapest first, so the 50-result page drops the expensive copies,
   #   never the bargains;
-  # - the ISBN the book was wishlisted under, as a cross-check.
+  # - the ISBN the book was wanted under (Want#seed_isbns), as a cross-check.
   #
   # Listings are filtered to the right book (author surname and the
   # title's opening words in the listing title; no job lots or bundles)
@@ -41,16 +41,16 @@ module Ebay
       @now = now
     end
 
-    def run(items = WishlistItem.includes(:wishlist_printings))
+    def run(wants = Want.includes(work: [ :provider_editions, { work_contributors: :contributor } ]))
       result = Result.new(hunted: 0, searches: 0, seen: 0, created: 0, ended: 0, failed: 0)
-      items.each do |item|
-        next unless @profile.verdict(item).hunt?
+      wants.each do |want|
+        next unless @profile.verdict(want).hunt?
 
         result.hunted += 1
-        sweep(item, result)
+        sweep(want, result)
       rescue Error => e
         result.failed += 1
-        Rails.logger.warn("eBay sweep: item ##{item.id} — #{e.message}")
+        Rails.logger.warn("eBay sweep: want ##{want.id} — #{e.message}")
       end
       result.ended = end_stale_listings
       result
@@ -58,40 +58,40 @@ module Ebay
 
     private
 
-    def sweep(item, result)
-      found = keyword_search(item).map { |s| [ s, "keyword" ] }
+    def sweep(want, result)
+      found = keyword_search(want).map { |s| [ s, "keyword" ] }
       result.searches += 1
-      if (isbn = isbn13(item))
+      if (isbn = want.seed_isbns.first)
         found += @client.search(gtin: isbn).map { |s| [ s, "gtin" ] }
         result.searches += 1
       end
 
       found.uniq { |summary, _| summary["itemId"] }.each do |summary, found_by|
-        next unless relevant?(item, summary)
+        next unless relevant?(want, summary)
 
         result.seen += 1
-        result.created += 1 if record(item, summary, found_by)
+        result.created += 1 if record(want, summary, found_by)
       end
     end
 
-    def keyword_search(item)
-      @client.search(q: "#{short_title(item.title)} #{item.author_name}", category_ids: BOOKS_CATEGORY,
+    def keyword_search(want)
+      @client.search(q: "#{short_title(want.title)} #{want.author_name}", category_ids: BOOKS_CATEGORY,
                      filter: "itemLocationCountry:GB", sort: "price")
     end
 
-    def relevant?(item, summary)
+    def relevant?(want, summary)
       title = summary["title"].to_s
       return false if title.match?(JUNK) || EXCLUDED_CONDITIONS.include?(summary["condition"])
 
       words = " #{fold(title)} "
-      surname = fold(item.author_name.to_s.sub(/,?\s+(jr|sr)\.?\z/i, "")).split.last
-      opening = fold(short_title(item.title)).split.first(TITLE_WORDS).join(" ")
+      surname = fold(want.author_name.to_s.sub(/,?\s+(jr|sr)\.?\z/i, "")).split.last
+      opening = fold(short_title(want.title)).split.first(TITLE_WORDS).join(" ")
       words.include?(" #{opening} ") && (surname.nil? || words.include?(" #{surname} "))
     end
 
     # -> true when the listing is new.
-    def record(item, summary, found_by)
-      listing = item.ebay_listings.find_or_initialize_by(ebay_item_id: summary["itemId"])
+    def record(want, summary, found_by)
+      listing = want.work.ebay_listings.find_or_initialize_by(ebay_item_id: summary["itemId"])
       created = listing.new_record?
       listing.assign_attributes(attributes(summary).merge(last_seen_at: @now, ended_at: nil))
       listing.first_seen_at ||= @now
@@ -126,10 +126,6 @@ module Ebay
 
     def pence(amount)
       amount && (BigDecimal(amount["value"]) * 100).round
-    end
-
-    def isbn13(item)
-      item.external_ids["isbn13"].presence || (item.external_ids["isbn10"].presence && Isbn.to_13(item.external_ids["isbn10"]))
     end
 
     # The title up to any subtitle or series suffix: "World's Edge: A

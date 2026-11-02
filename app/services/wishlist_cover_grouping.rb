@@ -1,7 +1,8 @@
-# Groups each hunted wishlist book's printings by cover art — the unit
-# Mark picks covers in, and prices are compared in (docs/BARGAIN_HUNTING.md).
-# Stored as WishlistPrinting#cover_group: the representative printing's
-# isfdb_pub_id, shared by every printing with the same cover.
+# Groups each hunted wishlist book's printings — its work's physical ISFDB
+# editions (Want#printings) — by cover art: the unit Mark picks covers in,
+# and prices are compared in (docs/BARGAIN_HUNTING.md). Stored as
+# ProviderEdition#cover_group: the representative printing's pub id, shared
+# by every printing with the same cover.
 #
 # Within one binding only: the picker shows one format per book, so an
 # A-format and a B-format sharing a painting don't need to be one group.
@@ -11,7 +12,7 @@
 # a cover URL group without a comparison; one with no cover is a group of
 # its own.
 #
-# A book is regrouped only when its printings change (cover_groups_digest),
+# A book is regrouped only when its printings change (Want#cover_groups_digest),
 # so after the first run this is a few new books a day. Bounded by a
 # wall-clock deadline; books not reached keep their old digest and are
 # picked up next run.
@@ -30,23 +31,23 @@ class WishlistCoverGrouping
     @deadline = deadline
   end
 
-  def run(items = WishlistItem.includes(:wishlist_printings))
+  def run(wants = Want.includes(work: [ :provider_editions, { work_contributors: :contributor } ]))
     started = Time.current
     result = Result.new(hunted: 0, stale: 0, grouped: 0, comparisons: 0, truncated: false)
-    items.each do |item|
-      next unless @profile.verdict(item).hunt?
+    wants.each do |want|
+      next unless @profile.verdict(want).hunt?
 
       result.hunted += 1
-      digest = self.class.digest(item.wishlist_printings)
-      next if item.cover_groups_digest == digest
+      digest = self.class.digest(want.printings)
+      next if want.cover_groups_digest == digest
 
       result.stale += 1
       if Time.current - started > @deadline
         result.truncated = true
         next
       end
-      result.comparisons += group(item)
-      item.update_columns(cover_groups_digest: digest)
+      result.comparisons += group(want)
+      want.update_columns(cover_groups_digest: digest)
       result.grouped += 1
     end
     result
@@ -59,10 +60,10 @@ class WishlistCoverGrouping
   private
 
   # -> number of cover comparisons made
-  def group(item)
+  def group(want)
     images = {}
     comparisons = 0
-    item.wishlist_printings.group_by(&:binding).each_value do |printings|
+    want.printings.group_by(&:binding).each_value do |printings|
       reps = [] # [representative printing, its image bytes]
       printings.sort_by { |p| [ p.year || 9999, p.isfdb_pub_id ] }.each do |p|
         rep = reps.find { |r, _| p.cover_url.present? && r.cover_url == p.cover_url }
@@ -75,10 +76,10 @@ class WishlistCoverGrouping
           end
         end
         if rep
-          p.update_columns(cover_group: rep.first.isfdb_pub_id)
+          p.update_columns(cover_group: rep.first.provider_id)
         else
           reps << [ p, image(images, p.cover_url) ]
-          p.update_columns(cover_group: p.isfdb_pub_id)
+          p.update_columns(cover_group: p.provider_id)
         end
       end
     end

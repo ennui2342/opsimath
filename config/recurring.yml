@@ -24,8 +24,8 @@ production:
     class: WorkKnownEditionsRefreshJob
     queue: default
     schedule: every day at 2:40am
-  wishlist_printing_refresh:
-    class: WishlistPrintingRefreshJob
+  wishlist_refresh:
+    class: WishlistRefreshJob
     queue: default
     schedule: every day at 2:50am
   ebay_sweep:

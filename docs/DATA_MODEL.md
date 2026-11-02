@@ -485,12 +485,12 @@ columns before real cross-posting patterns are known.
 
 ## WishlistItem
 
-**Being superseded (2026-11-02, `docs/CATALOG.md` "Architecture
-review"):** with Goodreads gone and opsimath the system of record, a
-wanted book becomes a `Work` with a want record rather than a
-self-contained item — the want sits on the Work, so no edition is
-committed to before one is owned. The reasoning below is the original
-design, kept for history.
+**Superseded 2026-11-03 by `Want` (`docs/CATALOG.md`, build step 4):**
+with Goodreads gone and opsimath the system of record, a wanted book is
+a `Work` with a `Want` — the want sits on the Work, so no edition is
+committed to before one is owned. `wishlist_items` remains only as the
+pre-migration record until it's dropped. The reasoning below is the
+original design, kept for history.
 
 Deliberately self-contained, not a reference — confirmed by stress-testing
 against a future feature (browsing a metadata provider and adding a

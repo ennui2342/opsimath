@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_03_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_03_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -54,20 +54,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_090000) do
   end
 
   create_table "authority_terms", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.string "preferred_label", null: false
-    t.datetime "updated_at", null: false
     t.string "vocabulary", null: false
+    t.string "preferred_label", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["vocabulary", "preferred_label"], name: "index_authority_terms_on_vocabulary_and_preferred_label", unique: true
   end
 
   create_table "authority_variants", force: :cascade do |t|
     t.bigint "authority_term_id", null: false
-    t.datetime "created_at", null: false
+    t.string "vocabulary", null: false
     t.string "label", null: false
     t.string "normalized_label", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "vocabulary", null: false
     t.index ["authority_term_id"], name: "index_authority_variants_on_authority_term_id"
     t.index ["vocabulary", "normalized_label"], name: "index_authority_variants_on_vocabulary_and_normalized_label", unique: true
   end
@@ -80,11 +80,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_090000) do
   end
 
   create_table "collecting_profiles", force: :cascade do |t|
-    t.datetime "created_at", null: false
+    t.integer "recent_years", default: 5, null: false
     t.integer "favourite_artist_min_owned", default: 5, null: false
     t.string "favourite_artists_always", default: [], null: false, array: true
     t.string "favourite_artists_never", default: [], null: false, array: true
-    t.integer "recent_years", default: 5, null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end
 
@@ -96,6 +96,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_090000) do
     t.string "name", null: false
     t.string "sort_name"
     t.datetime "updated_at", null: false
+    t.string "died_date"
+    t.datetime "life_checked_at"
   end
 
   create_table "copies", force: :cascade do |t|
@@ -115,33 +117,35 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_090000) do
   end
 
   create_table "ebay_listings", force: :cascade do |t|
-    t.datetime "auction_ends_at"
-    t.integer "bid_count"
-    t.string "buying_options", default: [], null: false, array: true
-    t.string "condition"
-    t.jsonb "cover_scores", default: {}, null: false
-    t.datetime "created_at", null: false
-    t.integer "current_bid"
+    t.bigint "wishlist_item_id"
     t.string "ebay_item_id", null: false
-    t.datetime "ended_at"
-    t.datetime "first_seen_at", null: false
-    t.string "found_by", null: false
-    t.string "identified_by"
+    t.string "title", null: false
+    t.string "url"
     t.string "image_url"
-    t.datetime "last_seen_at", null: false
-    t.bigint "matched_pub_ids", default: [], null: false, array: true
-    t.datetime "notified_at"
-    t.string "original_currency"
     t.integer "price"
-    t.string "seller_country"
+    t.integer "current_bid"
     t.integer "shipping"
     t.string "shipping_type"
+    t.string "original_currency"
+    t.string "condition"
+    t.string "buying_options", default: [], null: false, array: true
+    t.datetime "auction_ends_at"
+    t.integer "bid_count"
+    t.string "seller_country"
+    t.string "found_by", null: false
+    t.bigint "matched_pub_ids", default: [], null: false, array: true
+    t.string "identified_by"
+    t.jsonb "cover_scores", default: {}, null: false
+    t.datetime "first_seen_at", null: false
+    t.datetime "last_seen_at", null: false
+    t.datetime "ended_at"
+    t.datetime "notified_at"
     t.string "status", default: "new", null: false
-    t.string "title", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "url"
-    t.bigint "wishlist_item_id", null: false
+    t.bigint "work_id", null: false
     t.index ["wishlist_item_id", "ebay_item_id"], name: "index_ebay_listings_on_wishlist_item_id_and_ebay_item_id", unique: true
+    t.index ["work_id", "ebay_item_id"], name: "index_ebay_listings_on_work_id_and_ebay_item_id", unique: true
   end
 
   create_table "edition_contents", force: :cascade do |t|
@@ -180,7 +184,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_090000) do
   end
 
   create_table "editions", force: :cascade do |t|
-    t.string "cover_artist"
     t.datetime "created_at", null: false
     t.text "description"
     t.integer "duration_seconds"
@@ -192,10 +195,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_090000) do
     t.string "language"
     t.integer "page_count"
     t.string "printing"
-    t.string "publish_date"
     t.string "publisher"
     t.datetime "updated_at", null: false
     t.bigint "variant_of_edition_id"
+    t.string "publish_date"
+    t.string "cover_artist"
     t.index ["variant_of_edition_id"], name: "index_editions_on_variant_of_edition_id"
   end
 
@@ -205,10 +209,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_090000) do
     t.string "entity_type", null: false
     t.string "external_id", null: false
     t.datetime "fetched_at", null: false
-    t.jsonb "fields", default: {}, null: false
     t.string "provider", null: false
     t.jsonb "raw_payload", default: {}, null: false
     t.datetime "updated_at", null: false
+    t.jsonb "fields", default: {}, null: false
     t.index ["entity_type", "entity_id", "provider"], name: "index_enrichment_records_on_entity_and_provider", unique: true
   end
 
@@ -221,10 +225,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_090000) do
   end
 
   create_table "goodreads_sync_states", force: :cascade do |t|
-    t.datetime "created_at", null: false
     t.string "goodreads_book_id", null: false
-    t.jsonb "last_synced_payload", default: {}, null: false
     t.string "shelf", null: false
+    t.jsonb "last_synced_payload", default: {}, null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["goodreads_book_id", "shelf"], name: "index_goodreads_sync_states_on_goodreads_book_id_and_shelf", unique: true
   end
@@ -242,19 +246,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_090000) do
   end
 
   create_table "mobile_snapshots", force: :cascade do |t|
-    t.bigint "byte_size"
-    t.datetime "created_at", null: false
-    t.integer "entry_count"
-    t.datetime "generated_at"
-    t.datetime "updated_at", null: false
     t.integer "version", default: 0, null: false
+    t.datetime "generated_at"
+    t.bigint "byte_size"
+    t.integer "entry_count"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
   end
 
   create_table "mobile_thumbs", id: false, force: :cascade do |t|
     t.string "blob_key", null: false
+    t.binary "data", null: false
     t.integer "byte_size", null: false
     t.datetime "created_at", null: false
-    t.binary "data", null: false
     t.index ["blob_key"], name: "index_mobile_thumbs_on_blob_key", unique: true
   end
 
@@ -270,30 +274,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_090000) do
   end
 
   create_table "provider_edition_refreshes", force: :cascade do |t|
-    t.string "provider", null: false
-    t.string "queried_isbns", default: [], null: false, array: true
-    t.datetime "refreshed_at", null: false
     t.bigint "work_id", null: false
+    t.string "provider", null: false
+    t.datetime "refreshed_at", null: false
+    t.string "queried_isbns", default: [], null: false, array: true
     t.index ["work_id", "provider"], name: "index_provider_edition_refreshes_on_work_id_and_provider", unique: true
   end
 
   create_table "provider_editions", force: :cascade do |t|
-    t.string "binding"
-    t.string "cover_artist"
-    t.string "cover_group"
-    t.string "cover_url"
-    t.datetime "created_at", null: false
-    t.string "isbn10"
-    t.string "isbn13"
-    t.string "language"
-    t.integer "page_count"
+    t.bigint "work_id", null: false
     t.string "provider", null: false
     t.string "provider_id", null: false
-    t.string "publish_date"
-    t.string "publisher"
+    t.string "isbn13"
+    t.string "isbn10"
     t.string "title"
+    t.string "publisher"
+    t.string "binding"
+    t.string "publish_date"
+    t.string "language"
+    t.integer "page_count"
+    t.string "cover_url"
+    t.string "cover_artist"
+    t.string "cover_group"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "work_id", null: false
     t.index ["isbn13"], name: "index_provider_editions_on_isbn13"
     t.index ["work_id", "provider", "provider_id"], name: "idx_on_work_id_provider_provider_id_93ac77baa6", unique: true
   end
@@ -398,42 +402,60 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_090000) do
     t.index ["item_type", "item_id"], name: "index_versions_on_item_type_and_item_id"
   end
 
-  create_table "wishlist_items", force: :cascade do |t|
-    t.datetime "author_checked_at"
-    t.string "author_died_date"
-    t.bigint "author_isfdb_id"
-    t.string "author_name"
+  create_table "wants", force: :cascade do |t|
+    t.bigint "work_id", null: false
+    t.integer "priority"
+    t.text "notes"
+    t.integer "target_price"
+    t.bigint "printing_override_ids", array: true
     t.boolean "buy_new_override"
+    t.string "seed_isbns", default: [], null: false, array: true
+    t.string "cover_url"
+    t.jsonb "external_ids", default: {}, null: false
     t.string "cover_groups_digest"
+    t.bigint "legacy_wishlist_item_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["legacy_wishlist_item_id"], name: "index_wants_on_legacy_wishlist_item_id", unique: true
+    t.index ["work_id"], name: "index_wants_on_work_id", unique: true
+  end
+
+  create_table "wishlist_items", force: :cascade do |t|
+    t.string "author_name"
     t.string "cover_url"
     t.datetime "created_at", null: false
     t.jsonb "external_ids", default: {}, null: false
     t.text "notes"
-    t.bigint "printing_override_ids", array: true
-    t.datetime "printings_refreshed_at"
     t.integer "priority"
     t.bigint "series_id"
-    t.integer "target_price"
     t.string "title", null: false
     t.datetime "updated_at", null: false
     t.bigint "work_id"
+    t.integer "target_price"
+    t.bigint "printing_override_ids", array: true
+    t.datetime "printings_refreshed_at"
+    t.boolean "buy_new_override"
+    t.bigint "author_isfdb_id"
+    t.string "author_died_date"
+    t.datetime "author_checked_at"
+    t.string "cover_groups_digest"
     t.index ["series_id"], name: "index_wishlist_items_on_series_id"
     t.index ["work_id"], name: "index_wishlist_items_on_work_id"
   end
 
   create_table "wishlist_printings", force: :cascade do |t|
+    t.bigint "wishlist_item_id", null: false
+    t.bigint "isfdb_pub_id", null: false
+    t.string "isbn13"
+    t.string "isbn10"
+    t.string "publisher"
     t.string "binding", null: false
+    t.string "publish_date"
     t.string "cover_artist"
-    t.bigint "cover_group"
     t.string "cover_url"
     t.datetime "created_at", null: false
-    t.string "isbn10"
-    t.string "isbn13"
-    t.bigint "isfdb_pub_id", null: false
-    t.string "publish_date"
-    t.string "publisher"
     t.datetime "updated_at", null: false
-    t.bigint "wishlist_item_id", null: false
+    t.bigint "cover_group"
     t.index ["wishlist_item_id", "isfdb_pub_id"], name: "index_wishlist_printings_on_wishlist_item_id_and_isfdb_pub_id", unique: true
   end
 
@@ -479,12 +501,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_090000) do
   end
 
   create_table "work_identifiers", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.string "id_type", null: false
-    t.string "source"
-    t.datetime "updated_at", null: false
-    t.string "value", null: false
     t.bigint "work_id", null: false
+    t.string "id_type", null: false
+    t.string "value", null: false
+    t.string "source"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.index ["id_type", "value"], name: "index_work_identifiers_on_id_type_and_value"
     t.index ["work_id", "id_type", "value"], name: "index_work_identifiers_on_work_id_and_id_type_and_value", unique: true
   end
@@ -540,7 +562,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_090000) do
   add_foreign_key "authority_variants", "authority_terms"
   add_foreign_key "copies", "editions"
   add_foreign_key "copies", "storage_locations"
-  add_foreign_key "ebay_listings", "wishlist_items"
+  add_foreign_key "ebay_listings", "works", on_delete: :cascade
   add_foreign_key "edition_contents", "editions"
   add_foreign_key "edition_contents", "works"
   add_foreign_key "edition_contributors", "contributors"
@@ -557,6 +579,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_090000) do
   add_foreign_key "series_arcs", "series"
   add_foreign_key "sessions", "users"
   add_foreign_key "storage_locations", "storage_locations", column: "parent_location_id"
+  add_foreign_key "wants", "works", on_delete: :cascade
   add_foreign_key "wishlist_items", "series"
   add_foreign_key "wishlist_items", "works"
   add_foreign_key "wishlist_printings", "wishlist_items"

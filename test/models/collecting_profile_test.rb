@@ -3,15 +3,15 @@ require "test_helper"
 class CollectingProfileTest < ActiveSupport::TestCase
   setup do
     @profile = CollectingProfile.new(recent_years: 5, favourite_artist_min_owned: 2)
-    @item = WishlistItem.create!(title: "The Birthgrave", author_name: "Tanith Lee")
+    @item = create_want
   end
 
   def printing(pub_id, binding, date, publisher = "Orbit", artist: nil)
-    @item.wishlist_printings.create!(isfdb_pub_id: pub_id, binding:, publish_date: date, publisher:, cover_artist: artist)
+    add_printing(@item, pub_id, binding:, publish_date: date, publisher:, cover_artist: artist)
   end
 
-  def dead! = @item.update!(author_isfdb_id: 1, author_died_date: "2015-05-24")
-  def living! = @item.update!(author_isfdb_id: 1, author_died_date: nil)
+  def dead! = author_dead!(@item)
+  def living! = author_living!(@item)
 
   test "a book with A-formats wants every A-format, of any year" do
     living!

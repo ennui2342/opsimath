@@ -2,14 +2,15 @@ require "test_helper"
 
 class FindsTest < ActiveSupport::TestCase
   setup do
-    @item = WishlistItem.create!(title: "The Birthgrave", author_name: "Tanith Lee", author_isfdb_id: 105, author_died_date: "2015")
-    @item.wishlist_printings.create!(isfdb_pub_id: 2, binding: "pb", publish_date: "1979", publisher: "Orbit", cover_group: 2)
-    @item.wishlist_printings.create!(isfdb_pub_id: 4, binding: "pb", publish_date: "1981", publisher: "DAW Books", cover_group: 4)
+    @item = create_want
+    author_dead!(@item, "2015")
+    add_printing(@item, 2, binding: "pb", publish_date: "1979", publisher: "Orbit", cover_group: "2")
+    add_printing(@item, 4, binding: "pb", publish_date: "1981", publisher: "DAW Books", cover_group: "4")
   end
 
   def listing(total, pubs = [ 2 ], **attrs)
     now = Time.current
-    @item.ebay_listings.create!({ ebay_item_id: SecureRandom.hex(4), title: "The Birthgrave", price: total, shipping: 0,
+    @item.work.ebay_listings.create!({ ebay_item_id: SecureRandom.hex(4), title: "The Birthgrave", price: total, shipping: 0,
                                   found_by: "keyword", matched_pub_ids: pubs, identified_by: "cover",
                                   first_seen_at: now, last_seen_at: now }.merge(attrs))
   end

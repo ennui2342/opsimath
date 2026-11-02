@@ -15,28 +15,28 @@ class Finds
   SPREAD = 0.6
   MIN_LISTINGS = 3
 
-  Find = Struct.new(:listing, :item, :cover, :median, :count, :reason, keyword_init: true) do
+  Find = Struct.new(:listing, :want, :cover, :median, :count, :reason, keyword_init: true) do
     def favourite? = cover.favourite
 
     def ratio = median&.positive? ? listing.total.to_f / median : nil
   end
 
   def self.all(profile: CollectingProfile.current)
-    WishlistItem.includes(:wishlist_printings, :ebay_listings).flat_map do |item|
-      WishlistItemView.new(item, profile:).covers.select(&:chosen).flat_map { |cover| for_cover(item, cover) }
+    Want.includes(work: [ :provider_editions, :ebay_listings, { work_contributors: :contributor } ]).flat_map do |want|
+      WishlistItemView.new(want, profile:).covers.select(&:chosen).flat_map { |cover| for_cover(want, cover) }
     end.sort_by { |f| [ f.reason == :target ? 0 : 1, f.favourite? ? 0 : 1, f.ratio || 0, f.listing.total ] }
   end
 
-  def self.for_cover(item, cover)
+  def self.for_cover(want, cover)
     priced = cover.listings.select(&:total)
     median = median(priced.map(&:total))
     cheapest = priced.min_by(&:total)
     priced.filter_map do |listing|
       reason =
-        if item.target_price && listing.total <= item.target_price then :target
+        if want.target_price && listing.total <= want.target_price then :target
         elsif listing == cheapest && priced.size >= MIN_LISTINGS && listing.total <= SPREAD * median then :spread
         end
-      reason && Find.new(listing:, item:, cover:, median:, count: priced.size, reason:)
+      reason && Find.new(listing:, want:, cover:, median:, count: priced.size, reason:)
     end
   end
 

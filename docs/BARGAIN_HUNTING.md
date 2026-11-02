@@ -76,6 +76,14 @@ part of the build.
 
 ## Pipeline
 
+> **Since 2026-11-03 (`docs/CATALOG.md`, build step 4):** a wishlist book
+> is a `Work` with a `Want`, not a `WishlistItem`; its printings are its
+> Work's ISFDB `provider_editions` (`Want#printings`), not
+> `WishlistPrinting`; eBay listings belong to the Work (`work_id`), and
+> the author's life dates to the `Contributor`. The behaviour below is
+> unchanged — verified identical on a production copy — but the names in
+> this section are the original design's.
+
 ```
 WishlistItem ──ISFDB expansion──▶ WishlistPrinting (cached, weekly)
      │                                   │ wanted? (collecting profile + override)
@@ -358,6 +366,14 @@ a handful of calls, giving current price and bid count close to the end.
 Discovery stays daily.
 
 ## Data model additions
+
+> **Since 2026-11-03 (`docs/CATALOG.md`, build step 4):** a wishlist book
+> is a `Work` with a `Want`, not a `WishlistItem`; its printings are its
+> Work's ISFDB `provider_editions` (`Want#printings`), not
+> `WishlistPrinting`; eBay listings belong to the Work (`work_id`), and
+> the author's life dates to the `Contributor`. The behaviour below is
+> unchanged — verified identical on a production copy — but the names in
+> this section are the original design's.
 
 ```
 WishlistItem  (+)

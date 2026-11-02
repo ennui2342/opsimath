@@ -104,22 +104,22 @@ module Mobile
       assert_equal [ "Gollancz" ], entries.sole.editions.map(&:publisher)
     end
 
-    test "a wishlisted work matched to a Work folds onto that work's entry" do
-      work = Work.create!(title: "Wanted", literary_form: "novel")
-      WishlistItem.create!(title: "Wanted", work:)
+    test "a wanted book you also own — an upgrade hunt — is the owned work's entry, flagged wishlisted" do
+      want = create_want(title: "Wanted")
+      edition = Edition.create!(publisher: "Gollancz")
+      EditionContent.create!(work: want.work, edition:)
+      Copy.create!(edition:, disposition: "owned")
 
       entry = entries.sole
       assert_equal "work", entry.kind
       assert entry.wishlisted
-      assert_not entry.owned
-      assert_empty entry.editions
+      assert entry.owned
+      assert_equal [ "Gollancz" ], entry.editions.map(&:publisher)
     end
 
-    test "an unmatched wishlist entry becomes a kind-wishlist entry with ISBNs and a goodreads id from external_ids" do
-      WishlistItem.create!(
-        title: "Vagabonds", author_name: "Hao Jingfang",
-        external_ids: { "goodreads" => "49454725", "isbn10" => "1534422080", "isbn13" => "9781534422087" }
-      )
+    test "a wanted book you don't own is a kind-wishlist entry, scannable by the ISBN it was wanted under" do
+      create_want(title: "Vagabonds", author: "Hao Jingfang", isbns: [ "9781534422087", "1534422080" ],
+                  external_ids: { "goodreads" => "49454725" })
 
       entry = entries.sole
       assert_equal "wishlist", entry.kind
@@ -138,7 +138,7 @@ module Mobile
       e = Edition.create!
       EditionContent.create!(work: w, edition: e)
       Copy.create!(edition: e, disposition: "owned")
-      WishlistItem.create!(title: "Anathem")
+      create_want(title: "Anathem")
 
       assert_equal [ "Anathem", "Blindsight" ], entries.map(&:title)
     end

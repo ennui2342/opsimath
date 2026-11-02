@@ -300,6 +300,41 @@ to change.
 4. **The wishlist joins the catalogue.** The 339 items become Works
    (matched through the providers) with want records; bargain hunting
    and the shop app move across.
+   **Built 2026-11-03.** `wants` (one per Work: priority, notes, target
+   price, cover choices, buy-new override, the ISBNs it was wanted under
+   as `seed_isbns`, the wishlist thumbnail, the legacy Goodreads id and
+   `legacy_wishlist_item_id`); `contributors.died_date`/`life_checked_at`
+   (life dates belong to the person — `Isfdb::ContributorLifeRefresh`
+   replaces `WishlistAuthorRefresh`); `ebay_listings.work_id`. Bargain
+   hunting reads a want's printings from its Work's ISFDB provider
+   editions (`Want#printings`: physical ones), so `WishlistPrinting` and
+   `WishlistPrintingRefresh` are gone; `KnownEditionsRefresh` seeds a
+   wanted work's lookups from its `seed_isbns`. `Want.add!` is the one
+   way to want a new book (Goodreads paths now; the add flow next). The
+   nightly 2:50 job is `WishlistRefreshJob` (author life + cover
+   grouping). The data migration converts in place and leaves
+   `wishlist_items`/`wishlist_printings` untouched for a later drop.
+   - **Matching to the catalogue:** a want joins an existing Work only
+     when the item's ISBN is one of that work's *and* the short titles
+     match — 6 of 340 did (*Counterweight*, *Fools*, *Voice of the
+     Whirlwind*, …, all owned: upgrade hunts). ISBN alone would have
+     merged 17 more wrongly: omnibus printings share ISBNs with the
+     novels inside them (*The Blue World* with seven Vance works).
+   - **Parity on a production copy:** for all 340, the rule, wanted
+     printings, cover groups, author status, eBay listings, target price
+     and cover choices are identical; Finds the same 19; the shop app
+     334 wishlist entries + 6 owned works flagged wishlisted (was 340
+     wishlist entries — the 6 are now the owned entry, as an owned-and-
+     wanted book should be). A first version lost the author check for
+     3 of the 6 (their work already had an author); fixed before deploy.
+   - **Goodreads legacy:** buying a wanted book (wishlist → to-read)
+     now catalogues the edition onto the want's own Work unless that
+     exact edition is already catalogued — otherwise Matcher's
+     title+author fallback would find the edition-less wanted Work and
+     raise a reconciliation.
+   - The shop app's thumbnail seeding (`MobileThumb.seed_from_snapshot`)
+     is editions-only now: an older snapshot's wishlist entries are
+     keyed by item ids, which aren't want ids.
 5. **State changes on the book page** — reading log (started / finished
    / DNF, dates, rating, review), ownership (acquired / sold / given
    away), want (add, remove, acquire). The book page's job moves from

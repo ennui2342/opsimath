@@ -1,4 +1,4 @@
-<% content_for :title, @view.item.title %>
+<% content_for :title, @view.want.title %>
 <% gbp = ->(pence) { pence ? format("%.2f", pence / 100.0) : "" } %>
 <% rule_labels = { a_format: "A-format", b_format: "B-format", no_paperback: "Any physical copy", unknown_printings: "Any copy (no ISFDB printings)", buy_new: "Buy new", override: "Your choice" } %>
 
@@ -8,12 +8,12 @@
                                       variant: @view.hunted? ? :info : :default) %>
     <% if @view.overridden? %><%= render Ui::BadgeComponent.new(text: "Covers chosen", variant: :accent) %><% end %>
   </div>
-  <h1 class="text-2xl font-bold"><%= @view.item.title %></h1>
+  <h1 class="text-2xl font-bold"><%= @view.want.title %></h1>
   <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
-    <%= @view.item.author_name %><%= " (d. #{@view.item.author_died_date.first(4)})" if @view.item.author_died_date %>
+    <%= @view.want.author_name %><%= " (d. #{@view.want.author.died_date.first(4)})" if @view.want.author&.died_date %>
   </p>
 
-  <%= form_with url: wishlist_item_path(@view.item), method: :patch, class: "mb-8" do %>
+  <%= form_with url: wishlist_item_path(@view.want), method: :patch, class: "mb-8" do %>
     <% if @view.covers.any? %>
       <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">Tick the covers you want.</p>
       <div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -30,13 +30,13 @@
     <div class="mb-6 flex flex-wrap items-end gap-4">
       <label class="text-sm">
         <span class="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Target price (£, delivered)</span>
-        <input type="text" name="target_price" inputmode="decimal" value="<%= gbp.(@view.item.target_price) %>" placeholder="none"
+        <input type="text" name="target_price" inputmode="decimal" value="<%= gbp.(@view.want.target_price) %>" placeholder="none"
                class="w-28 rounded-md border border-gray-300 px-2 py-1.5 focus:ring-2 focus:ring-green-600 dark:border-gray-700 dark:bg-gray-900">
       </label>
       <label class="text-sm">
         <span class="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Hunt on eBay</span>
         <select name="buy_new" class="rounded-md border border-gray-300 px-2 py-1.5 focus:ring-2 focus:ring-green-600 dark:border-gray-700 dark:bg-gray-900">
-          <% current = { nil => "rule", false => "hunt", true => "buy_new" }[@view.item.buy_new_override] %>
+          <% current = { nil => "rule", false => "hunt", true => "buy_new" }[@view.want.buy_new_override] %>
           <% { "rule" => "As the rule says", "hunt" => "Always hunt", "buy_new" => "Buy new instead" }.each do |value, label| %>
             <option value="<%= value %>" <%= "selected" if current == value %>><%= label %></option>
           <% end %>

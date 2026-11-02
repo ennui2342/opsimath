@@ -2,7 +2,7 @@
 # Written by Ebay::Sweep, identified by Ebay::PrintingIdentifier. Kept
 # after the listing ends: these rows are the per-printing price history.
 class EbayListing < ApplicationRecord
-  belongs_to :wishlist_item
+  belongs_to :work
 
   scope :live, -> { where(ended_at: nil) }
   scope :unidentified, -> { where(identified_by: nil) }
@@ -29,6 +29,6 @@ class EbayListing < ApplicationRecord
   end
 
   def printings
-    wishlist_item.wishlist_printings.select { |p| matched_pub_ids.include?(p.isfdb_pub_id) }
+    work.provider_editions.select { |p| p.isfdb_pub_id && matched_pub_ids.include?(p.isfdb_pub_id) }
   end
 end

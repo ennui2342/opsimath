@@ -1,5 +1,5 @@
 module Mobile
-  # Backfills covers for wishlist items that predate cover capture (see
+  # Backfills covers for wanted books that predate cover capture (see
   # docs/MOBILE.md). Two sources, in order:
   #
   #   1. the Goodreads wishlist RSS feed's `book_image_url` — a CDN URL,
@@ -30,7 +30,7 @@ module Mobile
     end
 
     def run
-      result = Result.new(attached: 0, failed: 0, skipped: WishlistItem.count)
+      result = Result.new(attached: 0, failed: 0, skipped: Want.count)
 
       pending.find_each do |item|
         result.skipped -= 1
@@ -58,11 +58,7 @@ module Mobile
     end
 
     def pending
-      WishlistItem.where.missing(:cover_image_attachment).where(
-        "external_ids ->> 'goodreads' IS NOT NULL " \
-        "OR external_ids ->> 'isbn13' IS NOT NULL " \
-        "OR external_ids ->> 'isbn10' IS NOT NULL"
-      )
+      Want.where.missing(:cover_image_attachment).where("external_ids ->> 'goodreads' IS NOT NULL OR cardinality(seed_isbns) > 0")
     end
 
     def cover_url_for(item)
@@ -74,7 +70,7 @@ module Mobile
     end
 
     def from_isfdb(item)
-      isbn = item.external_ids["isbn13"].presence || item.external_ids["isbn10"].presence
+      isbn = item.seed_isbns.first
       return unless isbn
 
       @client.lookup_isbn(isbn).filter_map { |c| c["cover_url"].presence }.first

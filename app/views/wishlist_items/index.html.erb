@@ -7,13 +7,13 @@
     <%= @views.count(&:hunted?) %> hunted on eBay · <%= @views.count { |v| !v.hunted? } %> to buy new
   </p>
   <ul class="divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
-    <% @views.sort_by { |v| [ v.hunted? ? 0 : 1, v.item.title ] }.each do |view| %>
+    <% @views.sort_by { |v| [ v.hunted? ? 0 : 1, v.want.title ] }.each do |view| %>
       <% cheapest = view.covers.select(&:chosen).filter_map(&:cheapest).min_by { |l| l.total || Float::INFINITY } %>
       <li>
-        <%= link_to wishlist_item_path(view.item), class: "flex items-center justify-between gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800" do %>
+        <%= link_to wishlist_item_path(view.want), class: "flex items-center justify-between gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800" do %>
           <span class="min-w-0">
-            <span class="block truncate font-medium"><%= view.item.title %></span>
-            <span class="block truncate text-xs text-gray-500 dark:text-gray-400"><%= view.item.author_name %></span>
+            <span class="block truncate font-medium"><%= view.want.title %></span>
+            <span class="block truncate text-xs text-gray-500 dark:text-gray-400"><%= view.want.author_name %></span>
           </span>
           <span class="flex flex-none items-center gap-2">
             <% if cheapest&.total %><span class="text-sm font-medium"><%= gbp.(cheapest.total) %></span><% end %>

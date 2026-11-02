@@ -2,12 +2,13 @@ require "test_helper"
 
 class EbayListingsControllerTest < ActionDispatch::IntegrationTest
   setup do
-    @item = WishlistItem.create!(title: "The Birthgrave", author_name: "Tanith Lee", author_isfdb_id: 105, author_died_date: "2015")
-    @item.wishlist_printings.create!(isfdb_pub_id: 1, binding: "pb", publish_date: "1977", publisher: "Orbit", cover_group: 1)
-    @item.wishlist_printings.create!(isfdb_pub_id: 2, binding: "pb", publish_date: "1979", publisher: "Orbit", cover_group: 2)
-    @item.wishlist_printings.create!(isfdb_pub_id: 3, binding: "pb", publish_date: "1985", publisher: "Orbit", cover_group: 2)
+    @item = create_want
+    author_dead!(@item, "2015")
+    add_printing(@item, 1, binding: "pb", publish_date: "1977", publisher: "Orbit", cover_group: "1")
+    add_printing(@item, 2, binding: "pb", publish_date: "1979", publisher: "Orbit", cover_group: "2")
+    add_printing(@item, 3, binding: "pb", publish_date: "1985", publisher: "Orbit", cover_group: "2")
     now = Time.current
-    @listing = @item.ebay_listings.create!(ebay_item_id: "x", title: "The Birthgrave Orbit", url: "https://www.ebay.co.uk/itm/x", price: 500,
+    @listing = @item.work.ebay_listings.create!(ebay_item_id: "x", title: "The Birthgrave Orbit", url: "https://www.ebay.co.uk/itm/x", price: 500,
                                            found_by: "keyword", matched_pub_ids: [ 1 ], identified_by: "cover",
                                            cover_scores: { "1" => { "ratio" => 0.1, "inliers" => 40 } }, first_seen_at: now, last_seen_at: now)
     sign_in_as users(:one)

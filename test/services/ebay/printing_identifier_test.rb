@@ -15,7 +15,7 @@ module Ebay
 
     setup do
       stub_request(:get, %r{https://covers\.test/.*}).to_return { |req| { status: 200, body: req.uri.path.split("/").last } }
-      @item = WishlistItem.create!(title: "The Birthgrave", author_name: "Tanith Lee")
+      @item = create_want
       @orbit77 = printing(1, "1977-09", "Orbit", "0860079422", "orbit77")
       @orbit79 = printing(2, "1979", "Orbit", "0860079422", "orbit7985")
       @orbit85 = printing(3, "1985", "Orbit", "0860079422", "orbit7985")
@@ -23,12 +23,12 @@ module Ebay
     end
 
     def printing(pub_id, date, publisher, isbn10, cover)
-      @item.wishlist_printings.create!(isfdb_pub_id: pub_id, binding: "pb", publish_date: date, publisher:,
+      add_printing(@item, pub_id, binding: "pb", publish_date: date, publisher:,
                                        isbn10:, cover_url: "https://covers.test/#{cover}")
     end
 
     def listing(title)
-      @item.ebay_listings.create!(ebay_item_id: SecureRandom.hex(4), title:, image_url: "https://covers.test/photo",
+      @item.work.ebay_listings.create!(ebay_item_id: SecureRandom.hex(4), title:, image_url: "https://covers.test/photo",
                                   found_by: "keyword", first_seen_at: Time.current, last_seen_at: Time.current)
     end
 

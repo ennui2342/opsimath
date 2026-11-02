@@ -4,7 +4,7 @@
 # Format first, then cover art: Mark collects paperbacks for their covers
 # and artists, not for being early printings, so any year will do.
 #
-# - An item with printing_override_ids wants exactly those printings.
+# - A want with printing_override_ids wants exactly those printings.
 # - A book with an A-format printing wants all its A-formats.
 # - A book with no A-format, if it's recent (first published within
 #   recent_years) or its author is alive, is *buy new* — not hunted, so
@@ -33,18 +33,18 @@ class CollectingProfile < ApplicationRecord
 
   # `ignore_override:` gives the rule's own answer — the candidates the
   # cover picker offers, whatever Mark has chosen among them.
-  def verdict(item, printings = item.wishlist_printings.to_a, ignore_override: false)
+  def verdict(want, printings = want.printings, ignore_override: false)
     first_year = printings.filter_map(&:year).min
     verdict = ->(rule, wanted = []) { Verdict.new(rule:, wanted:, first_year:) }
 
-    if item.printing_override_ids && !ignore_override
-      return verdict.(:override, printings.select { |p| item.printing_override_ids.include?(p.isfdb_pub_id) })
+    if want.printing_override_ids && !ignore_override
+      return verdict.(:override, printings.select { |p| want.printing_override_ids.include?(p.isfdb_pub_id) })
     end
 
     eligible = printings.reject(&:book_club?)
     a_formats = eligible.select(&:a_format?)
     return verdict.(:a_format, a_formats) if a_formats.any?
-    return verdict.(:buy_new) if buy_new?(item, first_year)
+    return verdict.(:buy_new) if buy_new?(want, first_year)
     return verdict.(:unknown_printings) if printings.empty?
 
     b_formats = eligible.select(&:b_format?)
@@ -78,9 +78,9 @@ class CollectingProfile < ApplicationRecord
 
   private
 
-  def buy_new?(item, first_year)
-    return item.buy_new_override unless item.buy_new_override.nil?
+  def buy_new?(want, first_year)
+    return want.buy_new_override unless want.buy_new_override.nil?
 
-    item.author_status != :dead || recent?(first_year)
+    want.author_status != :dead || recent?(first_year)
   end
 end

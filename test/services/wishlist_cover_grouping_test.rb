@@ -18,12 +18,12 @@ class WishlistCoverGroupingTest < ActiveSupport::TestCase
   setup do
     stub_request(:get, %r{https://covers\.test/.*}).to_return { |req| { status: 200, body: req.uri.path.split("/").last } }
     @profile = CollectingProfile.new(recent_years: 5, favourite_artist_min_owned: 5)
-    @item = WishlistItem.create!(title: "The Birthgrave", author_name: "Tanith Lee", author_isfdb_id: 1, author_died_date: "2015")
+    @item = create_want
+    author_dead!(@item, "2015")
   end
 
   def printing(pub_id, binding, year, cover)
-    @item.wishlist_printings.create!(isfdb_pub_id: pub_id, binding:, publish_date: year,
-                                     cover_url: cover && "https://covers.test/#{cover}")
+    add_printing(@item, pub_id, binding:, publish_date: year, cover_url: cover && "https://covers.test/#{cover}")
   end
 
   def group(compare = FakeCompare.new) = WishlistCoverGrouping.new(compare:, profile: @profile).run
@@ -38,7 +38,7 @@ class WishlistCoverGroupingTest < ActiveSupport::TestCase
 
     group
 
-    groups = @item.wishlist_printings.order(:isfdb_pub_id).pluck(:isfdb_pub_id, :cover_group).to_h
+    groups = @item.work.provider_editions.pluck(:provider_id, :cover_group).to_h { |id, group| [ id.to_i, group.to_i ] }
     assert_equal({ 1 => 1, 2 => 2, 3 => 2, 4 => 1, 5 => 5, 6 => 6 }, groups)
   end
 
@@ -53,14 +53,14 @@ class WishlistCoverGroupingTest < ActiveSupport::TestCase
 
     printing(3, "pb", "1985", "web-85")
     assert_equal 1, group.grouped
-    assert_equal 3, @item.wishlist_printings.find_by(isfdb_pub_id: 3).cover_group
+    assert_equal "3", @item.work.provider_editions.find_by(provider_id: "3").cover_group
   end
 
   test "books that aren't hunted are left alone" do
-    @item.update!(author_died_date: nil) # living author, no A-format: buy new
+    author_living!(@item) # living author, no A-format: buy new
     printing(1, "tp", "1977", "skull-77")
 
     assert_equal 0, group.hunted
-    assert_nil @item.wishlist_printings.first.cover_group
+    assert_nil @item.work.provider_editions.first.cover_group
   end
 end

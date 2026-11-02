@@ -30,13 +30,13 @@ class MobileThumbTest < ActiveSupport::TestCase
     assert_empty MobileThumb.fetch([])
   end
 
-  test "seed_from_snapshot repopulates the cache from the snapshot file's thumb BLOBs" do
+  test "seed_from_snapshot repopulates the cache with the snapshot file's edition thumbs" do
     work = Work.create!(title: "Seeded", literary_form: "novel")
     edition = Edition.create!(format: "paperback")
     EditionContent.create!(work:, edition:)
     edition.cover_image.attach(io: StringIO.new(PNG), filename: "c.png", content_type: "image/png")
     Copy.create!(edition:, disposition: "owned")
-    wishlist = WishlistItem.create!(title: "W", external_ids: { "isbn13" => "9780000000002" })
+    wishlist = create_want(title: "W", isbns: [ "9780000000002" ])
     wishlist.cover_image.attach(io: StringIO.new(PNG), filename: "w.png", content_type: "image/png")
 
     snapshot = MobileSnapshot.regenerate! # build caches thumbs as it goes
@@ -47,9 +47,11 @@ class MobileThumbTest < ActiveSupport::TestCase
 
     seeded = MobileThumb.seed_from_snapshot(snapshot)
 
-    assert_equal 2, seeded
+    assert_equal 1, seeded
     assert_equal e_bytes, MobileThumb.find(e_key).data
-    assert_predicate MobileThumb.find(w_key).byte_size, :positive?
+    # Wishlist thumbs aren't seeded: an older snapshot's wishlist entries
+    # are keyed by pre-Want ids. The next build caches them instead.
+    assert_nil MobileThumb.find_by(blob_key: w_key)
   end
 
   test "seed_from_snapshot is a no-op with no snapshot" do

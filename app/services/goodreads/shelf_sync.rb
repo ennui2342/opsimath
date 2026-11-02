@@ -59,29 +59,26 @@ module Goodreads
 
     private
 
-    # Wishlist never touches Work/Edition/Copy — see docs/INTEGRATIONS.md's
-    # explicit "only a WishlistItem" policy.
+    # Wishlist creates a wanted Work (no Edition/Copy — nothing's owned
+    # yet) and its Want (docs/CATALOG.md; was a self-contained
+    # WishlistItem until 2026-11-03).
     def wishlist
-      existing = WishlistItem.where("external_ids ->> 'goodreads' = ?", @item.goodreads_book_id).first
+      existing = Want.where("external_ids ->> 'goodreads' = ?", @item.goodreads_book_id).first
       return Outcome.new(entity: existing, payload: {}, created: false, changed: false) if existing
 
       info = RowParser.series_info(@item.title)
       series = info.series_name && Series.where("lower(name) = ?", info.series_name.downcase).first
-      external_ids = { "goodreads" => @item.goodreads_book_id }
-      external_ids["isbn10"] = @item.isbn if @item.isbn.present? # so a shop scan can match a not-yet-owned book (docs/MOBILE.md)
-      wishlist_item = WishlistItem.create!(
-        title: info.title,
-        author_name: RowParser.clean_name(@item.author_name),
-        series: series,
-        cover_url: @item.book_image_url,
-        external_ids: external_ids
+      want = Want.add!(
+        title: info.title, author_name: RowParser.clean_name(@item.author_name), series:,
+        isbns: [ @item.isbn ], # so a shop scan can match a not-yet-owned book (docs/MOBILE.md)
+        external_ids: { "goodreads" => @item.goodreads_book_id }, cover_url: @item.book_image_url
       )
-      wishlist_item.attach_cover_from_url(@item.book_image_url) # a :thumb for the shop-lookup PWA (docs/MOBILE.md)
-      Outcome.new(entity: wishlist_item, payload: {}, created: true, changed: true)
+      want.attach_cover_from_url(@item.book_image_url) # a :thumb for the shop-lookup PWA (docs/MOBILE.md)
+      Outcome.new(entity: want, payload: {}, created: true, changed: true)
     end
 
     # changed: either a brand-new Edition was catalogued, or an existing
-    # WishlistItem was actually removed (the real wishlist -> to-read
+    # Want was actually removed (the real wishlist -> to-read
     # transition) — a plain re-match of an already-to-read book with
     # nothing left to remove is a genuine no-op.
     def to_read
@@ -193,10 +190,17 @@ module Goodreads
     # Auto-create policy (confirmed in docs/INTEGRATIONS.md): a minimal
     # Work/Edition/Copy from the feed's limited fields when nothing
     # matches, flagged for enrichment rather than blocked on a human.
-    # Deletes the matching WishlistItem, if any — the real wishlist ->
-    # catalog transition (see docs/INTEGRATIONS.md).
+    # Removes the matching Want, if any — the real wishlist -> catalog
+    # transition (see docs/INTEGRATIONS.md).
     def ensure_cataloged
       match = Matcher.match(@item)
+      want = Want.where("external_ids ->> 'goodreads' = ?", @item.goodreads_book_id).includes(:work).first
+      # A wanted book being bought: unless this exact edition is already
+      # catalogued (a tier-1/2 match), it goes onto the want's own Work —
+      # which the title+author fallback would otherwise find as a bare,
+      # edition-less work and flag for reconciliation.
+      return catalogue_onto(want) if want && match&.edition.nil?
+
       if match&.ambiguous
         pd = flag_pending("possible_duplicate_work", work: nil, edition: nil)
         return Cataloged.new(work: nil, edition: nil, pending: pd, created: false, wishlist_removed: false)
@@ -220,7 +224,7 @@ module Goodreads
           create_work_and_edition + [ true ]
         end
 
-      wishlist_removed = delete_wishlist_item
+      wishlist_removed = remove_want(work)
       Cataloged.new(work: work, edition: edition, pending: nil, created: created, wishlist_removed: wishlist_removed)
     end
 
@@ -228,8 +232,26 @@ module Goodreads
     # records, which is exactly the "did this touch actually change
     # anything" signal to_read/currently_reading need for a matched
     # (not newly-catalogued) book.
-    def delete_wishlist_item
-      WishlistItem.where("external_ids ->> 'goodreads' = ?", @item.goodreads_book_id).destroy_all.any?
+    def catalogue_onto(want)
+      work = want.work
+      edition = EditionBuilder.build(work: work, item: @item)
+      Copy.create!(edition: edition, disposition: "owned")
+      link_shelves(work)
+      ensure_fiction_subject(work)
+      Cataloged.new(work: work, edition: edition, pending: nil, created: true, wishlist_removed: remove_want(work))
+    end
+
+    # The want's work goes too when it was only ever the wanted
+    # placeholder (no editions) and the book was catalogued as a different
+    # Work — no empty Work is left behind.
+    def remove_want(catalogued_work)
+      wants = Want.where("external_ids ->> 'goodreads' = ?", @item.goodreads_book_id).includes(work: :editions).to_a
+      wants.each do |want|
+        placeholder = want.work
+        want.destroy!
+        placeholder.destroy! if placeholder != catalogued_work && placeholder.editions.empty?
+      end
+      wants.any?
     end
 
     # cover_image is the only field the RSS feed actually carries — a

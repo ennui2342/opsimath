@@ -15,8 +15,8 @@ module Mobile
       @edition.cover_image.attach(io: StringIO.new(PNG), filename: "c.png", content_type: "image/png")
       Copy.create!(edition: @edition, disposition: "owned")
 
-      @wishlist = WishlistItem.create!(title: "Vagabonds", author_name: "Hao Jingfang",
-                                       external_ids: { "isbn13" => "9781534422087", "isbn10" => "1534422080", "goodreads" => "49454725" })
+      @wishlist = create_want(title: "Vagabonds", author: "Hao Jingfang", isbns: [ "9781534422087", "1534422080" ],
+                              external_ids: { "goodreads" => "49454725" })
     end
 
     def build_and_open

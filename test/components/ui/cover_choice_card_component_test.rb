@@ -8,9 +8,9 @@ module Ui
     end
 
     def cover(**attrs)
-      printings = [ WishlistPrinting.new(isfdb_pub_id: 2, publisher: "Orbit", publish_date: "1979", binding: "pb",
+      printings = [ ProviderEdition.new(provider: "isfdb", provider_id: "2", publisher: "Orbit", publish_date: "1979", binding: "pb",
                                          cover_url: "https://covers.test/2.jpg"),
-                    WishlistPrinting.new(isfdb_pub_id: 3, publisher: "Orbit", publish_date: "1985", binding: "pb") ]
+                    ProviderEdition.new(provider: "isfdb", provider_id: "3", publisher: "Orbit", publish_date: "1985", binding: "pb") ]
       WishlistItemView::Cover.new({ id: 2, printings:, artists: [ "Peter Jones" ], favourite: true, chosen: true, listings: [] }.merge(attrs))
     end
 

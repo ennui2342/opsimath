@@ -31,7 +31,7 @@ module Ebay
     # ones that matter.
     def self.run(limit: BATCH, **)
       identifier = new(**)
-      listings = EbayListing.live.unidentified.includes(wishlist_item: :wishlist_printings).order(:price).limit(limit)
+      listings = EbayListing.live.unidentified.includes(work: :provider_editions).order(:price).limit(limit)
       by = Hash.new(0)
       listings.each { |listing| by[identifier.identify(listing)] += 1 }
       Result.new(identified: by.values.sum, by:)
@@ -44,7 +44,7 @@ module Ebay
 
     # Identifies and saves one listing; returns how ("cover"/"text"/"unknown").
     def identify(listing)
-      printings = listing.wishlist_item.wishlist_printings.to_a
+      printings = listing.work.provider_editions.select(&:hunted_printing?)
       scores = cover_scores(listing, printings)
       matched, by = by_cover(printings, scores)
       if matched.any?

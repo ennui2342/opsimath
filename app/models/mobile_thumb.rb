@@ -32,8 +32,12 @@ class MobileThumb < ApplicationRecord
   def self.seed_from_snapshot(snapshot = MobileSnapshot.current)
     return 0 unless snapshot&.file&.attached?
 
-    editions, wishlist = read_snapshot_thumbs(snapshot)
-    rows = keyed_rows(Edition, editions) + keyed_rows(WishlistItem, wishlist)
+    # Editions only. A snapshot's wishlist entries were keyed by wishlist
+    # item id before wishlist books became Wants (2026-11-03), so an older
+    # snapshot's ids would map to the wrong books; a wishlist thumb missing
+    # from the cache is fetched and cached by the next snapshot build.
+    editions, _wishlist = read_snapshot_thumbs(snapshot)
+    rows = keyed_rows(Edition, editions)
     rows.uniq! { |r| r[:blob_key] }
     upsert_all(rows, unique_by: :blob_key) if rows.any?
     rows.size

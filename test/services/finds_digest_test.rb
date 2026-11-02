@@ -11,9 +11,10 @@ class FindsDigestTest < ActiveSupport::TestCase
   setup do
     @recorder = Recorder.new
     Notifications.notifiers = [ @recorder ]
-    @item = WishlistItem.create!(title: "The Birthgrave", author_name: "Tanith Lee", author_isfdb_id: 105, author_died_date: "2015")
-    @item.wishlist_printings.create!(isfdb_pub_id: 2, binding: "pb", publish_date: "1979", publisher: "Orbit",
-                                     cover_artist: "Peter Jones", cover_group: 2)
+    @item = create_want
+    author_dead!(@item, "2015")
+    add_printing(@item, 2, binding: "pb", publish_date: "1979", publisher: "Orbit",
+                                     cover_artist: "Peter Jones", cover_group: "2")
     now = Time.current
     @cheap = listing(500, now)
     [ 1200, 1400, 1500 ].each { |p| listing(p, now) }
@@ -22,7 +23,7 @@ class FindsDigestTest < ActiveSupport::TestCase
   teardown { Notifications.notifiers = nil }
 
   def listing(total, now)
-    @item.ebay_listings.create!(ebay_item_id: SecureRandom.hex(4), title: "The Birthgrave", url: "https://www.ebay.co.uk/itm/#{total}",
+    @item.work.ebay_listings.create!(ebay_item_id: SecureRandom.hex(4), title: "The Birthgrave", url: "https://www.ebay.co.uk/itm/#{total}",
                                 price: total, shipping: 0, found_by: "keyword", matched_pub_ids: [ 2 ], identified_by: "cover",
                                 first_seen_at: now, last_seen_at: now)
   end

@@ -64,31 +64,22 @@ module Goodreads
       [ info.title.downcase, author&.downcase ]
     end
 
-    # Per docs/INTEGRATIONS.md: a wishlist-shelf row does not create a
-    # Work/Edition/Copy at all — only this separate, lightweight list.
+    # A wishlist-shelf row creates a wanted Work and its Want, never an
+    # Edition or Copy — nothing is owned yet (docs/CATALOG.md; it was a
+    # self-contained WishlistItem until 2026-11-03).
     def import_wishlist_row(row, counts)
       book_id = row["Book Id"].to_s.strip
-      if WishlistItem.where("external_ids ->> 'goodreads' = ?", book_id).exists?
+      if Want.where("external_ids ->> 'goodreads' = ?", book_id).exists?
         counts.skipped_rows += 1
         return
       end
 
       info = RowParser.series_info(row["Title"])
-      external_ids = { "goodreads" => book_id }
-      if (isbn13 = RowParser.clean_isbn(row["ISBN13"]))
-        external_ids["isbn13"] = isbn13
-      end
-      if (isbn10 = RowParser.clean_isbn(row["ISBN"]))
-        external_ids["isbn10"] = isbn10
-      end
-
       series = info.series_name && Series.where("lower(name) = ?", info.series_name.downcase).first
-
-      WishlistItem.create!(
-        title: info.title,
-        author_name: RowParser.clean_name(row["Author"]),
-        series: series,
-        external_ids: external_ids
+      Want.add!(
+        title: info.title, author_name: RowParser.clean_name(row["Author"]), series:,
+        isbns: [ RowParser.clean_isbn(row["ISBN13"]), RowParser.clean_isbn(row["ISBN"]) ],
+        external_ids: { "goodreads" => book_id }
       )
       counts.wishlisted += 1
     end

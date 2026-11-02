@@ -5,7 +5,7 @@ require "fileutils"
 
 # Shared cover-download helper for the models that hold a `cover_image`
 # Active Storage attachment (EnrichmentRecord, and via HasCoverThumbnail,
-# Edition / WishlistItem). Each model still declares its own
+# Edition / Want). Each model still declares its own
 # `has_one_attached :cover_image` — plain, or with the :thumb variant.
 module HasCoverImage
   extend ActiveSupport::Concern

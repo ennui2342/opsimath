@@ -9,7 +9,7 @@ namespace :mobile do
   task warm_thumbs: :environment do
     seeded = MobileThumb.seed_from_snapshot
     seen = filled = 0
-    [ Edition, WishlistItem ].each do |model|
+    [ Edition, Want ].each do |model|
       model.joins(:cover_image_attachment).includes(cover_image_attachment: :blob).find_each do |record|
         seen += 1
         variant = record.cover_image.variant(:thumb).processed

@@ -129,7 +129,7 @@ class GoodreadsSyncJobTest < ActiveSupport::TestCase
     # transition itself. Without this, matching an already-catalogued
     # edition with nothing left to remove is a genuine no-op — see the
     # "does not notify" test below.
-    WishlistItem.create!(title: "Europe at Dawn", author_name: "Dave Hutchinson", external_ids: { "goodreads" => "39666185" })
+    create_want(title: "Europe at Dawn", author: "Dave Hutchinson", external_ids: { "goodreads" => "39666185" })
 
     GoodreadsSyncJob.perform_now(rss_client: FixtureRssClient.new)
 
@@ -145,7 +145,7 @@ class GoodreadsSyncJobTest < ActiveSupport::TestCase
     # fully represented in the catalog, with zero real writes behind the
     # touch — but the old code notified anyway, since it only checked
     # "was this item touched" (no GoodreadsSyncState row), not "did this
-    # touch actually change anything." No WishlistItem exists to remove
+    # touch actually change anything." No Want exists to remove
     # here, so this is a pure re-match — genuinely nothing to report.
     work = Work.create!(title: "Europe at Dawn", literary_form: "novel")
     edition = Edition.create!

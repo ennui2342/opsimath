@@ -31,9 +31,9 @@ class FindsDigest
   def self.line(find)
     star = find.favourite? ? "★ " : ""
     artist = find.cover.artists.first || "cover artist unknown"
-    why = find.reason == :target ? "under your #{gbp(find.item.target_price)} target" : "#{(find.ratio * 100).round}% of usual #{gbp(find.median.round)}"
+    why = find.reason == :target ? "under your #{gbp(find.want.target_price)} target" : "#{(find.ratio * 100).round}% of usual #{gbp(find.median.round)}"
     ending = find.listing.auction? && find.listing.auction_ends_at ? ", auction ends #{find.listing.auction_ends_at.strftime('%a %H:%M')}" : ""
-    "#{star}**#{find.item.title}** — #{artist} · #{gbp(find.listing.total)} (#{why}#{ending}) · [eBay](#{short_url(find.listing.link)})"
+    "#{star}**#{find.want.title}** — #{artist} · #{gbp(find.listing.total)} (#{why}#{ending}) · [eBay](#{short_url(find.listing.link)})"
   end
 
   # eBay's item URLs carry search-tracking parameters; the item path is

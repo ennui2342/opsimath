@@ -28,7 +28,7 @@ module Ui
 
     def reason_line
       if find.reason == :target
-        "At or under your #{price(find.item.target_price)} target"
+        "At or under your #{price(find.want.target_price)} target"
       else
         "#{(find.ratio * 100).round}% of the #{price(find.median.round)} median across #{find.count} listings of this cover"
       end

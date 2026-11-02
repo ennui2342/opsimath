@@ -3,12 +3,12 @@
     {
       "warning_type": "Cross-Site Scripting",
       "warning_code": 4,
-      "fingerprint": "91e5ccabfcfba9da7f14b8afb368cdc286a22c3ae0e878c6e08c8d85a9a8ce5e",
+      "fingerprint": "513bb454c3c58c2d24e44eecfeb5110d5567f4686775decb850cac59d27e187a",
       "check_name": "LinkToHref",
       "message": "Potentially unsafe model attribute in `link_to` href",
       "file": "app/views/ebay_listings/edit.html.erb",
       "line": 9,
-      "note": "EbayListing#link returns the eBay API's listing URL only when it parses as an https URL on www.ebay.co.uk / ebay.com, else nil — never a javascript: URL. Covered by test/models/ebay_listing_test.rb. Brakeman can't see through the method."
+      "note": "EbayListing#link returns the eBay API's listing URL only when it parses as an https URL on www.ebay.co.uk / ebay.com, else nil \u2014 never a javascript: URL. Covered by test/models/ebay_listing_test.rb. Brakeman can't see through the method. Fingerprint updated 2026-11-03 when the page started loading the listing through its Work (catalogue step 4)."
     }
   ],
   "brakeman_version": "8.1.0"

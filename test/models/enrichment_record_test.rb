@@ -34,7 +34,7 @@ class EnrichmentRecordTest < ActiveSupport::TestCase
   end
 
   # HasCoverImage#attach_cover_from_url — shared by EnrichmentRecord,
-  # Edition and WishlistItem.
+  # Edition and Want.
   test "attach_cover_from_url downloads and attaches an image" do
     record = EnrichmentRecord.create!(entity: Edition.create!, provider: "isfdb", external_id: "1", fetched_at: Time.current, raw_payload: {})
     stub_request(:get, "https://covers.example/x.jpg").to_return(status: 200, body: "jpeg-bytes", headers: { "Content-Type" => "image/jpeg" })

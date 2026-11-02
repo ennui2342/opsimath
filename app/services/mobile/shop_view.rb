@@ -141,21 +141,27 @@ module Mobile
       )
     end
 
+    # A wanted book you don't own: its own "wishlist" entry, scannable by
+    # the ISBN it was wanted under. (Wanted *and* owned — an upgrade hunt —
+    # is the owned work's entry, flagged wishlisted.)
     def wishlist_entries
-      WishlistItem.where(work_id: nil).includes(:series, cover_image_attachment: :blob).find_each.map do |item|
+      Want.where.not(work_id: owned_work_ids.to_a)
+          .includes({ work: [ { work_contributors: :contributor }, { work_series: :series } ] }, cover_image_attachment: :blob)
+          .find_each.map do |want|
+        isbn13 = want.seed_isbns.first
         Entry.new(
-          id: "wishlist:#{item.id}",
+          id: "wishlist:#{want.id}",
           kind: "wishlist",
-          title: item.title,
-          authors: Array(item.author_name.presence),
-          series: item.series&.name,
+          title: want.title,
+          authors: authors_of(want.work),
+          series: want.work.work_series.min_by { |ws| ws.position || Float::INFINITY }&.series&.name,
           original_year: nil,
           owned: false,
           wishlisted: true,
-          isbn10: item.external_ids["isbn10"],
-          isbn13: item.external_ids["isbn13"],
-          goodreads: item.external_ids["goodreads"],
-          has_cover: item.cover_image.attached?,
+          isbn10: isbn13 && Isbn.to_10(isbn13),
+          isbn13:,
+          goodreads: want.external_ids["goodreads"],
+          has_cover: want.cover_image.attached?,
           editions: []
         )
       end
@@ -168,7 +174,7 @@ module Mobile
     end
 
     def wishlisted_work_ids
-      WishlistItem.where.not(work_id: nil).distinct.pluck(:work_id).to_set
+      Want.where(work_id: owned_work_ids.to_a).pluck(:work_id).to_set
     end
   end
 end
