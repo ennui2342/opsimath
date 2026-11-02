@@ -418,6 +418,13 @@ to change.
      archive.org — so OL covers were silently dropped everywhere,
      including cover grouping and eBay printing identification once OL
      rows have covers (none had yet). It follows up to 3 now.
+   - **"This edition is"** (2026-11-02, Mark): the add flow's ownership
+     choice matches the Goodreads edition-reconciliation decision's —
+     *Mine* (alongside any already owned: "add edition"), *Mine — it
+     replaces my <edition>* (that one becomes Replaced: "change
+     edition"), or *Not mine — read from a library / friend / elsewhere*
+     ("unowned read"; the reading's source). "Relink" is Goodreads-only;
+     a wrong printing on file is the book page's "Not this printing?".
    - **Barcode scanning** (2026-11-02): "Scan barcode" beside the search
      box (`barcode_scan_controller.js`, the PWA scanner's twin) reads an
      EAN-13 with the browser's `BarcodeDetector` and submits it as an

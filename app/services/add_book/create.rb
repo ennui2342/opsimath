@@ -29,17 +29,20 @@ module AddBook
       end
     end
 
-    # The chosen card becomes an Edition (+ a Copy unless `own: false`, +
-    # a Reading if `reading:` is given) of `work`, or of a new work from
-    # `found`. A want on the work is retired — the book's been got — and
-    # its work kept.
-    def self.edition(work:, found:, card:, own: true, reading: nil)
+    # The chosen card becomes an Edition (owned unless `own: false` — the
+    # Copy behind it, EditionHolding — and with a Reading if `reading:` is
+    # given) of `work`, or of a new work from `found`. `replaces:` an
+    # edition Mark owned, which becomes "replaced" (the Goodreads edition
+    # reconciliation's "change edition"). A want on the work is retired —
+    # the book's been got — and its work kept.
+    def self.edition(work:, found:, card:, own: true, replaces: nil, reading: nil)
       Work.transaction do
         work ||= create_work(found)
         edition = build_edition(work, card)
         copy = Copy.create!(edition:, disposition: "owned") if own
+        EditionHolding.update(replaces, status: "replaced") if own && replaces
         if reading
-          Reading.create!(work:, edition:, copy:, status: reading[:status], source: own ? "owned_copy" : "other",
+          Reading.create!(work:, edition:, copy:, status: reading[:status], source: own ? "owned_copy" : reading[:source].presence || "other",
                           date_started: reading[:date_started], date_finished: reading[:date_finished], rating: reading[:rating])
         end
         work.want&.retire!(keep: work) if own

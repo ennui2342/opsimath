@@ -37,8 +37,10 @@ class AddBooksController < ApplicationController
     card = read(params[:card])
     return redirect_back_or_to(add_book_path, alert: "Choose an edition.") unless card
 
-    work, = AddBook::Create.edition(work:, found:, card:, own: params[:own] == "1", reading: reading_params)
-    redirect_to work_path(work), notice: "Added to your catalogue."
+    holding = params[:holding].to_s
+    replaces = work&.editions&.find_by(id: holding.delete_prefix("replaces:")) if holding.start_with?("replaces:")
+    work, = AddBook::Create.edition(work:, found:, card:, own: holding != "not_mine", replaces:, reading: reading_params)
+    redirect_to work_path(work), notice: replaces ? "Added; the edition it replaces is marked replaced." : "Added to your catalogue."
   end
 
   helper_method :sign
@@ -51,11 +53,14 @@ class AddBooksController < ApplicationController
 
   def read(token) = token.present? ? verifier.verified(token) : nil
 
+  # Where a read came from: their own book, else the "Not mine — read
+  # from a …" choice.
   def reading_params
+    source = params[:holding] == "not_mine" ? params[:read_from].presence_in(%w[library borrowed other]) || "other" : "owned_copy"
     case params[:reading_status]
-    when "reading" then { status: "reading", date_started: params[:date_started].presence || Date.current, source: "owned_copy" }
+    when "reading" then { status: "reading", date_started: params[:date_started].presence || Date.current, source: }
     when "read" then { status: "completed", date_finished: params[:date_finished].presence || Date.current,
-                       rating: params[:rating].presence, source: "owned_copy" }
+                       rating: params[:rating].presence, source: }
     end
   end
 end

@@ -23,12 +23,25 @@
       <% here.each do |k, v| %><input type="hidden" name="<%= k %>" value="<%= v %>"><% end %>
       <%= render "add_books/edition_grid", cards: @cards, title: @title %>
 
+      <%# What the edition is to Mark — the same choices as the Goodreads
+          edition-reconciliation decision: alongside, replaces, or not mine. %>
+      <% radio = "h-4 w-4 border-gray-300 text-green-600 focus:ring-2 focus:ring-green-600 dark:border-gray-600 dark:bg-gray-800" %>
+      <% owned = @work ? @work.editions.select { |e| EditionHolding.status(e) == "owned" }.sort_by(&:id) : [] %>
+      <fieldset class="mb-4 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+        <legend class="px-1 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">This edition is</legend>
+        <div class="space-y-1.5 text-sm">
+          <label class="flex items-center gap-2"><input type="radio" name="holding" value="mine" checked class="<%= radio %>">
+            Mine<%= " — alongside the #{'edition'.pluralize(owned.size)} I already have" if owned.any? %></label>
+          <% owned.each do |e| %>
+            <label class="flex items-center gap-2"><input type="radio" name="holding" value="replaces:<%= e.id %>" class="<%= radio %>">
+              Mine — it replaces my <%= [ e.publisher || "edition", e.publish_date&.slice(0, 4) ].compact.join(" ") %>, which I no longer have</label>
+          <% end %>
+          <label class="flex items-center gap-2"><input type="radio" name="holding" value="not_mine" class="<%= radio %>">
+            Not mine — read from a
+            <select name="read_from" class="<%= field %> py-0.5"><option value="library">library</option><option value="borrowed">friend (borrowed)</option><option value="other">somewhere else</option></select></label>
+        </div>
+      </fieldset>
       <div class="mb-6 flex flex-wrap items-end gap-4 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
-        <label class="flex items-center gap-2 text-sm">
-          <input type="hidden" name="own" value="0">
-          <input type="checkbox" name="own" value="1" checked class="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-2 focus:ring-green-600 dark:border-gray-600 dark:bg-gray-800">
-          I own it
-        </label>
         <label class="text-sm"><span class="<%= label %>">Reading</span>
           <select name="reading_status" class="<%= field %>">
             <option value="">Not yet</option><option value="reading">Reading it now</option><option value="read">Read it</option>

@@ -48,7 +48,7 @@ class AddBooksControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     card = css_select("input[type=radio][name=card]").sole["value"]
 
-    post add_book_url, params: { found: token, card:, own: "1", reading_status: "read", date_finished: "2026-11-01", rating: "5" }
+    post add_book_url, params: { found: token, card:, holding: "mine", reading_status: "read", date_finished: "2026-11-01", rating: "5" }
 
     work = Work.find_by!(title: "Crossfire")
     assert_redirected_to work_path(work)
@@ -72,7 +72,7 @@ class AddBooksControllerTest < ActionDispatch::IntegrationTest
 
     get add_book_editions_url(work_id: want.work_id)
     card = css_select("input[type=radio][name=card]").sole["value"]
-    post add_book_url, params: { work_id: want.work_id, card:, own: "1" }
+    post add_book_url, params: { work_id: want.work_id, card:, holding: "mine" }
 
     assert_redirected_to work_path(want.work)
     assert_not Want.exists?(want.id)
@@ -90,6 +90,28 @@ class AddBooksControllerTest < ActionDispatch::IntegrationTest
     get add_book_editions_url(work_id: work.id)
 
     assert_select "input[type=radio][name=card]", 2
+  end
+
+  test "a book you already have: the new edition is alongside, replaces one you own, or isn't yours" do
+    work = Work.create!(title: "Crossfire", literary_form: "novel")
+    old = Edition.create!(publisher: "Pan", publish_date: "1978")
+    EditionContent.create!(work:, edition: old)
+    Copy.create!(edition: old, disposition: "owned")
+    work.provider_editions.create!(provider: "isfdb", provider_id: "55", publisher: "Tor", binding: "hc", isbn13: "9780765304674")
+
+    get add_book_editions_url(work_id: work.id)
+    assert_select "input[name=holding][value=mine][checked]"
+    assert_select "label", text: /it replaces my Pan 1978/
+    card = css_select("input[type=radio][name=card]").sole["value"]
+
+    post add_book_url, params: { work_id: work.id, card:, holding: "replaces:#{old.id}" }
+    assert_equal "replaced", EditionHolding.status(old)
+    assert_equal "owned", EditionHolding.status(work.editions.where.not(id: old.id).sole)
+
+    post add_book_url, params: { work_id: work.id, card:, holding: "not_mine", read_from: "library", reading_status: "read" }
+    newest = work.editions.order(:id).last
+    assert_equal "not_mine", EditionHolding.status(newest)
+    assert_equal "library", newest.readings.sole.source
   end
 
   test "a tampered or expired token is refused" do
