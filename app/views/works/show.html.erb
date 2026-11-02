@@ -53,7 +53,7 @@
   <% if @work.editions.any? %>
     <h2 class="mt-8 mb-3 text-xl font-semibold text-gray-900 dark:text-gray-100">Editions</h2>
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <% @work.editions.sort_by(&:id).each do |edition| %>
+      <% @work.editions_in_order.each do |edition| %>
         <div>
           <%= render(Ui::EditionCardComponent.new(edition: edition)) %>
           <% Array(@decisions[edition.id]).each do |decision| %>

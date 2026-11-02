@@ -167,4 +167,14 @@ class CatalogueActionsTest < ActionDispatch::IntegrationTest
     assert_not Reading.exists?(reading.id)
     assert_equal [ @work, nil ], [ review.reload.work, review.reading ]
   end
+
+  test "editions list owned first, then newest to the catalogue first" do
+    sold = Edition.create!(publisher: "Sold Ed", created_at: 1.day.from_now)
+    newer = Edition.create!(publisher: "Newer Ed", created_at: 2.days.from_now)
+    [ sold, newer ].each { |e| EditionContent.create!(work: @work, edition: e) }
+    Copy.create!(edition: sold, disposition: "sold")
+    Copy.create!(edition: newer, disposition: "owned")
+
+    assert_equal [ newer, @edition, sold ], @work.reload.editions_in_order
+  end
 end

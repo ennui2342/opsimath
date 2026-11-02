@@ -5,7 +5,7 @@
 <% label = "mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" %>
 <% status = EditionHolding.status(edition) %>
 <% copy = EditionHolding.copy(edition) %>
-<% others = work.editions.reject { |e| e == edition }.sort_by(&:id) %>
+<% others = work.editions_in_order.reject { |e| e == edition } %>
 
 <details class="mt-2 text-sm">
   <summary class="cursor-pointer text-gray-500 hover:underline dark:text-gray-400">

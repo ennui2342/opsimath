@@ -55,6 +55,13 @@ class Work < ApplicationRecord
 
   # Where the book stands for Mark, for the Books list and the book page:
   # any of :owned, :wanted, :reading, :read, :dnf.
+  # The book's editions as the book page lists them: the ones Mark owns
+  # first, then the rest, each newest to the catalogue first — so what's
+  # on his shelf now leads.
+  def editions_in_order
+    editions.sort_by { |e| [ EditionHolding.status(e) == "owned" ? 0 : 1, -e.created_at.to_f, -e.id ] }
+  end
+
   def statuses
     list = []
     list << :owned if editions.any? { |e| e.copies.any?(&:owned?) }
