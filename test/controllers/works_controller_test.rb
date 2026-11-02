@@ -38,4 +38,34 @@ class WorksControllerTest < ActionDispatch::IntegrationTest
     assert_select "body", /Owned/
     assert_select "a[href=?]", "https://www.isfdb.org/cgi-bin/pl.cgi?55210", text: "55210"
   end
+
+  test "the header search finds books by title and author word starts, folding punctuation" do
+    sign_in_as users(:one)
+    asimov = Contributor.create!(name: "Isaac Asimov")
+    %w[Foundation Foundation\ and\ Earth].each do |title|
+      Work.create!(title:, literary_form: "novel").work_contributors.create!(contributor: asimov, role: "author")
+    end
+    Work.create!(title: "Cat’s Cradle", literary_form: "novel")
+
+    get works_url(q: "found asim")
+    assert_select "ul a span.font-medium", count: 2
+    assert_select "a", text: /Foundation and Earth/
+
+    get works_url(q: "cats cradle")
+    assert_redirected_to work_path(Work.find_by!(title: "Cat’s Cradle"))
+  end
+
+  test "the header search finds a book by ISBN, and offers to look up what isn't there" do
+    sign_in_as users(:one)
+    work = Work.create!(title: "Crossfire", literary_form: "novel")
+    edition = Edition.create!
+    EditionContent.create!(work:, edition:)
+    edition.edition_identifiers.create!(id_type: "isbn13", value: "9780765304674")
+
+    get works_url(q: "0-7653-0467-8")
+    assert_redirected_to work_path(work)
+
+    get works_url(q: "zzzz nothing")
+    assert_select "a[href=?]", add_book_path(q: "zzzz nothing")
+  end
 end

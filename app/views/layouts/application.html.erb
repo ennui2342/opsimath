@@ -35,7 +35,11 @@
           <% pd = PendingDecision.pending.count %>
           <%= link_to "Pending decisions#{" (#{pd})" if pd.positive?}", pending_decisions_path, class: "text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100" %>
           <%= link_to "Settings", settings_authorities_path, class: "text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100" %>
-          <%= button_to "Log out", session_path, method: :delete, class: "ml-auto text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100" %>
+          <%= form_with url: works_path, method: :get, class: "ml-auto w-full sm:w-auto", role: "search" do %>
+            <input type="search" name="q" value="<%= params[:q] if controller_name == "works" %>" placeholder="Search your books" aria-label="Search your books"
+                   class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:ring-2 focus:ring-green-600 sm:w-64 dark:border-gray-700 dark:bg-gray-900">
+          <% end %>
+          <%= button_to "Log out", session_path, method: :delete, class: "text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100" %>
         </nav>
       </header>
     <% end %>

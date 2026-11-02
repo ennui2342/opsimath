@@ -10,9 +10,17 @@ class WorksController < ApplicationController
   # reading, read, did not finish — filterable by that (since the wishlist
   # joined the catalogue, docs/CATALOG.md step 4, wanted-only books are
   # works too).
+  #
+  # `q` is the header search box (CatalogueSearch); one match goes straight
+  # to its book page.
   def index
     @filter = params[:filter].presence_in(FILTERS)
-    @works = Work.includes(:want, { work_contributors: :contributor }, :readings, editions: :copies).order(:title).to_a
+    @query = params[:q].to_s.strip
+    @works = Work.includes(:want, :series, { work_contributors: :contributor }, :readings, editions: [ :copies, :edition_identifiers ])
+                 .order(:title).to_a
+    @works = CatalogueSearch.filter(@works, @query) if @query.present?
+    return redirect_to(work_path(@works.first)) if @query.present? && !@filter && @works.one?
+
     @statuses = @works.to_h { |w| [ w.id, w.statuses ] }
     @counts = FILTERS.to_h { |f| [ f, @statuses.count { |_, s| s.include?(f.to_sym) } ] }
     @works.select! { |w| @statuses[w.id].include?(@filter.to_sym) } if @filter

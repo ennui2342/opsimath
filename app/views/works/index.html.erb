@@ -5,16 +5,25 @@
 <% pill_off = "#{pill} bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700" %>
 
 <div class="w-full max-w-3xl">
-  <h1 class="mb-3 text-2xl font-bold text-gray-900 dark:text-gray-100">Books</h1>
+  <h1 class="mb-3 text-2xl font-bold text-gray-900 dark:text-gray-100">
+    <%= @query.present? ? "Books matching “#{@query}”" : "Books" %>
+  </h1>
+  <% q = @query.presence %>
 
   <nav class="mb-4 flex flex-wrap gap-2" aria-label="Filter books">
-    <%= link_to "All", works_path, class: @filter ? pill_off : pill_on %>
+    <%= link_to "All", works_path(q:), class: @filter ? pill_off : pill_on %>
     <% WorksController::FILTERS.each do |f| %>
-      <%= link_to "#{badge[f.to_sym].first} (#{@counts[f]})", works_path(filter: f), class: @filter == f ? pill_on : pill_off %>
+      <%= link_to "#{badge[f.to_sym].first} (#{@counts[f]})", works_path(filter: f, q:), class: @filter == f ? pill_on : pill_off %>
     <% end %>
   </nav>
 
-  <ul class="divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
+  <% if q && @works.empty? %>
+    <p class="text-sm text-gray-600 dark:text-gray-400">
+      Nothing in your catalogue matches. <%= link_to "Look it up to add it", add_book_path(q:), class: "text-green-700 hover:underline dark:text-green-400" %>
+    </p>
+  <% end %>
+
+  <ul class="divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700 <%= "hidden" if @works.empty? %>">
     <% @works.each do |work| %>
       <li>
         <%= link_to work_path(work), class: "flex items-center justify-between gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800" do %>

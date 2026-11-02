@@ -403,6 +403,17 @@ Turbo-Stream target. `rounded-lg border border-dashed border-gray-300 p-8
 text-center`, a `text-lg font-medium` line, a muted sub-line, a "Back to
 queue" link.
 
+## Header search
+
+Every page's header ends with a `type="search"` box ("Search your
+books", `role="search"`, `ml-auto`, full-width on a phone, `sm:w-64`)
+that GETs `/works?q=` — the catalogue, not the providers (that's "Add a
+book"). `CatalogueSearch`: every typed word must start a word in the
+title, subtitle, authors or series, accents and apostrophes folded; an
+ISBN, ISFDB or Goodreads id matches the edition. One match goes straight
+to the book page; several show the Books list headed "Books matching
+“…”" with the status filters kept; none offers "Look it up to add it".
+
 ## Flash messages
 
 `layouts/application.html.erb` renders `notice`/`alert` as a full-width
