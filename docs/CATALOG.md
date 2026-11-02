@@ -246,6 +246,24 @@ to change.
 2. **Per-work known editions + work identifiers.** A refactor: the shop
    app's sibling-ISBN matching and bargain hunting's printings move onto
    the new table, verified by their output staying the same.
+   **Built 2026-11-02** (the shop app's half; bargain hunting moves in
+   step 4 with the wishlist): `provider_editions` and `work_identifiers`,
+   filled by `Isfdb::WorkKnownEditionsRefresh` for every catalogued work
+   (not only owned ones); `WorkSiblingIsbns` dropped. On a production
+   copy the shop app's sibling ISBNs came out identical for 2,031 of
+   2,034 works — the other three each gained one printing ISFDB added
+   since the old cache's last run. Found on the way:
+   - ISFDB's editions list for a work also holds every omnibus and
+     collection containing it, each reporting its own main title — so a
+     work's ISFDB title id is taken only from its own printings (by
+     ISBN). That gives 1,346 ids on 1,330 works; the only ids shared
+     between works are 4 genuine omnibus cases, where the omnibus's own
+     printing resolves to a novel inside it (*Peace and War* / *The
+     Forever War*) — why the table isn't unique per id.
+   - The omnibuses do stay in each work's known editions, as they always
+     were in the shop app's ISBN index.
+   - The editions call for a long-lived title (*The Lord of the Rings*,
+     ~240 printings) can take over 10 s; it now gets 30.
 3. **Provider registry + Open Library.** Capabilities (search works, a
    work's editions, ISBN lookup); ISFDB behind it; Open Library client;
    both filling (2); Open Library covers cached locally like ISFDB's.

@@ -17,6 +17,10 @@ class Work < ApplicationRecord
   }
 
   has_many :work_alternate_titles, dependent: :destroy
+  has_many :work_identifiers, dependent: :destroy
+  # The editions providers know for this work — candidates, not the
+  # catalogue's own `editions` (docs/CATALOG.md, "Architecture review").
+  has_many :provider_editions, dependent: :destroy
   has_many :work_contributors, dependent: :destroy
   has_many :contributors, through: :work_contributors
   has_many :work_series, dependent: :destroy

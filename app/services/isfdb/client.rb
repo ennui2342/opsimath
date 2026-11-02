@@ -42,8 +42,12 @@ module Isfdb
     # widen the mobile snapshot's ISBN index (Mobile::SnapshotBuilder) so
     # scanning any printing resolves to a work you own, and it's the
     # natural backing for a future "switch edition" picker in the web app.
+    #
+    # A long-lived title's list is big (The Lord of the Rings: ~240
+    # printings) and the adapter assembles each one, so this call gets a
+    # longer timeout than the single-edition lookups.
     def lookup_editions(isbn)
-      response = get("/isbn/#{isbn}/editions")
+      response = get("/isbn/#{isbn}/editions", read_timeout: 30)
       return [] if response.is_a?(Net::HTTPNotFound)
 
       raise ServiceError, "isfdb-adapter returned #{response.code} for isbn #{isbn} editions" unless response.is_a?(Net::HTTPSuccess)

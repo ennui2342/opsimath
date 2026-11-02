@@ -20,8 +20,8 @@ production:
   #   class: GoodreadsSyncJob
   #   queue: default
   #   schedule: every hour at minute 42
-  isfdb_sibling_isbn_refresh:
-    class: IsfdbSiblingIsbnRefreshJob
+  work_known_editions_refresh:
+    class: WorkKnownEditionsRefreshJob
     queue: default
     schedule: every day at 2:40am
   wishlist_printing_refresh:

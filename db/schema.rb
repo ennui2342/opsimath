@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_25_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_02_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -269,6 +269,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_25_090000) do
     t.index ["status"], name: "index_pending_decisions_on_status"
   end
 
+  create_table "provider_editions", force: :cascade do |t|
+    t.string "binding"
+    t.string "cover_artist"
+    t.string "cover_group"
+    t.string "cover_url"
+    t.datetime "created_at", null: false
+    t.string "isbn10"
+    t.string "isbn13"
+    t.string "language"
+    t.integer "page_count"
+    t.string "provider", null: false
+    t.string "provider_id", null: false
+    t.string "publish_date"
+    t.string "publisher"
+    t.string "title"
+    t.datetime "updated_at", null: false
+    t.bigint "work_id", null: false
+    t.index ["isbn13"], name: "index_provider_editions_on_isbn13"
+    t.index ["work_id", "provider", "provider_id"], name: "idx_on_work_id_provider_provider_id_93ac77baa6", unique: true
+  end
+
   create_table "readings", force: :cascade do |t|
     t.bigint "copy_id"
     t.datetime "created_at", null: false
@@ -449,6 +470,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_25_090000) do
     t.index ["work_id"], name: "index_work_genres_on_work_id"
   end
 
+  create_table "work_identifiers", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "id_type", null: false
+    t.string "source"
+    t.datetime "updated_at", null: false
+    t.string "value", null: false
+    t.bigint "work_id", null: false
+    t.index ["id_type", "value"], name: "index_work_identifiers_on_id_type_and_value"
+    t.index ["work_id", "id_type", "value"], name: "index_work_identifiers_on_work_id_and_id_type_and_value", unique: true
+  end
+
   create_table "work_series", force: :cascade do |t|
     t.bigint "arc_id"
     t.datetime "created_at", null: false
@@ -459,14 +491,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_25_090000) do
     t.index ["arc_id"], name: "index_work_series_on_arc_id"
     t.index ["series_id"], name: "index_work_series_on_series_id"
     t.index ["work_id"], name: "index_work_series_on_work_id"
-  end
-
-  create_table "work_sibling_isbns", id: false, force: :cascade do |t|
-    t.string "isbn13s", default: [], null: false, array: true
-    t.string "queried_isbns", default: [], null: false, array: true
-    t.datetime "refreshed_at", null: false
-    t.bigint "work_id", null: false
-    t.index ["work_id"], name: "index_work_sibling_isbns_on_work_id", unique: true
   end
 
   create_table "work_subjects", force: :cascade do |t|
@@ -492,6 +516,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_25_090000) do
     t.datetime "created_at", null: false
     t.text "description"
     t.jsonb "field_sources", default: {}, null: false
+    t.string "known_editions_queried_isbns", default: [], null: false, array: true
+    t.datetime "known_editions_refreshed_at"
     t.string "literary_form", null: false
     t.text "notes"
     t.string "original_language"
@@ -515,6 +541,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_25_090000) do
   add_foreign_key "edition_contributors", "editions"
   add_foreign_key "edition_identifiers", "editions"
   add_foreign_key "editions", "editions", column: "variant_of_edition_id"
+  add_foreign_key "provider_editions", "works", on_delete: :cascade
   add_foreign_key "readings", "copies"
   add_foreign_key "readings", "editions"
   add_foreign_key "readings", "works"
@@ -533,6 +560,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_25_090000) do
   add_foreign_key "work_contributors", "works"
   add_foreign_key "work_genres", "genres"
   add_foreign_key "work_genres", "works"
+  add_foreign_key "work_identifiers", "works", on_delete: :cascade
   add_foreign_key "work_series", "series"
   add_foreign_key "work_series", "series_arcs", column: "arc_id"
   add_foreign_key "work_series", "works"

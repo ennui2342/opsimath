@@ -109,11 +109,10 @@ module Mobile
       ], rows
     end
 
-    test "the WorkSiblingIsbns cache widens the index for an owned work" do
-      WorkSiblingIsbns.create!(
-        work_id: @work.id, refreshed_at: Time.current, queried_isbns: [ "9780441569595" ],
-        isbn13s: [ "9780441569595", "9780722186978", "9780586066451" ] # own printing + two siblings
-      )
+    test "the editions ISFDB knows for an owned work widen the index" do
+      [ [ "1", "9780441569595" ], [ "2", "9780722186978" ], [ "3", nil ] ].each do |pub, isbn13| # own printing + two siblings
+        @work.provider_editions.create!(provider: "isfdb", provider_id: pub, isbn13:, isbn10: (isbn13 ? nil : "0586066454"))
+      end
 
       db = build_and_open
 
@@ -122,7 +121,7 @@ module Mobile
       wid = "work:#{@work.id}"
       assert_includes rows, [ "9780441569595", wid, @edition.id ]       # owned edition — the exact match
       assert_includes rows, [ "9780722186978", wid, nil ]               # sibling printing -> work, no edition
-      assert_includes rows, [ "9780586066451", wid, nil ]
+      assert_includes rows, [ Isbn.to_13("0586066454"), wid, nil ]      # an ISBN-10-only edition, folded to 13
       assert_equal 1, rows.count { |i13, _, _| i13 == "9780441569595" } # not also added as a null row
     end
 

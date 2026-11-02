@@ -146,12 +146,12 @@ module Mobile
     end
 
     # {entry_id => [ISBN-13, ...]} for the other printings ISFDB knows of
-    # each owned work — read straight from the WorkSiblingIsbns cache
-    # (Isfdb::SiblingIsbnRefresh keeps it current, off the build's
+    # each owned work — read straight from ProviderEdition
+    # (Isfdb::WorkKnownEditionsRefresh keeps it current, off the build's
     # critical path). No network here.
     def load_related_isbns(view)
       work_ids = view.entries.filter_map { |e| e.id.delete_prefix("work:").to_i if e.kind == "work" }
-      WorkSiblingIsbns.for_works(work_ids).transform_keys { |id| "work:#{id}" }
+      ProviderEdition.isbns_by_work(work_ids).transform_keys { |id| "work:#{id}" }
     end
 
     def write_meta(db, entry_count)

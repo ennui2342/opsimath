@@ -110,10 +110,12 @@ meta         version, generated_at
     it across printings *and* issue the same book with different ISBNs —
     so without this, scanning the paperback of a book you own in
     hardcover would read as "not in your collection." The build reads
-    these from the **`WorkSiblingIsbns` cache** — one query, no network.
-    `Isfdb::SiblingIsbnRefresh` (daily, ahead of the snapshot job) keeps
-    that cache current: it fans `Isfdb::WorkEditions`
-    (→ `/isbn/{isbn}/editions`) over owned works whose row is missing,
+    these from **`ProviderEdition`** (the per-work table of provider-known
+    editions, `docs/CATALOG.md`; replaced the ISBN-only `WorkSiblingIsbns`
+    cache 2026-11-02) — one query, no network.
+    `Isfdb::WorkKnownEditionsRefresh` (daily, ahead of the snapshot job)
+    keeps it current: it fans `Isfdb::WorkEditions`
+    (→ `/isbn/{isbn}/editions`) over catalogued works not yet refreshed,
     older than 7 days, or whose own ISBNs changed. It's off the build's
     critical path, so a slow adapter can't make the snapshot slow or
     non-deterministic — and a truncated refresh is logged, not silent.

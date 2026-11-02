@@ -2,7 +2,7 @@ module Isfdb
   # Refreshes WishlistPrinting — every physical ISFDB printing of each
   # wishlist book, looked up via /isbn/{isbn}/editions on the ISBN the
   # item was wishlisted under (no Work needed: wishlist items are
-  # deliberately not catalogued). Same shape as SiblingIsbnRefresh: a
+  # deliberately not catalogued). Same shape as WorkKnownEditionsRefresh: a
   # thread pool for the adapter calls, persisted afterwards, bounded by a
   # wall-clock deadline; whatever a truncated run didn't reach is still
   # stale next time. See docs/BARGAIN_HUNTING.md.
