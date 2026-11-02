@@ -12,8 +12,6 @@ class EditionChangesController < ApplicationController
     @current = @edition.edition_identifiers.select { |i| EditionChange::PROVIDERS.include?(i.id_type) }.map { |i| [ i.id_type, i.value ] }
     @cards = @cards.sort_by.with_index { |card, i| [ [ "Yours now", "Same ISBN", nil ].index(notes_for(card).first), i ] }
     @choice_pending = EditionChange.decisions(@edition).any? { |d| d.kind == "enrichment_printing_choice" }
-    @other_editions = @work.editions.includes(:copies, :readings).reject { |e| e == @edition }.sort_by(&:id)
-    @shared = @edition.works.where.not(id: @work.id).to_a
   end
 
   def update
@@ -22,16 +20,6 @@ class EditionChangesController < ApplicationController
 
     EditionChange.run(@edition, card)
     redirect_to work_path(@work), notice: "Edition changed to #{@edition.reload.publisher || 'the one you chose'}."
-  end
-
-  # Remove the edition (EditionRemoval): its copies and readings move to
-  # `move_to`, or go with it when that's "delete".
-  def destroy
-    move_to = @work.editions.find(params[:move_to]) unless params[:move_to].blank? || params[:move_to] == "delete"
-    EditionRemoval.run(@edition, work: @work, move_to:)
-    redirect_to work_path(@work), notice: "Edition removed."
-  rescue EditionRemoval::Refused => e
-    redirect_to edit_work_edition_change_path(@work, @edition), alert: e.message
   end
 
   helper_method :sign, :notes_for

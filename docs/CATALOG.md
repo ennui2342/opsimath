@@ -447,13 +447,6 @@ to change.
      "second" record, overwriting the chosen one — so the ISFDB
      identifier and record named different pubs. Fixed in step 6's code
      too; the one book added on prod since was unaffected.
-   - **Removing an edition** (2026-11-02, `EditionRemoval`): at the foot
-     of the same page, out of the way, and only when the book has another
-     edition. Its copies and readings move to an edition Mark picks (a
-     duplicate) or go with it (added by mistake); reviews stay with the
-     book; queued decisions about it are rejected. Refused for an edition
-     another book shares (an omnibus). paper_trail keeps the edition,
-     copies and readings for reconstruction.
    - Owned works' known editions arrive with the nightly refresh (none
      yet on prod: tonight's 2:40 run is the first since step 2); until a
      work has them the picker fetches from ISFDB by its ISBN.

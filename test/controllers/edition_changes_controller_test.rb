@@ -53,35 +53,4 @@ class EditionChangesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :not_found
   end
-
-  test "removing an edition is offered out of the way, only when the book has another" do
-    get edit_work_edition_change_url(@work, @edition)
-    assert_select "section h2", text: "Remove this edition", count: 0
-
-    other = Edition.create!(publisher: "Ace", publish_date: "1983")
-    EditionContent.create!(work: @work, edition: other)
-    Copy.create!(edition: @edition, disposition: "owned")
-
-    get edit_work_edition_change_url(@work, @edition)
-    assert_select "section h2", text: "Remove this edition"
-    assert_select "select[name=move_to] option[value=?]", other.id.to_s, text: "Move to Ace 1983"
-    Copy.create!(edition: other, disposition: "owned")
-    get edit_work_edition_change_url(@work, @edition)
-    assert_select "select[name=move_to] option[value=?]", other.id.to_s, text: "Move to Ace 1983 (has 1 copy)"
-    assert_select "select[name=move_to] option[value=delete]"
-
-    delete work_edition_change_url(@work, @edition), params: { move_to: other.id }
-
-    assert_redirected_to work_path(@work)
-    assert_not Edition.exists?(@edition.id)
-    assert_equal 2, other.copies.count
-  end
-
-  test "a refused removal says why" do
-    delete work_edition_change_url(@work, @edition), params: { move_to: "delete" }
-
-    assert_redirected_to edit_work_edition_change_path(@work, @edition)
-    assert_equal "This is the book's only edition.", flash[:alert]
-    assert Edition.exists?(@edition.id)
-  end
 end
