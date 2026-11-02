@@ -72,4 +72,13 @@ class EnrichmentRecordTest < ActiveSupport::TestCase
   ensure
     ENV.delete("COVER_CACHE_DIR")
   end
+
+  test "fetch_image follows a redirect (Open Library cover ids redirect to archive.org), but not forever" do
+    stub_request(:get, "https://covers.openlibrary.org/b/id/7353-L.jpg").to_return(status: 302, headers: { "Location" => "https://archive.org/download/x/view_archive.php" })
+    stub_request(:get, "https://archive.org/download/x/view_archive.php").to_return(status: 200, body: "jpeg", headers: { "Content-Type" => "image/jpeg" })
+    stub_request(:get, "https://loop.example/a").to_return(status: 302, headers: { "Location" => "/a" })
+
+    assert_equal [ "jpeg", "7353-L.jpg" ], HasCoverImage.fetch_image("https://covers.openlibrary.org/b/id/7353-L.jpg").values_at(:io, :filename).then { |io, f| [ io.read, f ] }
+    assert_nil HasCoverImage.fetch_image("https://loop.example/a")
+  end
 end

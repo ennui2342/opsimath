@@ -13,6 +13,12 @@ Rails.application.routes.draw do
 
   # Bargain hunting (docs/BARGAIN_HUNTING.md): the wishlist, and per book
   # the cover picker + target price + current eBay listings.
+  # Adding a book (docs/CATALOG.md, build step 6): find the work, choose
+  # the edition, say what it is to you.
+  get "add", to: "add_books#new", as: :add_book
+  get "add/editions", to: "add_books#editions", as: :add_book_editions
+  post "add", to: "add_books#create"
+
   resources :wishlist_items, path: "wishlist", only: [ :index, :show, :update ]
   resources :finds, only: [ :index ]
   resources :ebay_listings, only: [ :edit, :update ] do

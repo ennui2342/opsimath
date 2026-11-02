@@ -29,6 +29,8 @@ module HasCoverImage
   # (and `covers:cache_export` to seed it from the current library), where
   # the ~2k provider cover downloads are the slow part and the URLs are
   # stable content addresses, so reusing them is free. See docs/INTEGRATIONS.md.
+  MAX_REDIRECTS = 3
+
   def self.fetch_image(url)
     return if url.blank?
     if (hit = cache_read(url))
@@ -36,12 +38,19 @@ module HasCoverImage
     end
 
     uri = URI.parse(url)
-    return unless %w[http https].include?(uri.scheme)
+    response = nil
+    # Open Library's cover ids answer with a redirect to archive.org.
+    MAX_REDIRECTS.succ.times do
+      return unless %w[http https].include?(uri.scheme)
 
-    response = Net::HTTP.get_response(uri)
+      response = Net::HTTP.get_response(uri)
+      break unless response.is_a?(Net::HTTPRedirection) && response["location"].present?
+
+      uri = uri + response["location"]
+    end
     return unless response.is_a?(Net::HTTPSuccess)
 
-    filename = File.basename(uri.path).presence || "cover.jpg"
+    filename = File.basename(URI.parse(url).path).presence || "cover.jpg"
     content_type = response.content_type || "image/jpeg"
     cache_write(url, response.body, filename, content_type)
     { io: StringIO.new(response.body), filename: filename, content_type: content_type }

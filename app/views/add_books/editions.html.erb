@@ -1,0 +1,50 @@
+<% content_for :title, "Which edition?" %>
+<% field = "rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-600 dark:border-gray-700 dark:bg-gray-900" %>
+<% label = "mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" %>
+<% here = @work ? { work_id: @work.id } : { found: params[:found] } %>
+
+<div class="w-full max-w-5xl">
+  <h1 class="text-2xl font-bold">Which edition is yours?</h1>
+  <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
+    <%= @title %><%= " — wanted" if @work&.want %>
+    <% if @hidden.positive? %>
+      · <%= link_to "#{@hidden} other-language #{'edition'.pluralize(@hidden)} hidden", add_book_editions_path(here.merge(all_languages: 1)), class: "hover:underline" %>
+    <% end %>
+  </p>
+
+  <% if @cards.empty? %>
+    <p class="text-sm text-gray-600 dark:text-gray-400">Neither ISFDB nor Open Library lists editions for this book yet.</p>
+    <% unless @work %>
+      <%= button_to "Want it instead", add_book_path, params: { found: params[:found], intent: "want" },
+                    class: "mt-3 rounded-md bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600" %>
+    <% end %>
+  <% else %>
+    <%= form_with url: add_book_path, method: :post do %>
+      <% here.each do |k, v| %><input type="hidden" name="<%= k %>" value="<%= v %>"><% end %>
+      <div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <% @cards.each do |card| %>
+          <%= render Ui::EditionChoiceCardComponent.new(card:, token: sign(card.editions.map(&:to_h)), work_title: @title) %>
+        <% end %>
+      </div>
+
+      <div class="mb-6 flex flex-wrap items-end gap-4 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+        <label class="flex items-center gap-2 text-sm">
+          <input type="hidden" name="own" value="0">
+          <input type="checkbox" name="own" value="1" checked class="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-2 focus:ring-green-600 dark:border-gray-600 dark:bg-gray-800">
+          I own a copy
+        </label>
+        <label class="text-sm"><span class="<%= label %>">Reading</span>
+          <select name="reading_status" class="<%= field %>">
+            <option value="">Not yet</option><option value="reading">Reading it now</option><option value="read">Read it</option>
+          </select></label>
+        <label class="text-sm"><span class="<%= label %>">Started</span><input type="date" name="date_started" value="<%= Date.current %>" class="<%= field %>"></label>
+        <label class="text-sm"><span class="<%= label %>">Finished</span><input type="date" name="date_finished" value="<%= Date.current %>" class="<%= field %>"></label>
+        <label class="text-sm"><span class="<%= label %>">Rating</span>
+          <select name="rating" class="<%= field %>"><option value="">–</option><% (1..5).each do |n| %><option value="<%= n %>"><%= n %>★</option><% end %></select></label>
+        <button type="submit" class="rounded-md bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600">Add to catalogue</button>
+      </div>
+    <% end %>
+  <% end %>
+
+  <%= link_to "Back", @work ? work_path(@work) : add_book_path, class: "text-sm text-gray-500 hover:underline dark:text-gray-400" %>
+</div>

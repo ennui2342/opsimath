@@ -6,14 +6,16 @@ class EditionIdentifier < ApplicationRecord
 
   EXTERNAL_URL_BY_TYPE = {
     "isfdb" => ->(value) { "https://www.isfdb.org/cgi-bin/pl.cgi?#{value}" },
-    "goodreads" => ->(value) { "https://www.goodreads.com/book/show/#{value}" }
+    "goodreads" => ->(value) { "https://www.goodreads.com/book/show/#{value}" },
+    "openlibrary" => ->(value) { "https://openlibrary.org/books/#{value}" }
   }.freeze
 
   # The identifier types opsimath actually records, with display labels and
   # a canonical order — shared by every "list an edition's ids" surface
   # (Ui::EditionCardComponent on the web, the pocket app, PendingDecision's
   # comparison cards) so they don't each pick their own labels/order.
-  TYPE_LABELS = { "isbn13" => "ISBN-13", "isbn10" => "ISBN-10", "isfdb" => "ISFDB", "goodreads" => "Goodreads" }.freeze
+  TYPE_LABELS = { "isbn13" => "ISBN-13", "isbn10" => "ISBN-10", "isfdb" => "ISFDB", "goodreads" => "Goodreads",
+                  "openlibrary" => "Open Library" }.freeze
   DISPLAY_ORDER = TYPE_LABELS.keys.freeze
 
   def label = TYPE_LABELS.fetch(id_type, id_type.upcase)

@@ -1,0 +1,48 @@
+<% content_for :title, "Add a book" %>
+<% secondary = "rounded-md bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600" %>
+<% primary = "rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600" %>
+<% provider_labels = Ui::EditionChoiceCardComponent::PROVIDER_LABELS %>
+
+<div class="w-full max-w-3xl">
+  <h1 class="mb-4 text-2xl font-bold">Add a book</h1>
+
+  <%= form_with url: add_book_path, method: :get, class: "mb-6 flex gap-2" do %>
+    <input type="search" name="q" value="<%= @query %>" placeholder="Title and author, or an ISBN" autofocus
+           aria-label="Title and author, or an ISBN"
+           class="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-green-600 dark:border-gray-700 dark:bg-gray-900">
+    <button type="submit" class="<%= primary %>">Search</button>
+  <% end %>
+
+  <% if @query.present? && @results.empty? %>
+    <p class="text-sm text-gray-500 dark:text-gray-400">Nothing found in ISFDB or Open Library for “<%= @query %>”. Try fewer words, or the author's surname with a title word.</p>
+  <% end %>
+
+  <ul class="divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800 <%= "hidden" if @results.empty? %>">
+    <% @results.each do |result| %>
+      <% token = sign(result.to_payload) %>
+      <li class="flex gap-3 px-4 py-3">
+        <div class="h-20 w-14 flex-none bg-gray-50 dark:bg-gray-900">
+          <% if result.cover_url %><%= image_tag result.cover_url, alt: "", loading: "lazy", class: "h-full w-full object-contain" %><% end %>
+        </div>
+        <div class="min-w-0 flex-1 text-sm">
+          <p class="font-medium"><%= result.title %></p>
+          <p class="text-gray-600 dark:text-gray-400"><%= result.authors.join(", ") %><%= " · #{result.first_year}" if result.first_year %></p>
+          <p class="text-xs text-gray-400 dark:text-gray-500">
+            <%= result.providers.map { |p| provider_labels.fetch(p, p) }.join(" + ") %><%= " · #{pluralize(result.edition_count, 'edition')}" if result.edition_count.positive? %>
+          </p>
+          <div class="mt-2 flex flex-wrap items-center gap-2">
+            <% if result.work %>
+              <% wanted_only = result.work.want && result.work.editions.empty? %>
+              <%= render Ui::BadgeComponent.new(text: wanted_only ? "On your wishlist" : "In your catalogue", variant: wanted_only ? :default : :success) %>
+              <%= link_to "Open", work_path(result.work), class: "text-sm text-green-700 hover:underline dark:text-green-400" %>
+              <%= link_to wanted_only ? "I've got it" : "Add an edition", add_book_editions_path(work_id: result.work.id), class: secondary %>
+            <% else %>
+              <%= link_to "Choose edition", add_book_editions_path(found: token), class: primary %>
+              <%= button_to "Want it", add_book_path, params: { found: token, intent: "want" }, class: secondary %>
+            <% end %>
+          </div>
+        </div>
+      </li>
+    <% end %>
+  </ul>
+</div>

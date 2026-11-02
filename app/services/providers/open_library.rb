@@ -29,14 +29,21 @@ module Providers
     # One result per Open Library work; editions are fetched once a work is
     # chosen (editions(work_id)) — a search lists works, not printings.
     # Open Library often has several works for one book (Crossfire: three).
+    # `title:` alone is sent as free text — the add-a-book box takes title
+    # and author words together, as typed.
     def search_works(title:, author: nil)
-      @client.search(title:, author:).map do |doc|
+      docs = author ? @client.search(title:, author:) : @client.search(q: title)
+      docs.map do |doc|
         Work.new(provider: name, id: doc["key"].to_s.delete_prefix("/works/"), title: doc["title"],
                  authors: Array(doc["author_name"]), first_year: doc["first_publish_year"],
                  cover_url: doc["cover_i"].to_i.positive? ? format(COVER_URL, doc["cover_i"]) : nil,
                  edition_count: doc["edition_count"], editions: nil)
       end
     end
+
+    # Open Library's search takes an ISBN as free text and answers with the
+    # work — with its authors, which the plain ISBN endpoint doesn't carry.
+    def works_for_isbn(isbn) = search_works(title: isbn)
 
     def editions(work_key) = @client.editions(work_key).filter_map { |ed| edition(ed, work_key) }
 

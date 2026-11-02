@@ -28,7 +28,20 @@ module Providers
     # isfdb-adapter's /search: title and author words matched separately,
     # then every edition of each matched title — grouped back into works.
     def search_works(title:, author: nil)
-      @client.search([ title, author ].compact.join(" ")).group_by { |ed| ed["_isfdb_title_id"] }.filter_map do |title_id, eds|
+      works_from(@client.search([ title, author ].compact.join(" ")))
+    end
+
+    # The work(s) an ISBN belongs to, with the printings under that ISBN.
+    def works_for_isbn(isbn) = works_from(@client.lookup_isbn(isbn))
+
+    # Every ISFDB publication of the title an ISBN belongs to (and of any
+    # omnibus containing it) — the full edition list for the picker.
+    def editions_for_isbn(isbn) = @client.lookup_editions(isbn).filter_map { |ed| edition(ed) }
+
+    private
+
+    def works_from(raw)
+      raw.group_by { |ed| ed["_isfdb_title_id"] }.filter_map do |title_id, eds|
         next if title_id.blank?
 
         editions = eds.filter_map { |ed| edition(ed) }
@@ -37,8 +50,6 @@ module Providers
                  cover_url: editions.filter_map(&:cover_url).first, edition_count: editions.size, editions:)
       end
     end
-
-    private
 
     def isbn_of(ed) = ed["isbn_13"].presence || (ed["isbn_10"].presence && Isbn.to_13(ed["isbn_10"]))
 

@@ -374,6 +374,21 @@ open read — is shown expanded, in the `accent` (purple) family that the
 Owned `:success`, Read `:info`, Reading `:accent`, Wanted and DNF
 `:default`.
 
+### Choosing an edition (add a book)
+
+`add_books/editions` since catalogue step 6 — the choice grid again, but
+single-choice: a grid (`grid-cols-2 sm:grid-cols-3 lg:grid-cols-5`) of
+`Ui::EditionChoiceCardComponent`, each a `<label>` wrapping a radio,
+cover on top and **publisher · years** as its headline (how Mark
+chooses), then format · cover artist, then ISBN · sources in muted xs.
+The checked card gets the green border + ring (`has-[:checked]:`). The
+intent controls (I own a copy, reading, dates, rating) sit in one
+`flex flex-wrap items-end gap-4` bordered row under the grid with the
+one green submit. The search page before it is a queue-list `<ul>` of
+results, each with its own primary action ("Choose edition") and a
+secondary ("Want it"); a result already in the catalogue shows a badge
+instead of the primary.
+
 ### "All caught up" empty state
 
 `_all_done` partial, rendered inside the same wrapper `id` so it works as a

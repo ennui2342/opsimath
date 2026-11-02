@@ -105,9 +105,8 @@ mean something upstream needs fixing.
 
 The same screen ends with the intent: **wishlist**, **own** (a `Copy`;
 "to-read"), **reading**, or **read** / **DNF** (a `Reading`, with
-dates, rating and review). Acquiring a wishlist book deletes the
-`WishlistItem` (today's rule, `docs/INTEGRATIONS.md`) and takes its
-bargain-hunting data with it. Buying from a `/finds` listing could
+dates, rating and review). Acquiring a wanted book retires its `Want`
+(`Want#retire!`, keeping the Work) and its bargain-hunting data with it. Buying from a `/finds` listing could
 pre-select the printing that listing was identified as.
 
 ## Providers
@@ -362,6 +361,54 @@ to change.
      Works, which had put 334 of them among the owned books unmarked.
 6. **Add a book** — search → work → edition cards (publisher + cover) →
    intent → step 2 enrichment.
+   **Built 2026-11-03** (`/add`, "Add a book" in the header; a wanted
+   book's page links to its picker as "I've got it").
+   - **Search** (`AddBook::Search`): one box, title and author words
+     together, or an ISBN (looked up, not searched). ISFDB and Open
+     Library are asked together and their works grouped by short title
+     + author surname. The providers match loosely ("hackers steven
+     levy" brings back Steven Spielberg), so results are ranked by how
+     many typed words are in the title (×2) and authors, and cut to 15.
+     ISFDB titles whose known editions are all translations are left
+     out. A book already catalogued says so — by stored provider work
+     id, else by title + author — and offers "Add an edition" (or "I've
+     got it" for a wanted-only book) instead of creating a duplicate.
+   - **Want it** (6b): a new Work with its authors and provider work ids
+     (`work_identifiers`), and a Want seeded with up to 3 ISBNs (for
+     `KnownEditionsRefresh` that night) and the search cover. No
+     edition.
+   - **Edition cards** (`AddBook::EditionCards`): a catalogued work
+     reads its `provider_editions` (no network); a new one fetches live
+     (ISFDB by ISBN, else the printings the search returned; Open
+     Library by every work id — OL keeps duplicate works for one book).
+     ISFDB printings share a card on the same scan, or the same ISBN +
+     cover artist under one publisher (DAW's *Birthgrave* is in ISFDB
+     twice, once undated, with two scans of George Barr's cover); Orbit's
+     1977 and 1979/85 covers, one ISBN, stay apart. An Open Library
+     edition joins the ISFDB card with its ISBN only if exactly one has
+     it. Other-language editions are hidden behind a link; ebook and
+     audio sort last. What a page offers travels to the next request as
+     a signed token (1 day), so saving needs no second lookup — a
+     pre-ISBN printing couldn't be looked up again.
+   - **The record** (`AddBook::Create`): the card's ISFDB record (the
+     printing with a cover and a date) fills the new edition through
+     `SourceRecorder`; the other providers' records are stored beside
+     it and **fill only the gaps** (Open Library's cover for a printing
+     ISFDB has no scan of) — never a conflict, so adding a book adds
+     nothing to the review queue (verified: 420 before and after).
+     Identifiers: ISBN-13/10, ISFDB pub id, Open Library edition id.
+     Then a Copy ("I own a copy", on by default), and optionally a
+     Reading — reading now, or read with a finish date and rating.
+     Getting a wanted book retires its want and keeps the work.
+   - **Found on the way:** `HasCoverImage.fetch_image` didn't follow
+     redirects, and every Open Library cover id redirects to
+     archive.org — so OL covers were silently dropped everywhere,
+     including cover grouping and eBay printing identification once OL
+     rows have covers (none had yet). It follows up to 3 now.
+   - **Not yet:** DNF from the add screen (log it on the book page);
+     the review text on finishing; pre-selecting the printing from a
+     `/finds` listing; editing a new work's literary form (always
+     "novel" — change it on the book page later).
 7. **Edition picker for existing books** — change which edition you
    own, and settle queued printing choices there.
 8. Later: discovery; then federation. Reviews' route to scifipraxis is
