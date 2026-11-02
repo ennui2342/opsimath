@@ -1,0 +1,29 @@
+<% content_for :title, "Which edition is this?" %>
+
+<div class="w-full max-w-5xl">
+  <h1 class="text-2xl font-bold">Which edition is this?</h1>
+  <p class="text-sm text-gray-500 dark:text-gray-400">
+    <%= @work.title %> — on file as <%= [ @edition.publisher, @edition.publish_date&.slice(0, 4) ].compact.join(" ").presence || "an unidentified edition" %><%= ", ISBN #{@isbn}" if @isbn %>
+    <% if @hidden.positive? %>
+      · <%= link_to "#{@hidden} other-language #{'edition'.pluralize(@hidden)} hidden", edit_work_edition_change_path(@work, @edition, all_languages: 1), class: "hover:underline" %>
+    <% end %>
+  </p>
+  <p class="mb-4 mt-1 text-sm text-gray-600 dark:text-gray-400">
+    <% if @choice_pending %>
+      More than one printing carries this ISBN — choose the one you have.
+    <% else %>
+      Choosing another makes this edition that printing: its details, cover and identifiers are replaced; your copies and readings stay.
+    <% end %>
+  </p>
+
+  <% if @cards.empty? %>
+    <p class="text-sm text-gray-600 dark:text-gray-400">Neither ISFDB nor Open Library lists editions for this book yet.</p>
+  <% else %>
+    <%= form_with url: work_edition_change_path(@work, @edition), method: :patch do %>
+      <%= render "add_books/edition_grid", cards: @cards, title: @work.title, notes: method(:notes_for) %>
+      <button type="submit" class="mb-6 rounded-md bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600">This is my edition</button>
+    <% end %>
+  <% end %>
+
+  <%= link_to "Back", work_path(@work), class: "text-sm text-gray-500 hover:underline dark:text-gray-400" %>
+</div>

@@ -21,11 +21,7 @@
   <% else %>
     <%= form_with url: add_book_path, method: :post do %>
       <% here.each do |k, v| %><input type="hidden" name="<%= k %>" value="<%= v %>"><% end %>
-      <div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <% @cards.each do |card| %>
-          <%= render Ui::EditionChoiceCardComponent.new(card:, token: sign(card.editions.map(&:to_h)), work_title: @title) %>
-        <% end %>
-      </div>
+      <%= render "add_books/edition_grid", cards: @cards, title: @title %>
 
       <div class="mb-6 flex flex-wrap items-end gap-4 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
         <label class="flex items-center gap-2 text-sm">

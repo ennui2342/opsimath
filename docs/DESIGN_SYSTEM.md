@@ -389,6 +389,13 @@ results, each with its own primary action ("Choose edition") and a
 secondary ("Want it"); a result already in the catalogue shows a badge
 instead of the primary.
 
+The same grid (`add_books/_edition_grid` partial) is the "which edition
+is this?" page for an edition on file (`edition_changes/edit`): no
+intent row, one green **This is my edition**, and `notes` badges over a
+card's headline — "Yours now" (`:success`) and "Same ISBN" (`:default`)
+— sorted first. On the book page, an edition with a queued printing
+choice gets a `conflict`-family bar under its card linking there.
+
 ### "All caught up" empty state
 
 `_all_done` partial, rendered inside the same wrapper `id` so it works as a

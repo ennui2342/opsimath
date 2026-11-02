@@ -62,14 +62,23 @@ module AddBook
     end
 
     def self.build_edition(work, card)
-      editions = card.map { |e| Providers::Edition.new(**e.symbolize_keys) }
-      primary = EditionCards::Card.new(editions:).primary
       edition = Edition.create!
       EditionContent.create!(work:, edition:)
+      fill(edition, card)
+    end
+
+    # An edition with nothing on it takes the card: the best record
+    # through SourceRecorder, the others beside it filling gaps, and the
+    # card's identifiers. Also how EditionChange re-points an edition.
+    def self.fill(edition, card)
+      editions = card.map { |e| Providers::Edition.new(**e.symbolize_keys) }
+      primary = EditionCards::Card.new(editions:).primary
 
       Enrichment::SourceRecorder.record(entity: edition, provider: primary.provider, external_id: primary.id,
                                         raw_payload: primary.to_h, fields: fields(primary))
-      (editions - [ primary ]).uniq(&:provider).each do |other|
+      # One record per provider: other printings on the card from the
+      # primary's own provider aren't another source.
+      editions.reject { |e| e.provider == primary.provider }.uniq(&:provider).each do |other|
         all = fields(other)
         EnrichmentRecord.find_or_initialize_by(entity: edition, provider: other.provider)
                         .update!(external_id: other.id, fetched_at: Time.current, raw_payload: other.to_h,
@@ -79,7 +88,7 @@ module AddBook
         Enrichment::SourceRecorder.record(entity: edition, provider: other.provider, external_id: other.id,
                                           raw_payload: other.to_h, fields: gaps)
       end
-      record_identifiers(edition, editions)
+      record_identifiers(edition, [ primary ] + (editions - [ primary ])) # the record's printing names the edition
       edition.reload
     end
 

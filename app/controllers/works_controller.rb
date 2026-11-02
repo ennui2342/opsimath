@@ -23,5 +23,11 @@ class WorksController < ApplicationController
       :want, { work_contributors: :contributor }, { readings: :edition }, :reviews,
       editions: [ :edition_identifiers, :copies, { cover_image_attachment: :blob }, { enrichment_records: { cover_image_attachment: :blob } } ]
     ).find(params[:id])
+    # Editions with a queued "which printing is yours?" — settled from the
+    # edition picker (docs/CATALOG.md, build step 7).
+    @printing_choices = PendingDecision.pending.where(kind: "enrichment_printing_choice")
+                                       .where("payload->>'entity_type' = 'Edition'")
+                                       .where("payload->>'entity_id' IN (?)", @work.editions.map { |e| e.id.to_s }.presence || [ "" ])
+                                       .to_set { |d| d.payload["entity_id"].to_i }
   end
 end

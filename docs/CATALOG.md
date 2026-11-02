@@ -411,6 +411,36 @@ to change.
      "novel" — change it on the book page later).
 7. **Edition picker for existing books** — change which edition you
    own, and settle queued printing choices there.
+   **Built 2026-11-03.** Every edition on the book page has "Not this
+   edition?"; one with a queued `enrichment_printing_choice` also shows
+   "Several printings share this ISBN. Which is yours?" (conflict
+   colours). Both open the add flow's card grid for that edition
+   (`EditionChangesController`, `/works/:id/editions/:id/edit`): the
+   work's known editions plus the decision's own candidates, the current
+   printing ("Yours now") and same-ISBN cards first.
+   - **Choosing is an identity call** (`EditionChange`), like accepting a
+     printing choice (`IsfdbEditionEnricher#commit_choice`): the edition
+     *becomes* that printing — bibliographic fields, cover, ISBN and
+     ISFDB / Open Library identifiers and records are cleared and the
+     card fills it as if new (`AddBook::Create.fill`). A printing with no
+     cover leaves none rather than keeping the old printing's. Copies,
+     readings, Goodreads identifiers and records, and manual fields
+     outside the bibliographic set stay.
+   - **Queued decisions are settled first:** the printing choice
+     accepted; ISFDB / Open Library field conflicts rejected as moot
+     (they compared another printing). Goodreads conflicts stay.
+   - **Real data (UAT):** Foundation and Earth's 7 queued printings are
+     3 same-ISBN cards among 21; Fahrenheit 451's 12 are 5 — printings
+     without a scan or artist stay a card each, since nothing says which
+     cover they had. Each choice took one off the queue.
+   - **Found on the way:** on a card holding several printings from one
+     provider, the other printings were stored as that provider's
+     "second" record, overwriting the chosen one — so the ISFDB
+     identifier and record named different pubs. Fixed in step 6's code
+     too; the one book added on prod since was unaffected.
+   - Owned works' known editions arrive with the nightly refresh (none
+     yet on prod: tonight's 2:40 run is the first since step 2); until a
+     work has them the picker fetches from ISFDB by its ISBN.
 8. Later: discovery; then federation. Reviews' route to scifipraxis is
    punted — posting to Goodreads was manual anyway, so nothing is lost.
 

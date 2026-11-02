@@ -9,6 +9,8 @@ Rails.application.routes.draw do
     resources :readings, only: [ :create, :update, :destroy ]
     resources :copies, only: [ :create, :update ]
     resource :want, only: [ :create, :destroy ]
+    # "Not this edition" (docs/CATALOG.md, build step 7)
+    resources :edition_changes, path: "editions", only: [ :edit, :update ]
   end
 
   # Bargain hunting (docs/BARGAIN_HUNTING.md): the wishlist, and per book

@@ -42,6 +42,15 @@ module AddBook
       assert_equal 0, PendingDecision.count
     end
 
+    test "identifiers name the printing the record came from — on a multi-printing card, the one with a cover and date" do
+      undated = { "provider" => "isfdb", "id" => "54", "publisher" => "Tor", "binding" => "hc", "isbn13" => "9780765304674" }
+
+      _, edition = Create.edition(work: nil, found: @found, card: [ undated ] + @card)
+
+      assert_equal "55", edition.edition_identifiers.find_by(id_type: "isfdb").value
+      assert_equal "55", edition.enrichment_records.find_by(provider: "isfdb").external_id
+    end
+
     test "a cover ISFDB doesn't have comes from Open Library" do
       @card.first.delete("cover_url")
       @card.last["cover_url"] = "https://covers.test/ol.png"

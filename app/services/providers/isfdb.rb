@@ -38,6 +38,10 @@ module Providers
     # omnibus containing it) — the full edition list for the picker.
     def editions_for_isbn(isbn) = @client.lookup_editions(isbn).filter_map { |ed| edition(ed) }
 
+    # One isfdb-adapter publication hash as a provider edition (an
+    # enrichment_printing_choice decision stores them raw).
+    def edition_from(raw) = edition(raw)
+
     private
 
     def works_from(raw)

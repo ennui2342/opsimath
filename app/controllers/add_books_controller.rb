@@ -20,7 +20,8 @@ class AddBooksController < ApplicationController
     return redirect_to(add_book_path, alert: "That search result has expired — search again.") unless @work || @found
 
     @title = @work&.title || @found["title"]
-    @cards, @hidden = AddBook::EditionCards.build(provider_editions, all_languages: params[:all_languages].present?)
+    editions = @work ? AddBook::EditionSource.for_work(@work) : AddBook::EditionSource.for_found(@found)
+    @cards, @hidden = AddBook::EditionCards.build(editions, all_languages: params[:all_languages].present?)
   end
 
   def create
@@ -49,43 +50,6 @@ class AddBooksController < ApplicationController
   def verifier = Rails.application.message_verifier(:add_book)
 
   def read(token) = token.present? ? verifier.verified(token) : nil
-
-  # The editions to choose between: a catalogued work's known editions
-  # (no network) — fetched live only if it has none yet — or a search
-  # result's, fetched from each provider.
-  def provider_editions
-    if @work && @work.provider_editions.any?
-      AddBook::EditionCards.from_provider_editions(@work.provider_editions)
-    else
-      fetch_live(@work ? works_for(@work) : @found["provider_works"])
-    end
-  end
-
-  # A catalogued work as provider works: ISFDB by the ISBNs it's known by
-  # (its editions' and its want's), Open Library by each stored work id —
-  # it can hold several for one book (its duplicate works).
-  def works_for(work)
-    isbns = work.editions.flat_map(&:edition_identifiers).select { |i| i.id_type.start_with?("isbn") }.map(&:value) +
-            Array(work.want&.seed_isbns)
-    ol_ids = work.work_identifiers.select { |i| i.id_type == "openlibrary_work" }.map(&:value)
-    [ { "provider" => "isfdb", "isbns" => isbns } ] + ol_ids.map { |id| { "provider" => "openlibrary", "id" => id } }
-  end
-
-  def fetch_live(provider_works)
-    Array(provider_works).flat_map do |pw|
-      case pw["provider"]
-      when "isfdb"
-        isbn = Array(pw["isbns"]).first
-        isbn ? Providers::Isfdb.new.editions_for_isbn(isbn) : Array(pw["editions"]).map { |e| Providers::Edition.new(**e.symbolize_keys) }
-      when "openlibrary"
-        pw["id"].present? ? Providers::OpenLibrary.new.editions(pw["id"]) : []
-      else []
-      end
-    rescue StandardError => e
-      Rails.logger.warn("add book: #{pw["provider"]} editions — #{e.class}: #{e.message}")
-      []
-    end
-  end
 
   def reading_params
     case params[:reading_status]

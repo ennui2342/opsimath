@@ -1,0 +1,7 @@
+<%# The edition cards, one radio each (Ui::EditionChoiceCardComponent) — shared by adding a book and changing an edition. %>
+<% notes = local_assigns.fetch(:notes, ->(_card) { [] }) %>
+<div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+  <% cards.each do |card| %>
+    <%= render Ui::EditionChoiceCardComponent.new(card:, token: sign(card.editions.map(&:to_h)), work_title: title, notes: notes.call(card)) %>
+  <% end %>
+</div>

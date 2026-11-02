@@ -3,17 +3,20 @@ module Ui
   # 6): the edition as Mark chooses it — cover and publisher first — with
   # years, format, cover artist and which providers know it. The whole
   # card is the radio's <label>. Takes an AddBook::EditionCards::Card and
-  # the signed token the radio submits.
+  # the signed token the radio submits; `notes` are badges over the
+  # headline ("Yours now", "Same ISBN") when choosing for an edition on file.
   class EditionChoiceCardComponent < ApplicationComponent
     PROVIDER_LABELS = { "isfdb" => "ISFDB", "openlibrary" => "Open Library" }.freeze
 
-    def initialize(card:, token:, work_title: nil)
+    def initialize(card:, token:, work_title: nil, notes: [], checked: false)
       @card = card
       @token = token
       @work_title = work_title
+      @notes = notes
+      @checked = checked
     end
 
-    attr_reader :card, :token
+    attr_reader :card, :token, :notes, :checked
 
     def headline = [ card.publisher.presence || "Publisher unknown", card.years.first(3).join(", ").presence ].compact.join(" · ")
 
