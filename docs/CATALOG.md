@@ -339,6 +339,27 @@ to change.
    / DNF, dates, rating, review), ownership (acquired / sold / given
    away), want (add, remove, acquire). The book page's job moves from
    reference to catalogue management.
+   **Built 2026-11-03**, for books with an edition in the catalogue (the
+   ~2,000 owned or read). Acquiring a *wanted* book, and logging a read
+   of one, need its edition chosen first — the add flow (step 6).
+   - **Reading log:** start (edition, date, own copy / library /
+     borrowed); on the open read, finish (date, rating, an optional
+     review saved as a draft — publishing it is punted), did not finish
+     (date, reason), pause / resume; every past reading correctable, or
+     deletable with a confirmation (its review stays). A finish before
+     the start is refused. Reading and Review now keep full paper_trail
+     history, not just notes and text.
+   - **Copies,** under each edition card (the card itself is shared with
+     the PWA, so it's untouched): add one (date, price, source,
+     condition, notes), or record what became of one (sold, given away,
+     lost, replaced).
+   - **Wishlist:** add a book you have (an upgrade hunt), remove one —
+     a wanted-only book's empty Work goes with it (`Want#retire!`, also
+     what the Goodreads to-read path uses) — and a link to its bargain
+     hunting.
+   - **Books list:** each book's status (owned, wanted, reading, read,
+     DNF) and filters by it — needed since step 4 made wanted-only books
+     Works, which had put 334 of them among the owned books unmarked.
 6. **Add a book** — search → work → edition cards (publisher + cover) →
    intent → step 2 enrichment.
 7. **Edition picker for existing books** — change which edition you

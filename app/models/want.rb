@@ -41,6 +41,18 @@ class Want < ApplicationRecord
   # (ContributorLifeRefresh) — what CollectingProfile's buy-new rule reads.
   def author_status = author&.life_status || :unknown
 
+  # Stop wanting the book. A Work that only existed for the want — no
+  # editions, readings or reviews — goes with it (and its printings and
+  # eBay listings), so no empty book is left in the catalogue; one that's
+  # catalogued otherwise stays. `keep:` spares a work regardless (the one
+  # a Goodreads to-read just catalogued the edition onto).
+  def retire!(keep: nil)
+    placeholder = work
+    destroy!
+    placeholder.destroy! if placeholder != keep && placeholder.editions.empty? &&
+                            placeholder.readings.empty? && placeholder.reviews.empty?
+  end
+
   # The work's ISFDB printings that bargain hunting reasons about: physical
   # ones (ebook/audio dropped).
   def printings = work.provider_editions.select(&:hunted_printing?)

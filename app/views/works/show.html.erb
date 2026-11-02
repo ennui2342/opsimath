@@ -1,8 +1,13 @@
 <% content_for :title, @work.title %>
+<% badge = { owned: [ "Owned", :success ], wanted: [ "Wanted", :default ], reading: [ "Reading", :accent ], read: [ "Read", :info ], dnf: [ "DNF", :default ] } %>
+<% primary = "rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600" %>
+<% secondary = "rounded-md bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600" %>
+<% open_reading = @work.readings.find(&:open?) %>
 
 <div class="w-full max-w-3xl">
   <div class="mb-1 flex flex-wrap items-center gap-2">
     <%= render(Ui::BadgeComponent.new(text: @work.literary_form)) %>
+    <% @work.statuses.each do |s| %><%= render(Ui::BadgeComponent.new(text: badge[s].first, variant: badge[s].last)) %><% end %>
   </div>
   <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100"><%= @work.title %></h1>
   <% if @work.subtitle.present? %>
@@ -10,7 +15,7 @@
   <% end %>
 
   <p class="mt-1 text-gray-700 dark:text-gray-300">
-    <%= @work.work_contributors.order(:display_order).map { |wc| "#{wc.contributor.name} (#{wc.role})" }.join(", ") %>
+    <%= @work.work_contributors.sort_by { |wc| wc.display_order || Float::INFINITY }.map { |wc| "#{wc.contributor.name} (#{wc.role})" }.join(", ") %>
   </p>
 
   <% if @work.work_series.any? %>
@@ -31,40 +36,44 @@
     <p class="mt-4 text-gray-700 dark:text-gray-300"><%= @work.description %></p>
   <% end %>
 
-  <h2 class="mt-8 mb-3 text-xl font-semibold text-gray-900 dark:text-gray-100">Editions</h2>
-  <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-    <% @work.editions.order(:id).each do |edition| %>
-      <%= render(Ui::EditionCardComponent.new(edition: edition)) %>
+  <%# Wishlist: the catalogue side. Bargain hunting has its own page. %>
+  <div class="mt-4 flex flex-wrap items-center gap-3 text-sm">
+    <% if @work.want %>
+      <span class="text-gray-600 dark:text-gray-400">On your wishlist.</span>
+      <%= link_to "Bargain hunting", wishlist_item_path(@work.want), class: "text-green-700 hover:underline dark:text-green-400" %>
+      <%= button_to "Remove from wishlist", work_want_path(@work), method: :delete, class: secondary,
+                    form: { data: { turbo_confirm: @work.editions.empty? ? "Remove “#{@work.title}” from your wishlist? It isn't otherwise in your catalogue, so it goes completely." : "Remove “#{@work.title}” from your wishlist?" } } %>
+    <% else %>
+      <%= button_to "Add to wishlist", work_want_path(@work), method: :post, class: secondary %>
     <% end %>
   </div>
 
-  <% if @work.readings.any? %>
-    <h2 class="mt-8 mb-3 text-xl font-semibold text-gray-900 dark:text-gray-100">Reading history</h2>
-    <ul class="divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
-      <% @work.readings.order(date_started: :desc).each do |reading| %>
-        <% # Same color convention as Ui::EditionCardComponent#reading_badge —
-           # :info (completed), :accent (still open), :default otherwise. %>
-        <% reading_variant = case reading.status
-           when "completed" then :info
-           when "reading", "paused" then :accent
-           else :default
-           end %>
-        <li class="flex items-center justify-between px-4 py-3 text-sm">
-          <span>
-            <%= render(Ui::BadgeComponent.new(text: reading.status, variant: reading_variant)) %>
-            <%= reading.date_started %> &ndash; <%= reading.date_finished %>
-          </span>
-          <span class="text-gray-500 dark:text-gray-400"><%= reading.rating ? "#{reading.rating}★" : nil %></span>
-        </li>
+  <%= render "reading", work: @work, open_reading:, primary:, secondary: %>
+
+  <% if @work.editions.any? %>
+    <h2 class="mt-8 mb-3 text-xl font-semibold text-gray-900 dark:text-gray-100">Editions</h2>
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <% @work.editions.sort_by(&:id).each do |edition| %>
+        <div>
+          <%= render(Ui::EditionCardComponent.new(edition: edition)) %>
+          <%= render "copies", work: @work, edition:, primary:, secondary: %>
+        </div>
       <% end %>
-    </ul>
+    </div>
+  <% elsif @work.want %>
+    <p class="mt-8 text-sm text-gray-500 dark:text-gray-400">No edition in your catalogue yet — a wanted book. Choosing the edition you've got arrives with adding books.</p>
   <% end %>
+
+  <%= render "reading_history", work: @work, primary:, secondary: %>
 
   <% if @work.reviews.any? %>
     <h2 class="mt-8 mb-3 text-xl font-semibold text-gray-900 dark:text-gray-100">Reviews</h2>
     <% @work.reviews.each do |review| %>
       <div class="mb-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-        <p class="text-sm text-gray-500 dark:text-gray-400"><%= review.published_at %> &middot; <%= review.rating %>★</p>
+        <p class="text-sm text-gray-500 dark:text-gray-400">
+          <%= review.published_at || review.created_at.to_date %> &middot; <%= review.rating ? "#{review.rating.to_i}★" : "unrated" %>
+          <% if review.draft? %> &middot; draft<% end %>
+        </p>
         <div class="mt-2 text-gray-700 dark:text-gray-300">
           <%= render(Ui::MarkdownComponent.new(text: review.text)) %>
         </div>

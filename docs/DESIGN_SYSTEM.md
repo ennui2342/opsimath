@@ -360,6 +360,20 @@ No keyboard shortcuts (not a throughput screen); a plain redirect with a
 the queue-list `divide-y … rounded-lg border` `<ul>` with an
 uppercase-xs heading and a count.
 
+### Management page (book page)
+
+`works/show` since catalogue step 5 (docs/CATALOG.md) — a reference page
+that also changes things, not a triage screen: no keyboard shortcuts,
+no Turbo Streams. Each action is its own small form that redirects back
+with a `notice`/`alert`. Forms that aren't the next obvious thing sit
+collapsed in a `<details>` (Start reading, Copies, editing a past
+reading), so the page still reads as the book. The one live state — an
+open read — is shown expanded, in the `accent` (purple) family that the
+"Reading" badge uses. Destructive actions are a `button_to` with a
+`turbo_confirm` naming what goes. Status badges reuse `Ui::BadgeComponent`:
+Owned `:success`, Read `:info`, Reading `:accent`, Wanted and DNF
+`:default`.
+
 ### "All caught up" empty state
 
 `_all_done` partial, rendered inside the same wrapper `id` so it works as a

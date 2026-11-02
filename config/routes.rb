@@ -3,7 +3,13 @@ Rails.application.routes.draw do
   resource :session
   resources :passwords, param: :token
 
-  resources :works, only: [ :index, :show ]
+  # The book page is catalogue management (docs/CATALOG.md, build step 5):
+  # the reading log, copies, and whether it's wanted.
+  resources :works, only: [ :index, :show ] do
+    resources :readings, only: [ :create, :update, :destroy ]
+    resources :copies, only: [ :create, :update ]
+    resource :want, only: [ :create, :destroy ]
+  end
 
   # Bargain hunting (docs/BARGAIN_HUNTING.md): the wishlist, and per book
   # the cover picker + target price + current eBay listings.

@@ -1,15 +1,29 @@
 <% content_for :title, "Books" %>
+<% badge = { owned: [ "Owned", :success ], wanted: [ "Wanted", :default ], reading: [ "Reading", :accent ], read: [ "Read", :info ], dnf: [ "DNF", :default ] } %>
+<% pill = "rounded-full px-3 py-1 text-sm" %>
+<% pill_on = "#{pill} bg-conflict-100 text-conflict-800 dark:bg-conflict-900 dark:text-conflict-200" %>
+<% pill_off = "#{pill} bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700" %>
 
 <div class="w-full max-w-3xl">
-  <h1 class="mb-4 text-2xl font-bold text-gray-900 dark:text-gray-100">Books</h1>
+  <h1 class="mb-3 text-2xl font-bold text-gray-900 dark:text-gray-100">Books</h1>
+
+  <nav class="mb-4 flex flex-wrap gap-2" aria-label="Filter books">
+    <%= link_to "All", works_path, class: @filter ? pill_off : pill_on %>
+    <% WorksController::FILTERS.each do |f| %>
+      <%= link_to "#{badge[f.to_sym].first} (#{@counts[f]})", works_path(filter: f), class: @filter == f ? pill_on : pill_off %>
+    <% end %>
+  </nav>
 
   <ul class="divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
     <% @works.each do |work| %>
       <li>
         <%= link_to work_path(work), class: "flex items-center justify-between gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800" do %>
-          <span class="font-medium text-gray-900 dark:text-gray-100"><%= work.title %></span>
-          <span class="text-sm text-gray-500 dark:text-gray-400">
-            <%= work.work_contributors.where(role: "author").map { |wc| wc.contributor.name }.join(", ") %>
+          <span class="min-w-0">
+            <span class="block truncate font-medium text-gray-900 dark:text-gray-100"><%= work.title %></span>
+            <span class="block truncate text-xs text-gray-500 dark:text-gray-400"><%= work.authors.map(&:name).join(", ") %></span>
+          </span>
+          <span class="flex flex-none flex-wrap justify-end gap-1">
+            <% @statuses[work.id].each do |s| %><%= render Ui::BadgeComponent.new(text: badge[s].first, variant: badge[s].last) %><% end %>
           </span>
         <% end %>
       </li>

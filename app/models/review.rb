@@ -1,5 +1,6 @@
 class Review < ApplicationRecord
-  has_paper_trail only: [ :text ]
+  # Full history: reviews are written in opsimath now (docs/CATALOG.md).
+  has_paper_trail
 
   enum :status, { draft: "draft", published: "published" }
 

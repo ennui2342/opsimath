@@ -52,4 +52,16 @@ class Work < ApplicationRecord
                      .sort_by { |wc| wc.display_order || Float::INFINITY }
                      .map(&:contributor)
   end
+
+  # Where the book stands for Mark, for the Books list and the book page:
+  # any of :owned, :wanted, :reading, :read, :dnf.
+  def statuses
+    list = []
+    list << :owned if editions.any? { |e| e.copies.any?(&:owned?) }
+    list << :wanted if want
+    list << :reading if readings.any?(&:open?)
+    list << :read if readings.any?(&:completed?)
+    list << :dnf if readings.any?(&:dnf?) && readings.none?(&:completed?)
+    list
+  end
 end

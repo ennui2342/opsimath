@@ -246,11 +246,7 @@ module Goodreads
     # Work — no empty Work is left behind.
     def remove_want(catalogued_work)
       wants = Want.where("external_ids ->> 'goodreads' = ?", @item.goodreads_book_id).includes(work: :editions).to_a
-      wants.each do |want|
-        placeholder = want.work
-        want.destroy!
-        placeholder.destroy! if placeholder != catalogued_work && placeholder.editions.empty?
-      end
+      wants.each { |want| want.retire!(keep: catalogued_work) }
       wants.any?
     end
 

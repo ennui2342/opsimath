@@ -1,0 +1,51 @@
+<%# The current read: finish / did not finish / pause or resume — or start one. %>
+<% field = "rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-600 dark:border-gray-700 dark:bg-gray-900" %>
+<% label = "mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" %>
+<% sources = { "owned_copy" => "My copy", "library" => "Library", "borrowed" => "Borrowed", "other" => "Other" } %>
+<% editions = work.editions.sort_by { |e| [ e.copies.any?(&:owned?) ? 0 : 1, e.id ] } %>
+
+<% if open_reading %>
+  <section class="mt-6 rounded-lg border border-purple-200 bg-purple-50 p-4 dark:border-purple-900 dark:bg-purple-950">
+    <p class="mb-3 text-sm">
+      <span class="font-medium"><%= open_reading.paused? ? "Paused" : "Reading" %></span>
+      since <%= open_reading.date_started || "an unknown date" %>
+      <span class="text-gray-500 dark:text-gray-400">· <%= [ open_reading.edition.publisher, open_reading.edition.publish_date&.first(4) ].compact.join(" ") %></span>
+    </p>
+
+    <%= form_with model: [ work, open_reading ], method: :patch, class: "mb-3 space-y-3" do |f| %>
+      <%= f.hidden_field :status, value: "completed" %>
+      <div class="flex flex-wrap items-end gap-3">
+        <label class="text-sm"><span class="<%= label %>">Finished</span><%= f.date_field :date_finished, value: Date.current, class: field %></label>
+        <label class="text-sm"><span class="<%= label %>">Rating</span>
+          <%= f.select :rating, [ [ "–", "" ] ] + (1..5).map { |n| [ "#{n}★", n ] }, {}, class: field %></label>
+      </div>
+      <label class="block text-sm"><span class="<%= label %>">Review (Markdown, optional — saved as a draft)</span>
+        <textarea name="review[text]" rows="4" class="w-full <%= field %>"></textarea></label>
+      <%= f.submit "Finished", class: primary %>
+    <% end %>
+
+    <div class="flex flex-wrap items-end gap-3">
+      <%= form_with model: [ work, open_reading ], method: :patch, class: "flex flex-wrap items-end gap-2" do |f| %>
+        <%= f.hidden_field :status, value: "dnf" %>
+        <label class="text-sm"><span class="<%= label %>">Stopped</span><%= f.date_field :date_finished, value: Date.current, class: field %></label>
+        <label class="text-sm"><span class="<%= label %>">Why (optional)</span><%= f.text_field :dnf_reason, class: field %></label>
+        <%= f.submit "Did not finish", class: secondary %>
+      <% end %>
+      <%= form_with model: [ work, open_reading ], method: :patch do |f| %>
+        <%= f.hidden_field :status, value: open_reading.paused? ? "reading" : "paused" %>
+        <%= f.submit open_reading.paused? ? "Resume" : "Pause", class: secondary %>
+      <% end %>
+    </div>
+  </section>
+<% elsif editions.any? %>
+  <details class="mt-6 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+    <summary class="cursor-pointer text-sm font-medium">Start reading</summary>
+    <%= form_with model: [ work, Reading.new ], class: "mt-3 flex flex-wrap items-end gap-3" do |f| %>
+      <label class="text-sm"><span class="<%= label %>">Edition</span>
+        <%= f.select :edition_id, editions.map { |e| [ [ e.publisher, e.publish_date&.first(4), e.format_detail || e.format, ("owned" if e.copies.any?(&:owned?)) ].compact_blank.join(" · ").presence || "Edition ##{e.id}", e.id ] }, {}, class: field %></label>
+      <label class="text-sm"><span class="<%= label %>">Started</span><%= f.date_field :date_started, value: Date.current, class: field %></label>
+      <label class="text-sm"><span class="<%= label %>">Copy</span><%= f.select :source, sources.invert, {}, class: field %></label>
+      <%= f.submit "Start reading", class: primary %>
+    <% end %>
+  </details>
+<% end %>
