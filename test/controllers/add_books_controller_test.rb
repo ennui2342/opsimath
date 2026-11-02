@@ -26,6 +26,11 @@ class AddBooksControllerTest < ActionDispatch::IntegrationTest
       assert_select "button[hidden][data-action='barcode-scan#open']", text: "Scan barcode"
       assert_select "[data-barcode-scan-target=overlay][hidden] video"
     end
+    assert_select "form[data-barcode-scan-secure-url-value=?][data-barcode-scan-autostart-value=false]",
+                  "#{Rails.application.config.x.public_url}/add?scan=1"
+
+    get add_book_url(scan: 1)
+    assert_select "form[data-barcode-scan-autostart-value=true]"
   end
 
   test "search shows each work with choose-edition and want-it" do

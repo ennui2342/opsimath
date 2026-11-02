@@ -409,7 +409,11 @@ to change.
      box (`barcode_scan_controller.js`, the PWA scanner's twin) reads an
      EAN-13 with the browser's `BarcodeDetector` and submits it as an
      ISBN lookup. Shown only where the browser has one (Chrome on
-     Android / macOS, not Safari); needs HTTPS, which the web app has.
+     Android / macOS, not Safari). Browsers only offer the camera to a
+     secure page, so on the plain-HTTP internal address
+     (opsimath.k8s.ecafe.org) the button goes to the same page on the
+     HTTPS Tailscale address (`config.x.public_url`) with `?scan=1`,
+     which opens the scanner on arrival.
    - **Not yet:** DNF from the add screen (log it on the book page);
      the review text on finishing; pre-selecting the printing from a
      `/finds` listing; editing a new work's literary form (always

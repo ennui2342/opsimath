@@ -6,17 +6,28 @@ import { Controller } from "@hotwired/stimulus"
 // the button only appears where there is one (Chrome on Android and
 // macOS; not Safari) and over HTTPS. An EAN-13 is the ISBN; a 12-digit
 // UPC (some US mass-markets) isn't one, so it asks for the ISBN typed.
+//
+// Browsers only offer the camera and BarcodeDetector to a secure page, so
+// on the plain-HTTP internal address the button instead goes to the same
+// page on the HTTPS one (`secureUrl`), which opens the scanner on arrival.
 export default class extends Controller {
   static targets = ["input", "button", "overlay", "video", "hint"]
+  static values = { secureUrl: String, autostart: Boolean }
 
   connect() {
     this.supported = "BarcodeDetector" in window && !!navigator.mediaDevices
-    this.buttonTarget.hidden = !this.supported
+    this.redirect = !window.isSecureContext && this.secureUrlValue.startsWith("https:")
+    this.buttonTarget.hidden = !(this.supported || this.redirect)
+    if (this.supported && this.autostartValue) this.open()
   }
 
   disconnect() { this.close() }
 
   async open() {
+    if (!this.supported) {
+      if (this.redirect) window.location.href = this.secureUrlValue
+      return
+    }
     try {
       this.detector ||= new window.BarcodeDetector({ formats: ["ean_13", "upc_a"] })
       this.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
