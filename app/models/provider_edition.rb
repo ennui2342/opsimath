@@ -3,7 +3,7 @@
 # are the editions actually recorded in the catalogue. Serves the shop
 # app's "you own a different edition" scan matching, the edition picker,
 # and — once the wishlist joins the catalogue — bargain hunting. Refreshed
-# per provider (Isfdb::WorkKnownEditionsRefresh); pure derived data.
+# per provider (KnownEditionsRefresh); pure derived data.
 class ProviderEdition < ApplicationRecord
   belongs_to :work
 

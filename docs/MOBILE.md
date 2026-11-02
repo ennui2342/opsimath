@@ -113,8 +113,9 @@ meta         version, generated_at
     these from **`ProviderEdition`** (the per-work table of provider-known
     editions, `docs/CATALOG.md`; replaced the ISBN-only `WorkSiblingIsbns`
     cache 2026-11-02) — one query, no network.
-    `Isfdb::WorkKnownEditionsRefresh` (daily, ahead of the snapshot job)
-    keeps it current: it fans `Isfdb::WorkEditions`
+    `KnownEditionsRefresh` (daily, ahead of the snapshot job; one pass per
+    provider — ISFDB, and since 2026-11-03 Open Library) keeps it current;
+    for ISFDB it fans `Isfdb::WorkEditions`
     (→ `/isbn/{isbn}/editions`) over catalogued works not yet refreshed,
     older than 7 days, or whose own ISBNs changed. It's off the build's
     critical path, so a slow adapter can't make the snapshot slow or

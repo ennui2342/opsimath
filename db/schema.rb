@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_02_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_03_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -269,6 +269,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_130000) do
     t.index ["status"], name: "index_pending_decisions_on_status"
   end
 
+  create_table "provider_edition_refreshes", force: :cascade do |t|
+    t.string "provider", null: false
+    t.string "queried_isbns", default: [], null: false, array: true
+    t.datetime "refreshed_at", null: false
+    t.bigint "work_id", null: false
+    t.index ["work_id", "provider"], name: "index_provider_edition_refreshes_on_work_id_and_provider", unique: true
+  end
+
   create_table "provider_editions", force: :cascade do |t|
     t.string "binding"
     t.string "cover_artist"
@@ -516,8 +524,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_130000) do
     t.datetime "created_at", null: false
     t.text "description"
     t.jsonb "field_sources", default: {}, null: false
-    t.string "known_editions_queried_isbns", default: [], null: false, array: true
-    t.datetime "known_editions_refreshed_at"
     t.string "literary_form", null: false
     t.text "notes"
     t.string "original_language"
@@ -541,6 +547,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_130000) do
   add_foreign_key "edition_contributors", "editions"
   add_foreign_key "edition_identifiers", "editions"
   add_foreign_key "editions", "editions", column: "variant_of_edition_id"
+  add_foreign_key "provider_edition_refreshes", "works", on_delete: :cascade
   add_foreign_key "provider_editions", "works", on_delete: :cascade
   add_foreign_key "readings", "copies"
   add_foreign_key "readings", "editions"

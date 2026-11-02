@@ -248,7 +248,8 @@ to change.
    the new table, verified by their output staying the same.
    **Built 2026-11-02** (the shop app's half; bargain hunting moves in
    step 4 with the wishlist): `provider_editions` and `work_identifiers`,
-   filled by `Isfdb::WorkKnownEditionsRefresh` for every catalogued work
+   filled by `Isfdb::WorkKnownEditionsRefresh` (since step 3, the
+   per-provider `KnownEditionsRefresh`) for every catalogued work
    (not only owned ones); `WorkSiblingIsbns` dropped. On a production
    copy the shop app's sibling ISBNs came out identical for 2,031 of
    2,034 works — the other three each gained one printing ISFDB added
@@ -268,6 +269,34 @@ to change.
    work's editions, ISBN lookup); ISFDB behind it; Open Library client;
    both filling (2); Open Library covers cached locally like ISFDB's.
    Searches run on submit, gently.
+   **Built 2026-11-03:** `Providers` (registry; capabilities
+   `:known_editions`, `:search_works`), `Providers::Isfdb`,
+   `Providers::OpenLibrary` + `OpenLibrary::Client` (descriptive
+   User-Agent, every request ≥ 1 s after the last, follows the ISBN
+   redirect, paginates editions; cover URLs by cover id, which Open
+   Library doesn't rate-limit, unlike ISBN-keyed ones), `Edtf.from_text`
+   for Open Library's prose dates, and one `KnownEditionsRefresh` run per
+   provider (per-provider due-ness in `provider_edition_refreshes`, which
+   replaced step 2's two `works` columns). Covers are downloaded into
+   Active Storage only when an edition is catalogued (steps 6–7). On a
+   production copy, Open Library's first 30-minute run:
+   - 293 works asked, 245 matched (84%); median 4 editions per work.
+   - **0 of 191 works known to both providers share no ISBN** — no sign
+     of a wrong Open Library match.
+   - 54 works gained editions with no ISFDB ones; the shop app's index
+     for owned works grew from 12,087 to 13,365 ISBNs (1,331 → 1,385
+     works) — translations included, as in ISFDB's lists.
+   - ~6 s per work (each ISBN lookup is two requests, misses retry up to
+     three ISBNs, all paced), so the first pass over the catalogue takes
+     about a week of nights; after that, monthly re-checks are ~70 works
+     a night. The 30-minute budget keeps the run ahead of the 3:20
+     snapshot.
+   - Open Library has duplicate works (*Crossfire*: three) and duplicate
+     editions (one Tor ISBN under "Tor" and "Tom Doherty Associates"),
+     and 54% of editions have no format — for the add flow's grouping
+     (step 6) to absorb, not to fix here.
+   - Works without an ISBN aren't linked to Open Library yet — that needs
+     title + author matching, which the add flow brings.
 4. **The wishlist joins the catalogue.** The 339 items become Works
    (matched through the providers) with want records; bargain hunting
    and the shop app move across.

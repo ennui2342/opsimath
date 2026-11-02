@@ -1,0 +1,41 @@
+require "test_helper"
+
+module Providers
+  class IsfdbTest < ActiveSupport::TestCase
+    BASE_URL = "http://isfdb-adapter.test:8080"
+
+    setup { @provider = Isfdb.new(client: ::Isfdb::Client.new(base_url: BASE_URL)) }
+
+    def json(body) = { status: 200, body: body.to_json, headers: { "Content-Type" => "application/json" } }
+
+    def pub(pub_id, title_id, isbn13, overrides = {})
+      { "_isfdb_pub_id" => pub_id, "_isfdb_title_id" => title_id, "isbn_13" => isbn13, "isbn_10" => "", "binding" => "pb",
+        "publisher" => "Tor", "publish_date" => "2004-11", "title" => "Crossfire", "authors" => [ "Nancy Kress" ],
+        "cover_url" => "https://covers.test/#{pub_id}.jpg|https://mirror.test/#{pub_id}.jpg", "cover_artists" => [ "John Harris" ] }.merge(overrides)
+    end
+
+    test "known editions: every edition, and the title id only from the work's own printings" do
+      stub_request(:get, "#{BASE_URL}/isbn/9780765304674/editions").to_return(json([
+        pub(1, 1911, "9780765304674"), pub(2, 5555, "9780000000002", "title" => "A Three-in-One Omnibus")
+      ]))
+
+      known = @provider.known_editions(isbns: [ "9780765304674" ])
+
+      assert_equal [ "1911" ], known.work_ids
+      assert_equal %w[1 2], known.editions.map(&:id)
+      assert_equal [ "https://covers.test/1.jpg", "John Harris", "pb" ],
+                   [ known.editions.first.cover_url, known.editions.first.cover_artist, known.editions.first.binding ]
+    end
+
+    test "search groups the adapter's editions back into works" do
+      stub_request(:get, "#{BASE_URL}/search").with(query: hash_including("q" => "Crossfire Nancy Kress"))
+        .to_return(json([ pub(1, 1911, "9780765304674", "publish_date" => "2003-12"), pub(2, 1911, "9780765343895"),
+                          pub(9, 77, "9780000000009", "title" => "Crossfire Trail", "authors" => [ "Louis L'Amour" ]) ]))
+
+      works = @provider.search_works(title: "Crossfire", author: "Nancy Kress")
+
+      assert_equal %w[1911 77], works.map(&:id)
+      assert_equal [ 2, 2003, "https://covers.test/1.jpg" ], [ works.first.edition_count, works.first.first_year, works.first.cover_url ]
+    end
+  end
+end

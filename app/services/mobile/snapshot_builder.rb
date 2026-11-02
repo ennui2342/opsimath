@@ -147,7 +147,7 @@ module Mobile
 
     # {entry_id => [ISBN-13, ...]} for the other printings ISFDB knows of
     # each owned work — read straight from ProviderEdition
-    # (Isfdb::WorkKnownEditionsRefresh keeps it current, off the build's
+    # (KnownEditionsRefresh keeps it current, off the build's
     # critical path). No network here.
     def load_related_isbns(view)
       work_ids = view.entries.filter_map { |e| e.id.delete_prefix("work:").to_i if e.kind == "work" }
