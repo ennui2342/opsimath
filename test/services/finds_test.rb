@@ -53,6 +53,18 @@ class FindsTest < ActiveSupport::TestCase
     assert_equal :target, Finds.all.first.reason
   end
 
+  test "a dismissed listing's price still counts: median and listing count are unchanged, and the next copy can be a find" do
+    listing(300, status: "dismissed")
+    next_cheapest = listing(500)
+    [ 1200, 1400 ].each { |p| listing(p) }
+    listing(100, status: "wrong_book") # not this book: not its market either
+
+    find = Finds.all.sole
+
+    assert_equal next_cheapest, find.listing
+    assert_equal [ 850, 4 ], [ find.median, find.count ]
+  end
+
   test "dismissed, ended, and unwanted-cover listings are never finds" do
     @item.update!(target_price: 2000, printing_override_ids: [ 2 ]) # cover 4 not wanted
     listing(500, [ 4 ])

@@ -14,11 +14,25 @@ class EbayListingsControllerTest < ActionDispatch::IntegrationTest
     sign_in_as users(:one)
   end
 
-  test "dismiss removes the card in place" do
+  test "dismiss swaps the card for an undo, and undo restores it" do
     post dismiss_ebay_listing_url(@listing), as: :turbo_stream
 
     assert_equal "dismissed", @listing.reload.status
-    assert_match %(<turbo-stream action="remove" target="ebay_listing_#{@listing.id}">), response.body
+    assert_match %(<turbo-stream action="replace" target="ebay_listing_#{@listing.id}">), response.body
+    assert_match restore_ebay_listing_path(@listing), response.body
+
+    post restore_ebay_listing_url(@listing)
+
+    assert_redirected_to finds_path
+    assert_equal "new", @listing.reload.status
+  end
+
+  test "undo only brings back a dismissed listing" do
+    @listing.update!(status: "wrong_book")
+
+    post restore_ebay_listing_url(@listing)
+
+    assert_equal "wrong_book", @listing.reload.status
   end
 
   test "edit offers each cover once, the current match selected" do

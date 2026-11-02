@@ -8,7 +8,10 @@
 #
 # Only a cover's cheapest listing can be a spread find: several bulk
 # sellers at the same low price are that cover's going rate, not several
-# bargains. Covers with too few listings can't be judged by spread;
+# bargains. A dismissed listing is never a find, but its price still
+# counts towards the cover's median and listing count — dismissing one
+# says "not that copy", not that the market changed; the cheapest copy
+# Mark hasn't dismissed can still be a find. Covers with too few listings can't be judged by spread;
 # they're still on the book page. Favourite artists' covers sort first. Thresholds are
 # provisional until there's price history to set them from.
 class Finds
@@ -28,15 +31,16 @@ class Finds
   end
 
   def self.for_cover(want, cover)
-    priced = cover.listings.select(&:total)
-    median = median(priced.map(&:total))
-    cheapest = priced.min_by(&:total)
-    priced.filter_map do |listing|
+    market = cover.priced.select(&:total)
+    median = median(market.map(&:total))
+    candidates = cover.listings.select(&:total)
+    cheapest = candidates.min_by(&:total)
+    candidates.filter_map do |listing|
       reason =
         if want.target_price && listing.total <= want.target_price then :target
-        elsif listing == cheapest && priced.size >= MIN_LISTINGS && listing.total <= SPREAD * median then :spread
+        elsif listing == cheapest && market.size >= MIN_LISTINGS && listing.total <= SPREAD * median then :spread
         end
-      reason && Find.new(listing:, want:, cover:, median:, count: priced.size, reason:)
+      reason && Find.new(listing:, want:, cover:, median:, count: market.size, reason:)
     end
   end
 

@@ -5,7 +5,10 @@
 # aren't on any offered cover (another format, printing unknown, not yet
 # identified) are kept apart for an eyeball check.
 class WishlistItemView
-  Cover = Struct.new(:id, :printings, :artists, :favourite, :chosen, :listings, keyword_init: true) do
+  # `listings`: what's shown — live, not dismissed, cheapest first.
+  # `priced`: the cover's market — live listings including dismissed ones,
+  # whose prices are still what the cover sells for (Finds' median).
+  Cover = Struct.new(:id, :printings, :artists, :favourite, :chosen, :listings, :priced, keyword_init: true) do
     def cover_url = printings.filter_map(&:cover_url).first
 
     def first_year = printings.filter_map(&:year).min
@@ -17,6 +20,8 @@ class WishlistItemView
     end
 
     def cheapest = listings.first
+
+    def priced = self[:priced] || listings
   end
 
   attr_reader :want, :verdict, :rule
@@ -28,7 +33,9 @@ class WishlistItemView
     @rule = profile.verdict(want, printings, ignore_override: true)
     @verdict = profile.verdict(want, printings)
     @favourites = profile.favourite_artists
-    @live = want.work.ebay_listings.select { |l| l.ended_at.nil? && l.status == "new" }.sort_by { |l| l.total || Float::INFINITY }
+    @market = want.work.ebay_listings.select { |l| l.ended_at.nil? && %w[new dismissed].include?(l.status) }
+                    .sort_by { |l| l.total || Float::INFINITY }
+    @live = @market.select { |l| l.status == "new" }
   end
 
   def hunted? = verdict.hunt?
@@ -41,7 +48,8 @@ class WishlistItemView
       artists = printings.flat_map(&:artists).uniq
       Cover.new(id:, printings:, artists:, favourite: (artists & @favourites).any?,
                 chosen: printings.any? { |p| verdict.wanted?(p) },
-                listings: @live.select { |l| (l.matched_pub_ids & ids).any? })
+                listings: @live.select { |l| (l.matched_pub_ids & ids).any? },
+                priced: @market.select { |l| (l.matched_pub_ids & ids).any? })
     end.sort_by { |c| [ c.first_year || 9999, c.id ] }
   end
 

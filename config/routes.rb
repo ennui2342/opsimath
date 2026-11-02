@@ -25,6 +25,7 @@ Rails.application.routes.draw do
   resources :finds, only: [ :index ]
   resources :ebay_listings, only: [ :edit, :update ] do
     post :dismiss, on: :member
+    post :restore, on: :member
   end
 
   # The offline shop-lookup PWA (docs/MOBILE.md) — bearer-token, no session.

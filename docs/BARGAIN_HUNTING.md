@@ -505,7 +505,11 @@ each — that's the cover's going rate, not several bargains. 44 finds
 became 16 (9 favourite-artist covers), e.g. *The Birthgrave*'s Peter
 Jones Orbit at £25.00 against a £57 median. Favourite artists sort
 first after target-price finds. Each is a `Ui::FindCardComponent`;
-Dismiss removes it in place (Turbo Stream); Wrong printing opens a
+Dismiss swaps it in place (Turbo Stream) for a one-line *Undo*; a
+dismissed listing is never a find again, but its price still counts
+towards its cover's median and listing count (2026-11-02, Mark: "not
+that copy" isn't a change in what the cover sells for) — so the cheapest
+copy not dismissed can still be a find. Wrong printing opens a
 radio list of the book's covers across all formats plus *Can't tell* and
 *Not this book* (status `wrong_book`), saved as `identified_by:
 "manual"` with the cover scores kept. Spec as first written:

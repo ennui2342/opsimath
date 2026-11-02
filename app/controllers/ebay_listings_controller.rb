@@ -6,12 +6,20 @@
 class EbayListingsController < ApplicationController
   before_action :set_listing
 
+  # Hides the listing for good (the sweep never resets a status); its
+  # price still counts towards its cover's median (Finds). The card is
+  # swapped for a one-line undo.
   def dismiss
     @listing.update!(status: "dismissed")
     respond_to do |format|
-      format.turbo_stream { render turbo_stream: turbo_stream.remove(helpers.dom_id(@listing)) }
+      format.turbo_stream { render turbo_stream: turbo_stream.replace(helpers.dom_id(@listing), partial: "ebay_listings/dismissed", locals: { listing: @listing }) }
       format.html { redirect_to finds_path, notice: "Dismissed." }
     end
+  end
+
+  def restore
+    @listing.update!(status: "new") if @listing.status == "dismissed"
+    redirect_to finds_path, notice: "Restored “#{@listing.title.truncate(40)}”."
   end
 
   def edit
