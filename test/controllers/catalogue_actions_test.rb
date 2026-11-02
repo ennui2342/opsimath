@@ -118,7 +118,16 @@ class CatalogueActionsTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "summary", text: "Start reading"
-    assert_select "summary", text: /Copies \(1\)/
+    assert_select "summary", text: "Your copy: 1 owned"
+    assert_select "label", text: /What became of it/
     assert_select "button", text: "Add to wishlist"
+  end
+
+  test "copies say what became of them" do
+    Copy.create!(edition: @edition, disposition: "sold")
+
+    get work_url(@work)
+
+    assert_select "summary", text: "Your copies: 1 owned and 1 sold"
   end
 end

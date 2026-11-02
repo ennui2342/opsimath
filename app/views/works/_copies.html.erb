@@ -3,22 +3,27 @@
 <% label = "mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" %>
 
 <details class="mt-2 text-sm">
+  <% by_disposition = edition.copies.group_by(&:disposition).map { |d, cs| "#{cs.size} #{Copy::DISPOSITION_LABELS[d].downcase}" } %>
   <summary class="cursor-pointer text-gray-500 hover:underline dark:text-gray-400">
-    Copies (<%= edition.copies.size %>)
+    <%= edition.copies.any? ? "Your #{'copy'.pluralize(edition.copies.size)}: #{by_disposition.to_sentence}" : "No copy — add one" %>
   </summary>
   <ul class="mt-2 space-y-2">
     <% edition.copies.sort_by(&:id).each do |copy| %>
       <li>
-        <%= form_with model: [ work, copy ], method: :patch, class: "flex flex-wrap items-center gap-2" do |f| %>
-          <span class="text-gray-600 dark:text-gray-400">
-            <%= [ copy.acquired_date, copy.condition, copy.acquired_source ].compact_blank.join(" · ").presence || "Copy" %>
+        <%= form_with model: [ work, copy ], method: :patch, class: "flex flex-wrap items-end gap-2" do |f| %>
+          <span class="w-full text-gray-600 dark:text-gray-400">
+            <%= [ ("acquired #{copy.acquired_date.to_fs(:long)}" if copy.acquired_date), copy.condition, copy.acquired_source ].compact_blank.join(" · ").presence || "Your copy" %>
           </span>
-          <%= f.select :disposition, Copy::DISPOSITION_LABELS.invert, {}, class: field, "aria-label": "What became of this copy" %>
-          <%= f.submit "Update", class: secondary %>
+          <label><span class="<%= label %>">What became of it</span>
+            <%= f.select :disposition, Copy::DISPOSITION_LABELS.invert, {}, class: field %></label>
+          <%= f.submit "Save", class: secondary %>
         <% end %>
       </li>
     <% end %>
   </ul>
+  <% if edition.copies.any? %>
+    <p class="mt-4 border-t border-gray-200 pt-3 text-xs font-medium uppercase text-gray-500 dark:border-gray-800 dark:text-gray-400">Add another copy</p>
+  <% end %>
   <%= form_with model: [ work, Copy.new ], class: "mt-3 grid grid-cols-2 gap-2" do |f| %>
     <%= f.hidden_field :edition_id, value: edition.id %>
     <label><span class="<%= label %>">Acquired</span><%= f.date_field :acquired_date, value: Date.current, class: "w-full #{field}" %></label>
