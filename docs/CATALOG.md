@@ -174,36 +174,102 @@ objects, so opsimath's model lines up. Cheap to protect now: stable
 public URIs for works, editions and reviews, and a clean Work/Edition
 split. Not now: ActivityPub itself.
 
+## Architecture review: aggregator → system of record (2026-11-02)
+
+Mark asked whether the decisions so far still hold now opsimath moves
+from aggregating Goodreads + ISFDB to being the system of record and
+back office. Reviewed against the code and schema; agreed with Mark the
+same day.
+
+**Holds up — keep:** the Work / Edition / Copy split; the append-only
+`Reading` log; per-provider `EnrichmentRecord`s with per-field
+`field_sources`, where a provider only fills empty fields and every
+overwrite goes to review (so Mark's edits are already safe from
+providers); authority control; EDTF dates; paper_trail on Work, Edition,
+Copy, Contributor, Series; the Rails monolith, Postgres, the services
+layout, and the shop-lookup PWA's one-way snapshot.
+
+**Built on aggregator-phase assumptions — change:**
+
+1. **Backups — urgent, before data entry moves here.** Goodreads was the
+   de facto backup: lost data could be rebuilt from it. Now it can't.
+   Prod Postgres is on the NAS RAID over NFS (a Retain PV since the
+   2026-09-06 prune incident), with no logical dump and nothing off the
+   NAS — RAID covers a disk failure, not deletion, corruption, a bad
+   migration or the NAS itself. Needed: nightly `pg_dump` + Active
+   Storage blobs, retention, a copy off the NAS, a failure alert, one
+   restore rehearsal. Infrastructure, so filed for the k8s side.
+2. **The wishlist joins the catalogue.** `WishlistItem` was kept
+   self-contained for two reasons (`docs/DATA_MODEL.md`): Goodreads'
+   wishlist rule, and not committing to an edition before one is owned.
+   The first is gone; the second is answered by putting the want on the
+   *Work* — a wanted book is a `Work` with no `Copy`, plus a small want
+   record (priority, notes, target price, chosen covers, buy-new
+   override). Fixes the duplicated title/author, a separate add path for
+   wishlist books, and "bought" being delete-one-model-create-another
+   rather than adding a `Copy`.
+3. **One per-work cache of provider-known editions.** The same thing —
+   "the editions providers know for this work" — exists twice already
+   (`WorkSiblingIsbns` for the shop app's scan matching,
+   `WishlistPrinting` for bargain hunting) and the edition picker needs
+   it a third time, now from ISFDB *and* Open Library. One table per
+   work (provider, provider id, ISBNs, publisher, binding, date, cover,
+   cover artist, cover group) serves all three. `editions` stays what's
+   actually recorded; this table is the candidates.
+4. **Work identifiers.** Editions have `edition_identifiers`; works have
+   none — a work's identity is its title. The add flow must recognise an
+   ISFDB title or an Open Library work as a book already catalogued, or
+   it creates duplicates. A `work_identifiers` table mirrors
+   `edition_identifiers`, and is what stable public URIs for federation
+   would hang off later.
+5. **Mark as a first-class source.** Values he types are `field_sources`
+   `"manual"`, never re-raised as conflicts when a provider disagrees on
+   the next fetch. Full paper_trail history on `Reading` (dates, rating —
+   today only `private_notes`) and `Review` (today only `text`), since
+   these are now entered here.
+
+**Smaller:** the Goodreads importer, `ShelfSync`, `GoodreadsSyncState`
+and `GoodreadsSyncJob` stay, dormant and labelled legacy; Goodreads ids
+remain provenance. The review queue (420 pending) is more than Mark
+works through; as the book page gains actions, a book's conflicts
+belong on its own page rather than only in a global queue — revisit
+then, not a blocker.
+
 ## Build order
 
-Each step usable on its own and checked against real data, as for
-bargain hunting.
+Revised after the architecture review. Each step usable on its own and
+checked against real data, as for bargain hunting. Steps 2–4 come before
+the screens because those would otherwise be built on structures about
+to change.
 
-1. **State changes on books already in the catalogue.** The ~2,000
-   catalogued works need the reading log and ownership actions now:
-   started / finished / DNF (dates, rating, review), acquired / sold /
-   given away, and for a wishlist book "acquired" and "remove". No
-   providers needed; restores what the Goodreads sync used to do for
-   existing books.
-2. **Provider layer + Open Library.** A provider registry with
-   capabilities (search works, a work's editions, ISBN lookup); ISFDB
-   moved behind it; an Open Library client; Open Library editions as
-   `EnrichmentRecord`s.
-3. **Add a book.** Search → work → edition cards (publisher + cover) →
-   intent → step 2 enrichment. Acquiring a wishlist book runs the same
-   edition picker, pre-selected from its bargain-hunting printings.
-4. **Edition picker for existing books** — change which edition you
-   own, and settle the queued printing choices in the same screen.
-5. Later: discovery; then federation.
+1. **Backups** (k8s side).
+2. **Per-work known editions + work identifiers.** A refactor: the shop
+   app's sibling-ISBN matching and bargain hunting's printings move onto
+   the new table, verified by their output staying the same.
+3. **Provider registry + Open Library.** Capabilities (search works, a
+   work's editions, ISBN lookup); ISFDB behind it; Open Library client;
+   both filling (2); Open Library covers cached locally like ISFDB's.
+   Searches run on submit, gently.
+4. **The wishlist joins the catalogue.** The 339 items become Works
+   (matched through the providers) with want records; bargain hunting
+   and the shop app move across.
+5. **State changes on the book page** — reading log (started / finished
+   / DNF, dates, rating, review), ownership (acquired / sold / given
+   away), want (add, remove, acquire). The book page's job moves from
+   reference to catalogue management.
+6. **Add a book** — search → work → edition cards (publisher + cover) →
+   intent → step 2 enrichment.
+7. **Edition picker for existing books** — change which edition you
+   own, and settle queued printing choices there.
+8. Later: discovery; then federation. Reviews' route to scifipraxis is
+   punted — posting to Goodreads was manual anyway, so nothing is lost.
 
-## Open questions
+## Settled (2026-11-02)
 
-- **Where reviews go.** Opsimath holds reviews as Markdown; the
-  scifipraxis pipeline publishes them. Does writing a review in opsimath
-  feed that pipeline directly now that Goodreads is out of the loop?
-- **Search UX.** Submit-to-search rather than live per keystroke (Open
-  Library asks for gentle use); matching editors and alternate titles.
-- **Open Library covers** (`covers.openlibrary.org`): use their URLs, or
-  download into Active Storage like ISFDB covers?
-- **What the book page becomes.** Today it's reference only
-  (`docs/UI_PRINCIPLES.md` principle 2); adding actions changes its job.
+- **Reviews:** later. Posting to Goodreads was manual, so nothing is lost
+  meanwhile.
+- **Open Library covers:** cached locally, the same as ISFDB's.
+- **Search:** submit-to-search, gentle on Open Library; must match
+  editors and alternate titles, and fold punctuation.
+- **The book page** becomes catalogue management (its job changes from
+  reference, `docs/UI_PRINCIPLES.md` principle 2).

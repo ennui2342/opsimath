@@ -485,6 +485,13 @@ columns before real cross-posting patterns are known.
 
 ## WishlistItem
 
+**Being superseded (2026-11-02, `docs/CATALOG.md` "Architecture
+review"):** with Goodreads gone and opsimath the system of record, a
+wanted book becomes a `Work` with a want record rather than a
+self-contained item — the want sits on the Work, so no edition is
+committed to before one is owned. The reasoning below is the original
+design, kept for history.
+
 Deliberately self-contained, not a reference — confirmed by stress-testing
 against a future feature (browsing a metadata provider and adding a
 result to the wishlist, not just Goodreads' `wishlist` shelf). Considered
