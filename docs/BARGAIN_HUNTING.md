@@ -509,7 +509,12 @@ Dismiss swaps it in place (Turbo Stream) for a one-line *Undo*; a
 dismissed listing is never a find again, but its price still counts
 towards its cover's median and listing count (2026-11-02, Mark: "not
 that copy" isn't a change in what the cover sells for) — so the cheapest
-copy not dismissed can still be a find. Wrong printing opens a
+copy not dismissed can still be a find. *Not this cover* takes the
+find's cover out of the book's chosen covers — the same as unticking it
+on the book's page (`printing_override_ids`), so the sweep stops looking
+for it — and removes every find on that cover, leaving a one-line
+*Undo* (2026-11-02, Mark: mostly what he wants from a find is to rule
+out a cover without opening the book's cover picker). Wrong printing opens a
 radio list of the book's covers across all formats plus *Can't tell* and
 *Not this book* (status `wrong_book`), saved as `identified_by:
 "manual"` with the cover scores kept. Spec as first written:

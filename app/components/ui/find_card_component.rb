@@ -3,8 +3,9 @@ module Ui
   # the listing's own photo beside the ISFDB cover it was identified as —
   # so a wrong match shows at a glance — then the book, the cover's
   # artist (★ when a favourite), price with postage, why it's a find, and
-  # the two actions: Dismiss (Turbo Stream, removes the card in place)
-  # and Wrong printing.
+  # the actions: Dismiss (this copy; Turbo Stream, swaps the card for an
+  # undo), Not this cover (the cover leaves the book's chosen covers, and
+  # every find on it goes) and Wrong printing.
   #
   # Takes a Finds::Find.
   class FindCardComponent < ApplicationComponent

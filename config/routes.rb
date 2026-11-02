@@ -21,7 +21,11 @@ Rails.application.routes.draw do
   get "add/editions", to: "add_books#editions", as: :add_book_editions
   post "add", to: "add_books#create"
 
-  resources :wishlist_items, path: "wishlist", only: [ :index, :show, :update ]
+  resources :wishlist_items, path: "wishlist", only: [ :index, :show, :update ] do
+    # One cover in or out of the chosen set, from a find card.
+    post "covers/:cover_id/drop", action: :drop_cover, on: :member, as: :drop_cover
+    post "covers/:cover_id/restore", action: :restore_cover, on: :member, as: :restore_cover
+  end
   resources :finds, only: [ :index ]
   resources :ebay_listings, only: [ :edit, :update ] do
     post :dismiss, on: :member

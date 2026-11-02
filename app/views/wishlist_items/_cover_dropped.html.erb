@@ -1,0 +1,7 @@
+<%# What a find card becomes after "Not this cover": one line, with an undo. %>
+<div class="flex items-center gap-3 rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+  <span class="min-w-0 flex-1 truncate">
+    No longer wanting <%= cover&.artists&.any? ? "the #{cover.artists.join(', ')} cover" : "that cover" %> of “<%= want.title %>”
+  </span>
+  <%= button_to "Undo", restore_cover_wishlist_item_path(want, cover_id: cover&.id), method: :post, class: "text-sm font-medium text-green-700 hover:underline dark:text-green-400" %>
+</div>

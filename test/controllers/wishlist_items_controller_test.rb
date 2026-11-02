@@ -66,4 +66,26 @@ class WishlistItemsControllerTest < ActionDispatch::IntegrationTest
     get wishlist_items_url
     assert_redirected_to new_session_path
   end
+
+  test "not this cover, from a find card: the cover leaves the chosen set and its cards go, with an undo" do
+    listing = @item.work.ebay_listings.find_by!(ebay_item_id: "a")
+
+    post drop_cover_wishlist_item_url(@item, cover_id: 2), params: { card: "ebay_listing_#{listing.id}" }, as: :turbo_stream
+
+    assert_equal [ 1 ], @item.reload.printing_override_ids
+    assert_match %(<turbo-stream action="replace" target="ebay_listing_#{listing.id}">), response.body
+    assert_match %(<turbo-stream action="remove" targets=".find-cover-#{@item.id}-2">), response.body
+    assert_match "Peter Jones cover", response.body
+
+    post restore_cover_wishlist_item_url(@item, cover_id: 2)
+
+    assert_redirected_to finds_path
+    assert_nil @item.reload.printing_override_ids # both covers chosen again: back to the rule
+  end
+
+  test "not this cover only ever targets a find card" do
+    post drop_cover_wishlist_item_url(@item, cover_id: 2), params: { card: "main" }, as: :turbo_stream
+
+    assert_match %(target="none"), response.body
+  end
 end
