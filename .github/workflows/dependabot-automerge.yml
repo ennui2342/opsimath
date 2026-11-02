@@ -1,0 +1,40 @@
+name: Dependabot auto-merge
+
+# Patch-level Dependabot PRs — security fixes are almost always patch
+# releases (rack 3.2.8, addressable 2.9.2, loofah 2.25.3 …) — merge
+# themselves once CI passes; Flux then deploys them, as for any push.
+# Minor and major updates wait for a human.
+#
+# The merge must not run as GITHUB_TOKEN: GitHub doesn't start workflows
+# from that token's actions, so CI wouldn't run on master and the gated
+# image build (build.yml) would never fire. AUTOMERGE_TOKEN is a
+# fine-grained token (this repo; contents + pull requests: read & write).
+# Without it this does nothing, and the PR waits like any other.
+on: pull_request
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  automerge:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Auto-merge patch updates once CI passes
+        if: steps.meta.outputs.update-type == 'version-update:semver-patch'
+        env:
+          GH_TOKEN: ${{ secrets.AUTOMERGE_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "AUTOMERGE_TOKEN not set — leaving the PR for a human"
+            exit 0
+          fi
+          gh pr merge --auto --squash "$PR_URL"

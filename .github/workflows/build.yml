@@ -1,7 +1,13 @@
 name: Build and push image
 
+# Gated on CI: builds (and so deploys — Flux reconciles every new tag)
+# only after the CI workflow has passed for a push to master, so a commit
+# that fails tests, lint or the security scans never reaches the cluster.
+# Builds the exact commit CI tested.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [master]
 
 env:
@@ -15,6 +21,7 @@ jobs:
   # correlate across the two images even though they're on independent
   # release cadences in practice (cover-compare changes far less often).
   tag:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
@@ -33,6 +40,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -75,6 +84,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -109,22 +120,27 @@ jobs:
   # outcome and reports success only if all build jobs succeeded.
   notify:
     needs: [tag, build, build-cover-compare]
-    if: always()
+    if: always() && github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Notify Discord
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           TAG: ${{ needs.tag.outputs.tag }}
-          BRANCH: ${{ github.ref_name }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          CI_URL: ${{ github.event.workflow_run.html_url }}
+          CI_PASSED: ${{ github.event.workflow_run.conclusion == 'success' }}
           FAILED: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: |
           if [ -z "$DISCORD_WEBHOOK" ]; then
             echo "DISCORD_WEBHOOK not set — skipping notification"
             exit 0
           fi
-          if [ "$FAILED" = "true" ]; then
+          if [ "$CI_PASSED" != "true" ]; then
+            payload=$(jq -n --arg url "$CI_URL" --arg br "$BRANCH" \
+              '{embeds:[{title:"❌ opsimath CI failed",description:("Push to `\($br)` failed CI — no image built, nothing deployed. [View CI](\($url))"),color:15158332,footer:{text:"github.com/ennui2342/opsimath"}}]}')
+          elif [ "$FAILED" = "true" ]; then
             payload=$(jq -n --arg url "$RUN_URL" --arg br "$BRANCH" \
               '{embeds:[{title:"❌ opsimath build failed",description:("Push to `\($br)` failed — no deployment. [View logs](\($url))"),color:15158332,footer:{text:"github.com/ennui2342/opsimath"}}]}')
           else

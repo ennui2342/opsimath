@@ -1,3 +1,10 @@
+# Supply chain for opsimath's own code (see .github/workflows/dependabot-automerge.yml).
+#
+# - Routine version updates wait out a cooldown after each release, so a
+#   malicious or broken release is usually caught and yanked before it's
+#   proposed here. Security updates (Dependabot alerts) skip the cooldown.
+# - Minor and patch version updates are grouped into one PR per ecosystem
+#   per week; majors come one at a time, for a human.
 version: 2
 updates:
 - package-ecosystem: bundler
@@ -5,8 +12,40 @@ updates:
   schedule:
     interval: weekly
   open-pull-requests-limit: 10
+  cooldown:
+    default-days: 7
+    semver-major-days: 14
+  groups:
+    gems-minor-and-patch:
+      update-types: [minor, patch]
+
+# The cover-compare sidecar (Python, its own image).
+- package-ecosystem: pip
+  directory: "/services/cover_compare"
+  schedule:
+    interval: weekly
+  cooldown:
+    default-days: 7
+    semver-major-days: 14
+  groups:
+    cover-compare-minor-and-patch:
+      update-types: [minor, patch]
+
+# Base images: the Rails app's and cover-compare's.
+- package-ecosystem: docker
+  directories: ["/", "/services/cover_compare"]
+  schedule:
+    interval: weekly
+  cooldown:
+    default-days: 7
+
 - package-ecosystem: github-actions
   directory: "/"
   schedule:
     interval: weekly
   open-pull-requests-limit: 10
+  cooldown:
+    default-days: 7
+  groups:
+    actions-minor-and-patch:
+      update-types: [minor, patch]
