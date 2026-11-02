@@ -26,4 +26,34 @@
   <% end %>
 
   <%= link_to "Back", work_path(@work), class: "text-sm text-gray-500 hover:underline dark:text-gray-400" %>
+
+  <%# Out of the way: removing the edition altogether (EditionRemoval). %>
+  <% if @other_editions.any? %>
+    <section class="mt-12 border-t border-gray-200 pt-6 dark:border-gray-800">
+      <h2 class="mb-1 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">Remove this edition</h2>
+      <% if @shared.any? %>
+        <p class="text-sm text-gray-600 dark:text-gray-400">It's also an edition of <%= @shared.map(&:title).to_sentence %>, so it can't be removed from here.</p>
+      <% else %>
+        <% copies, readings = @edition.copies.size, @edition.readings.size %>
+        <% label = [ ("#{pluralize(copies, 'copy')}" if copies.positive?), ("#{pluralize(readings, 'reading')}" if readings.positive?) ].compact.to_sentence %>
+        <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">For a duplicate, or an edition added by mistake. Reviews stay with the book.</p>
+        <%= form_with url: work_edition_change_path(@work, @edition), method: :delete, class: "flex flex-wrap items-end gap-3",
+                      data: { turbo_confirm: "Remove this #{[ @edition.publisher, @edition.publish_date&.slice(0, 4) ].compact.join(' ')} edition?" } do %>
+          <% if label.present? %>
+            <label class="text-sm">
+              <span class="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Its <%= label %></span>
+              <select name="move_to" class="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-600 dark:border-gray-700 dark:bg-gray-900">
+                <% @other_editions.each do |other| %>
+                  <% has = [ (pluralize(other.copies.size, "copy") if other.copies.any?), (pluralize(other.readings.size, "reading") if other.readings.any?) ].compact %>
+                  <option value="<%= other.id %>">Move to <%= [ other.publisher || "edition ##{other.id}", other.publish_date&.slice(0, 4) ].compact.join(" ") %><%= " (has #{has.to_sentence})" if has.any? %></option>
+                <% end %>
+                <option value="delete">Delete them too</option>
+              </select>
+            </label>
+          <% end %>
+          <button type="submit" class="rounded-md border border-conflict-200 bg-conflict-100 px-3 py-1.5 text-sm font-medium text-conflict-800 hover:bg-conflict-200 dark:border-conflict-900 dark:bg-conflict-900 dark:text-conflict-200">Remove edition</button>
+        <% end %>
+      <% end %>
+    </section>
+  <% end %>
 </div>
