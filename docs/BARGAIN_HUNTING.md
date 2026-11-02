@@ -511,6 +511,11 @@ No "bought" action (Mark): buying is recorded by moving the book to
 `to-read` on Goodreads, which removes the wishlist item and its listings
 on the next sync.
 
+**Superseded 2026-11-02:** Goodreads removed RSS and the sync is paused,
+so acquiring a book now happens in opsimath — as catalogue management on
+the book's page, not on these eBay screens (`docs/CATALOG.md`). The
+bargain-hunting pages link to the book.
+
 The Discord links point here, not straight to eBay, so the next action
 can be taken in one place.
 
