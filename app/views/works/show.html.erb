@@ -67,8 +67,7 @@
               <% end %>
             </p>
           <% end %>
-          <%= render "copies", work: @work, edition:, primary:, secondary: %>
-          <%= link_to "Not this edition?", edit_work_edition_change_path(@work, edition), class: "mt-1 inline-block text-sm text-gray-500 hover:underline dark:text-gray-400" %>
+          <%= render "edition_panel", work: @work, edition:, secondary: %>
         </div>
       <% end %>
     </div>

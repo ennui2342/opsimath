@@ -1,7 +1,7 @@
 require "test_helper"
 
 # The book page's catalogue actions (docs/CATALOG.md, build step 5):
-# the reading log, copies, and wishlist membership.
+# the reading log, what each edition is to Mark, and wishlist membership.
 class CatalogueActionsTest < ActionDispatch::IntegrationTest
   setup do
     @work = Work.create!(title: "Neuromancer", literary_form: "novel")
@@ -63,18 +63,23 @@ class CatalogueActionsTest < ActionDispatch::IntegrationTest
     assert_nil review.reload.reading_id
   end
 
-  test "add a copy; record what became of one" do
-    post work_copies_url(@work), params: { copy: { edition_id: @edition.id, acquired_date: "2026-11-02", acquired_price: "4.50",
-                                                   acquired_source: "eBay", condition: "Good" } }
-    added = @edition.copies.order(:id).last
-    assert_equal [ "owned", BigDecimal("4.50"), "eBay" ], [ added.disposition, added.acquired_price, added.acquired_source ]
+  test "an edition's status and purchase details: sold, then not mine (read elsewhere), then owned again" do
+    patch holding_work_edition_url(@work, @edition), params: { status: "sold", details: { acquired_date: "2026-11-02", acquired_price: "4.50", acquired_source: "eBay" } }
+    assert_redirected_to work_path(@work)
+    assert_equal [ "sold", BigDecimal("4.50"), "eBay" ], [ @copy.reload.disposition, @copy.acquired_price, @copy.acquired_source ]
 
-    patch work_copy_url(@work, @copy), params: { copy: { disposition: "sold" } }
-    assert_equal "sold", @copy.reload.disposition
+    reading = Reading.create!(work: @work, edition: @edition, copy: @copy, status: "completed", source: "owned_copy", date_finished: Date.new(2025, 1, 1))
+    patch holding_work_edition_url(@work, @edition), params: { status: "not_mine" }
+    assert_empty @edition.copies.reload
+    assert_nil reading.reload.copy
+    assert_equal "not_mine", EditionHolding.status(@edition)
+
+    patch holding_work_edition_url(@work, @edition), params: { status: "owned" }
+    assert_equal "owned", @edition.copies.reload.sole.disposition
   end
 
-  test "an unknown disposition is ignored, not an error" do
-    patch work_copy_url(@work, @copy), params: { copy: { disposition: "stolen" } }
+  test "an unknown status is ignored, not an error" do
+    patch holding_work_edition_url(@work, @edition), params: { status: "stolen" }
 
     assert_redirected_to work_path(@work)
     assert_equal "owned", @copy.reload.disposition
@@ -113,49 +118,53 @@ class CatalogueActionsTest < ActionDispatch::IntegrationTest
     assert_select "a", text: /Neuromancer/, count: 0
   end
 
-  test "the book page offers starting a read, copies, and the wishlist" do
+  test "the book page offers starting a read, each edition's status, and the wishlist" do
     get work_url(@work)
 
     assert_response :success
     assert_select "summary", text: "Start reading"
-    assert_select "summary", text: "Your copy: 1 owned"
-    assert_select "label", text: /What became of it/
+    assert_select "summary", text: /Owned\s+— change/
+    assert_select "select[name=status] option[selected][value=owned]"
     assert_select "button", text: "Add to wishlist"
+    assert_select "button", text: /Delete this edition/, count: 0 # its only edition
+    assert_no_match(/\bcop(y|ies)\b/i, css_select("main").text)
   end
 
-  test "copies say what became of them" do
-    Copy.create!(edition: @edition, disposition: "sold")
-
-    get work_url(@work)
-
-    assert_select "summary", text: "Your copies: 1 owned and 1 sold"
-  end
-
-  test "deleting a mistaken copy: its edition goes too when nothing else uses it" do
+  test "deleting a duplicate edition: its readings move to the one kept, and its status goes with it" do
     dupe = Edition.create!(publisher: "Ace")
     EditionContent.create!(work: @work, edition: dupe)
-    copy = Copy.create!(edition: dupe, disposition: "owned")
+    dupe_copy = Copy.create!(edition: dupe, disposition: "owned")
+    reading = Reading.create!(work: @work, edition: dupe, copy: dupe_copy, status: "completed", source: "owned_copy", date_finished: Date.new(2025, 1, 1))
     decision = PendingDecision.create!(kind: "enrichment_conflict", payload: { entity_type: "Edition", entity_id: dupe.id, source: "isfdb", fields: [ "publisher" ] })
 
     get work_url(@work)
-    assert_select "form[action=?] button", work_copy_path(@work, copy), text: "Delete — added by mistake"
+    assert_select "form[action=?] select[name=move_to] option[value=?]", work_edition_path(@work, dupe), @edition.id.to_s
 
-    delete work_copy_url(@work, copy)
+    delete work_edition_url(@work, dupe), params: { move_to: @edition.id }
 
     assert_redirected_to work_path(@work)
-    assert_equal "Copy deleted, and its edition with it.", flash[:notice]
     assert_not Edition.exists?(dupe.id)
+    assert_not Copy.exists?(dupe_copy.id)
+    assert_equal [ @edition, @copy ], [ reading.reload.edition, reading.copy ]
     assert decision.reload.rejected?
-    assert_equal [ @edition ], @work.reload.editions.to_a
   end
 
-  test "deleting a copy keeps an edition that's still read, or has another copy, or another book" do
-    reading = Reading.create!(work: @work, edition: @edition, copy: @copy, status: "completed", source: "owned_copy", date_finished: Date.new(2025, 1, 1))
+  test "a book's only edition can't be deleted" do
+    delete work_edition_url(@work, @edition)
 
-    delete work_copy_url(@work, @copy)
-
-    assert_equal "Copy deleted.", flash[:notice]
+    assert_equal "This is the book's only edition.", flash[:alert]
     assert Edition.exists?(@edition.id)
-    assert_nil reading.reload.copy
+  end
+
+  test "deleting a mistaken edition with its readings too; reviews stay with the book" do
+    dupe = Edition.create!(publisher: "Ace")
+    EditionContent.create!(work: @work, edition: dupe)
+    reading = Reading.create!(work: @work, edition: dupe, status: "completed", source: "library", date_finished: Date.new(2025, 1, 1))
+    review = Review.create!(work: @work, reading:, text: "Fine.", status: "draft")
+
+    delete work_edition_url(@work, dupe), params: { move_to: "delete" }
+
+    assert_not Reading.exists?(reading.id)
+    assert_equal [ @work, nil ], [ review.reload.work, review.reading ]
   end
 end

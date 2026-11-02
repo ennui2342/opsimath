@@ -1,7 +1,7 @@
 <%# The current read: finish / did not finish / pause or resume — or start one. %>
 <% field = "rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-600 dark:border-gray-700 dark:bg-gray-900" %>
 <% label = "mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" %>
-<% sources = { "owned_copy" => "My copy", "library" => "Library", "borrowed" => "Borrowed", "other" => "Other" } %>
+<% sources = { "owned_copy" => "Mine", "library" => "Library", "borrowed" => "Borrowed", "other" => "Other" } %>
 <% editions = work.editions.sort_by { |e| [ e.copies.any?(&:owned?) ? 0 : 1, e.id ] } %>
 
 <% if open_reading %>
@@ -44,7 +44,7 @@
       <label class="text-sm"><span class="<%= label %>">Edition</span>
         <%= f.select :edition_id, editions.map { |e| [ [ e.publisher, e.publish_date&.first(4), e.format_detail || e.format, ("owned" if e.copies.any?(&:owned?)) ].compact_blank.join(" · ").presence || "Edition ##{e.id}", e.id ] }, {}, class: field %></label>
       <label class="text-sm"><span class="<%= label %>">Started</span><%= f.date_field :date_started, value: Date.current, class: field %></label>
-      <label class="text-sm"><span class="<%= label %>">Copy</span><%= f.select :source, sources.invert, {}, class: field %></label>
+      <label class="text-sm"><span class="<%= label %>">Whose</span><%= f.select :source, sources.invert, {}, class: field %></label>
       <%= f.submit "Start reading", class: primary %>
     <% end %>
   </details>

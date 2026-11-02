@@ -21,7 +21,7 @@ class EditionChangesControllerTest < ActionDispatch::IntegrationTest
     get work_url(@work)
 
     assert_select "a[href=?]", edit_work_edition_change_path(@work, @edition), text: "Which is yours?"
-    assert_select "a[href=?]", edit_work_edition_change_path(@work, @edition), text: "Not this edition?"
+    assert_select "a[href=?]", edit_work_edition_change_path(@work, @edition), text: "Not this printing? Choose the right one"
   end
 
   test "the picker shows known editions plus the decision's candidates, same-ISBN and current first" do

@@ -352,12 +352,19 @@ to change.
      the PWA, so it's untouched): add one (date, price, source,
      condition, notes), or record what became of one (sold, given away,
      lost, replaced).
-   - **Deleting a copy added by mistake** (2026-11-02, `CopyDeletion`;
-     "What became of it" is for one that really left): readings of it
-     stay, untied from the copy; if it was its edition's last copy and
-     nothing else uses the edition (no readings, no other book), the
-     edition goes too, so no empty card is left. Editions themselves are
-     the providers' records and aren't deleted on their own (Mark).
+   - **No "copies" in the interface** (2026-11-02, Mark): every edition
+     has exactly one Copy in practice (2,055 of 2,055), so the book page
+     talks only about editions. Under each card, one collapsed panel
+     (`works/_edition_panel`): *This edition is* Owned / Sold / Given
+     away / Lost / Replaced / Not mine (read from a library or borrowed —
+     an edition with no Copy), with purchase details (`EditionHolding`,
+     the Copy behind it); "Not this printing?"; and, when the book has
+     another edition, *Delete this edition — added by mistake*
+     (`EditionRemoval`): its readings move to an edition kept or go too,
+     reviews stay with the book, queued decisions close. Getting rid of a
+     book is its status, never a delete. Editions are opsimath's own
+     records built from the providers' (see "The two-step model"), so a
+     duplicate is deletable; the providers' records aren't touched.
    - **Wishlist:** add a book you have (an upgrade hunt), remove one —
      a wanted-only book's empty Work goes with it (`Want#retire!`, also
      what the Goodreads to-read path uses) — and a link to its bargain
