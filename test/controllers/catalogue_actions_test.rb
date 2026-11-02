@@ -130,4 +130,32 @@ class CatalogueActionsTest < ActionDispatch::IntegrationTest
 
     assert_select "summary", text: "Your copies: 1 owned and 1 sold"
   end
+
+  test "deleting a mistaken copy: its edition goes too when nothing else uses it" do
+    dupe = Edition.create!(publisher: "Ace")
+    EditionContent.create!(work: @work, edition: dupe)
+    copy = Copy.create!(edition: dupe, disposition: "owned")
+    decision = PendingDecision.create!(kind: "enrichment_conflict", payload: { entity_type: "Edition", entity_id: dupe.id, source: "isfdb", fields: [ "publisher" ] })
+
+    get work_url(@work)
+    assert_select "form[action=?] button", work_copy_path(@work, copy), text: "Delete — added by mistake"
+
+    delete work_copy_url(@work, copy)
+
+    assert_redirected_to work_path(@work)
+    assert_equal "Copy deleted, and its edition with it.", flash[:notice]
+    assert_not Edition.exists?(dupe.id)
+    assert decision.reload.rejected?
+    assert_equal [ @edition ], @work.reload.editions.to_a
+  end
+
+  test "deleting a copy keeps an edition that's still read, or has another copy, or another book" do
+    reading = Reading.create!(work: @work, edition: @edition, copy: @copy, status: "completed", source: "owned_copy", date_finished: Date.new(2025, 1, 1))
+
+    delete work_copy_url(@work, @copy)
+
+    assert_equal "Copy deleted.", flash[:notice]
+    assert Edition.exists?(@edition.id)
+    assert_nil reading.reload.copy
+  end
 end

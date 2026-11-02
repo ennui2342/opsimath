@@ -352,6 +352,12 @@ to change.
      the PWA, so it's untouched): add one (date, price, source,
      condition, notes), or record what became of one (sold, given away,
      lost, replaced).
+   - **Deleting a copy added by mistake** (2026-11-02, `CopyDeletion`;
+     "What became of it" is for one that really left): readings of it
+     stay, untied from the copy; if it was its edition's last copy and
+     nothing else uses the edition (no readings, no other book), the
+     edition goes too, so no empty card is left. Editions themselves are
+     the providers' records and aren't deleted on their own (Mark).
    - **Wishlist:** add a book you have (an upgrade hunt), remove one —
      a wanted-only book's empty Work goes with it (`Want#retire!`, also
      what the Goodreads to-read path uses) — and a link to its bargain

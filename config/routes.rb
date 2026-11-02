@@ -7,7 +7,7 @@ Rails.application.routes.draw do
   # the reading log, copies, and whether it's wanted.
   resources :works, only: [ :index, :show ] do
     resources :readings, only: [ :create, :update, :destroy ]
-    resources :copies, only: [ :create, :update ]
+    resources :copies, only: [ :create, :update, :destroy ]
     resource :want, only: [ :create, :destroy ]
     # "Not this edition" (docs/CATALOG.md, build step 7)
     resources :edition_changes, path: "editions", only: [ :edit, :update ]

@@ -18,6 +18,9 @@
             <%= f.select :disposition, Copy::DISPOSITION_LABELS.invert, {}, class: field %></label>
           <%= f.submit "Save", class: secondary %>
         <% end %>
+        <%= button_to "Delete — added by mistake", work_copy_path(work, copy), method: :delete,
+                      class: "mt-1 text-xs text-gray-500 hover:text-conflict-800 hover:underline dark:text-gray-400 dark:hover:text-conflict-200",
+                      form: { data: { turbo_confirm: edition.copies.size == 1 && edition.readings.empty? ? "Delete this copy? Its edition goes too, as nothing else uses it. (Sold or gave it away? Use “What became of it” instead.)" : "Delete this copy? (Sold or gave it away? Use “What became of it” instead.)" } } %>
       </li>
     <% end %>
   </ul>

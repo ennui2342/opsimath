@@ -1,6 +1,6 @@
 # Copies of an edition, from the book page (docs/CATALOG.md, build step 5):
 # record one acquired, or what became of one (sold, given away, lost,
-# replaced). Adding an edition the catalogue doesn't have yet is the add
+# replaced), or delete one added by mistake (CopyDeletion). Adding an edition the catalogue doesn't have yet is the add
 # flow's job (build step 6).
 class CopiesController < ApplicationController
   before_action :set_work
@@ -23,6 +23,12 @@ class CopiesController < ApplicationController
     else
       redirect_to work_path(@work), alert: copy.errors.full_messages.to_sentence
     end
+  end
+
+  def destroy
+    copy = Copy.where(edition_id: @work.editions.select(:id)).find(params[:id])
+    edition_went = CopyDeletion.run(copy, work: @work)
+    redirect_to work_path(@work), notice: edition_went ? "Copy deleted, and its edition with it." : "Copy deleted."
   end
 
   private
