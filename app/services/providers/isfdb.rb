@@ -35,7 +35,7 @@ module Providers
     # isfdb-adapter's /search: title and author words matched separately,
     # then every edition of each matched title — grouped back into works.
     def search_works(title:, author: nil)
-      works_from(@client.search([ title, author ].compact.join(" ")))
+      works_from(@client.search([ title, author ].compact.join(" "), limit: 300))
     end
 
     # The work(s) an ISBN belongs to, with the printings under that ISBN.
@@ -51,24 +51,41 @@ module Providers
 
     private
 
+    # The work's ISFDB title by title + author. ISFDB often holds several
+    # records under one title and author — translations that kept the
+    # title (German "Lexicon"), adaptations ("Kindred: A Graphic Novel
+    # Adaptation"), the same book credited two ways (Brian / Brian M.
+    # Stableford's "The Paradise Game") — so: drop records with no English
+    # printing, prefer an exact full-title match, and take identical
+    # English records together as one book. Anything still ambiguous
+    # (The Past Through Tomorrow "Vol. 2" against "Vol. 1" and "Book One")
+    # takes nothing.
+    SEARCH_ROWS = 500 # rows, not titles: 60 cut The Dragon in the Sea off entirely
+
     def by_title(title, author, work_ids)
       surname = fold(author).split.last
-      candidates = @client.search([ title, author ].compact.join(" "), editions_per_title: 200).group_by { |ed| ed["_isfdb_title_id"].to_s }
-                          .select do |id, eds|
-                            next false if id.blank?
-                            next work_ids.include?(id) if work_ids.any?
+      groups = @client.search([ title, author ].compact.join(" "), limit: SEARCH_ROWS, editions_per_title: 200)
+                      .group_by { |ed| ed["_isfdb_title_id"].to_s }.reject { |id, _| id.blank? }
+      candidates =
+        if work_ids.any? then groups.slice(*work_ids)
+        else
+          groups.select do |_, eds|
+            fold(short(eds.first["title"])) == fold(short(title)) &&
+              (surname.nil? || Array(eds.first["authors"]).any? { |a| fold(a).split.last == surname }) &&
+              eds.any? { |ed| ENGLISH.include?(ed["language"].to_s.downcase) }
+          end
+        end
+      exact = candidates.select { |_, eds| fold(eds.first["title"]) == fold(title) }
+      candidates = exact if exact.any?
+      return KnownEditions.new(work_ids: [], editions: []) unless candidates.size == 1 || (candidates.size > 1 && exact.size == candidates.size)
 
-                            fold(short(eds.first["title"])) == fold(short(title)) &&
-                              (surname.nil? || Array(eds.first["authors"]).any? { |a| fold(a).split.last == surname })
-                          end
-      return KnownEditions.new(work_ids: [], editions: []) unless candidates.size == 1
-
-      # The search's own printings of that title — exactly its editions
+      # The search's own printings of the title(s) — exactly its editions
       # (an ISBN lookup from one of them can wander into the series:
       # Calder's Dead Boys pulled in Dead Girls and Dead Things).
-      title_id, pubs = candidates.first
-      KnownEditions.new(work_ids: [ title_id ], editions: pubs.filter_map { |ed| edition(ed) }.uniq(&:id))
+      KnownEditions.new(work_ids: candidates.keys, editions: candidates.values.flatten.filter_map { |ed| edition(ed) }.uniq(&:id))
     end
+
+    ENGLISH = [ "", "eng", "en", "english" ].freeze
 
     def short(text) = text.to_s.split(/[:(]/).first.to_s
 

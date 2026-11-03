@@ -58,6 +58,8 @@ module Isfdb
     # isfdb-adapter's freetext /search — title and author words matched
     # separately, every edition of each matched title (up to
     # editions_per_title), in the /isbn shape. [] when nothing matches.
+    # `limit` counts rows (printings), not titles — a title with many
+    # printings can crowd the rest out, so callers wanting breadth raise it.
     def search(query, limit: 60, editions_per_title: 30)
       response = get("/search?#{URI.encode_www_form(q: query, limit:, editions_per_title:)}", read_timeout: 30)
       raise ServiceError, "isfdb-adapter returned #{response.code} for search" unless response.is_a?(Net::HTTPSuccess)

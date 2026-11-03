@@ -484,8 +484,23 @@ to a title + author search: the one ISFDB title whose folded short title
 and author surname match — none or several and it takes nothing — with
 the printings the search lists for it (an ISBN lookup from one of them
 wandered into the series: Calder's *Dead Boys* pulled in *Dead Girls*).
-On a 25-book sample of works ISFDB hadn't found by ISBN, 13 were found,
-all correctly; ~4.6s each. Works found empty before this are re-asked on
+ISFDB often keeps several records under one title and author —
+translations that kept the title (*Lexicon* in German and Dutch),
+adaptations (*Kindred: A Graphic Novel Adaptation*), the same book
+credited two ways (Brian / Brian M. Stableford's *The Paradise Game*) — so
+records with no English printing are dropped, an exact full-title match
+is preferred, and identical English records are taken together. The
+adapter's search `limit` counts rows, not titles: at 60, *The Dragon in
+the Sea* was cut off entirely, so the fallback asks for 500 (and Add a
+book's search for 300).
+
+On a 25-book sample of works ISFDB hadn't found by ISBN: 19 found, all
+correctly (~9s each). The 6 left are right to be left: an NEL split
+volume ISFDB doesn't record (*The Past Through Tomorrow: Vol. 2* — it
+must not take Vol. 1), two editor-credited anthologies the search doesn't
+surface, two non-fiction books outside ISFDB, and one Goodreads
+mis-import (sheet music, "DAYS OF GLORY CONCERT BAND/HARMONIE/FANFARE",
+for Stableford's *The Days of Glory*). Works found empty before this are re-asked on
 the next run (`TITLE_FALLBACK_SINCE`), then weekly as usual.
 
 Wanting a book (book page, or "Want it" in Add a book) now runs
