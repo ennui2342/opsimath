@@ -52,6 +52,29 @@ module Mobile
         edition_id INTEGER
       );
       CREATE INDEX idx_isbn ON isbn_index (isbn13);
+      CREATE TABLE wants (
+        entry_id     TEXT PRIMARY KEY,
+        target_pence INTEGER,
+        rule         TEXT
+      );
+      CREATE TABLE covers (
+        entry_id       TEXT NOT NULL,
+        cover_id       TEXT NOT NULL,
+        summary        TEXT,
+        artists        TEXT,
+        favourite      INTEGER NOT NULL,
+        chosen         INTEGER NOT NULL,
+        median_pence   INTEGER,
+        listing_count  INTEGER NOT NULL,
+        cheapest_pence INTEGER
+      );
+      CREATE INDEX idx_covers_entry ON covers (entry_id);
+      CREATE TABLE cover_isbns (
+        isbn13   TEXT NOT NULL,
+        entry_id TEXT NOT NULL,
+        cover_id TEXT NOT NULL
+      );
+      CREATE INDEX idx_cover_isbns ON cover_isbns (isbn13);
       CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
     SQL
 
@@ -114,6 +137,20 @@ module Mobile
       end
 
       isbn_rows(entry).each { |row| db.execute("INSERT INTO isbn_index VALUES (?,?,?)", row) }
+      write_want(db, entry) if entry.want
+    end
+
+    # Prices (docs/MOBILE.md, "Prices"): the want's target and rule, each
+    # offered cover's eBay going rate, and every ISBN its printings carry.
+    def write_want(db, entry)
+      want = entry.want
+      db.execute("INSERT INTO wants VALUES (?,?,?)", [ entry.id, want.target_pence, want.rule ])
+      want.covers.each do |c|
+        db.execute("INSERT INTO covers VALUES (?,?,?,?,?,?,?,?,?)",
+                   [ entry.id, c.id, c.summary, c.artists.join(", ").presence, bool(c.favourite), bool(c.chosen),
+                     c.median_pence, c.listing_count, c.cheapest_pence ])
+        c.isbns.each { |i13| db.execute("INSERT INTO cover_isbns VALUES (?,?,?)", [ i13, entry.id, c.id ]) }
+      end
     end
 
     # Every ISBN this entry can be scanned by, folded to ISBN-13. A row
@@ -136,6 +173,7 @@ module Mobile
       if entry.kind == "wishlist"
         i13 = entry.isbn13 || (entry.isbn10 && Isbn.to_13(entry.isbn10))
         rows << [ i13, entry.id, nil ] if i13
+        seen << i13 if i13
       end
 
       (@related_isbns[entry.id] || []).each do |i13|
@@ -149,9 +187,17 @@ module Mobile
     # each owned work — read straight from ProviderEdition
     # (KnownEditionsRefresh keeps it current, off the build's
     # critical path). No network here.
+    # A wanted book (kind "wishlist") is scannable by every printing its
+    # work's known editions carry too, not just the ISBN it was wanted
+    # under — a different printing in a shop is still the book you want.
     def load_related_isbns(view)
       work_ids = view.entries.filter_map { |e| e.id.delete_prefix("work:").to_i if e.kind == "work" }
-      ProviderEdition.isbns_by_work(work_ids).transform_keys { |id| "work:#{id}" }
+      related = ProviderEdition.isbns_by_work(work_ids).transform_keys { |id| "work:#{id}" }
+      want_ids = view.entries.filter_map { |e| e.id.delete_prefix("wishlist:").to_i if e.kind == "wishlist" }
+      work_by_want = Want.where(id: want_ids).pluck(:id, :work_id).to_h
+      by_work = ProviderEdition.isbns_by_work(work_by_want.values)
+      work_by_want.each { |want_id, work_id| related["wishlist:#{want_id}"] = by_work[work_id] if by_work.key?(work_id) }
+      related
     end
 
     def write_meta(db, entry_count)

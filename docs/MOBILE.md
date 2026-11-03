@@ -332,3 +332,24 @@ and features are built:
   seam).
 - **`BarcodeDetector` on the same phone** — the scan-in-a-shop UX is the
   make-or-break; confirm it before committing to the PWA over native.
+
+
+## Prices (2026-11-03)
+
+Mark: "since we now have price data for the wishlist per edition, surface
+it in the offline app so I can see if a particular edition is a good
+price". The snapshot carries, for each wanted book (`wants`): its target
+and collecting rule, and each cover the rule offers (`covers`) with its
+eBay going rate — median, listing count and cheapest over the cover's
+live listings, dismissed ones included (as `/finds` judges them) — plus
+every ISBN its printings carry (`cover_isbns`). A wanted book is now
+scannable by every printing its work's known editions carry, not just
+the ISBN it was wanted under.
+
+On a scan, the printing's cover comes first ("This printing on eBay —
+usually £11.02 · 23 listings · cheapest £3.52"); a reused ISBN shows every
+cover it was printed under ("check which you have"). Then the other
+covers being hunted, with uncovered ones folded into one "No listings
+right now" line. Under 3 listings there's no "usual", just the prices.
+Buy-new books say so instead. Snapshots built before this simply lack the
+tables and the block doesn't show.

@@ -22,8 +22,18 @@ module Mobile
       :owned, :wishlisted,
       :isbn10, :isbn13, :goodreads, :has_cover, # entry-level — set only for kind "wishlist"
       :editions,                    # [Edition] — set only for kind "work"
+      :want,                        # WantPrices — set when the book is wanted
       keyword_init: true
     )
+    # A wanted book's bargain-hunting picture for the shop (docs/MOBILE.md,
+    # "Prices"): its target, the collecting rule's verdict, and the covers
+    # the rule offers with what each sells for on eBay — so a printing in
+    # hand can be judged against its own cover's going rate.
+    WantPrices = Struct.new(:target_pence, :rule, :covers, keyword_init: true)
+    # median/count/cheapest over the cover's live listings, dismissed ones
+    # included (Finds: dismissing is "not that copy", not a market change).
+    CoverPrice = Struct.new(:id, :summary, :artists, :favourite, :chosen, :median_pence, :listing_count, :cheapest_pence,
+                            :isbns, keyword_init: true)
     Edition = Struct.new(
       :id, :format, :format_detail, :publisher, :year, :page_count, :disposition,
       :cover_artist, :reading_status,
@@ -53,6 +63,7 @@ module Mobile
       ::Work.includes(
         { work_contributors: :contributor },
         { work_series: :series },
+        { want: { work: [ :provider_editions, :ebay_listings, { work_contributors: :contributor } ] } },
         { editions: [ :edition_identifiers, :copies, :readings, { cover_image_attachment: :blob } ] }
       )
     end
@@ -71,7 +82,24 @@ module Mobile
         original_year: work.original_publication_year,
         owned: owned.include?(work.id),
         wishlisted: wishlisted.include?(work.id),
-        editions: editions_of(work)
+        editions: editions_of(work),
+        want: work.want && want_prices(work.want)
+      )
+    end
+
+    def profile = @profile ||= CollectingProfile.current
+
+    def want_prices(want)
+      view = WishlistItemView.new(want, profile:)
+      covers = view.hunted? ? view.covers : []
+      WantPrices.new(
+        target_pence: want.target_price, rule: view.verdict.rule.to_s,
+        covers: covers.map do |cover|
+          totals = cover.priced.filter_map(&:total)
+          CoverPrice.new(id: cover.id.to_s, summary: cover.summary, artists: cover.artists, favourite: cover.favourite,
+                         chosen: cover.chosen, median_pence: Finds.median(totals)&.round, listing_count: totals.size,
+                         cheapest_pence: totals.min, isbns: cover.printings.filter_map(&:isbn).uniq)
+        end
       )
     end
 
@@ -146,7 +174,8 @@ module Mobile
     # is the owned work's entry, flagged wishlisted.)
     def wishlist_entries
       Want.where.not(work_id: owned_work_ids.to_a)
-          .includes({ work: [ { work_contributors: :contributor }, { work_series: :series } ] }, cover_image_attachment: :blob)
+          .includes({ work: [ { work_contributors: :contributor }, { work_series: :series }, :provider_editions, :ebay_listings ] },
+                    cover_image_attachment: :blob)
           .find_each.map do |want|
         isbn13 = want.seed_isbns.first
         Entry.new(
@@ -162,7 +191,8 @@ module Mobile
           isbn13:,
           goodreads: want.external_ids["goodreads"],
           has_cover: want.cover_image.attached?,
-          editions: []
+          editions: [],
+          want: want_prices(want)
         )
       end
     end

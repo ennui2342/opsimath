@@ -125,6 +125,31 @@ module Mobile
       assert_equal 1, rows.count { |i13, _, _| i13 == "9780441569595" } # not also added as a null row
     end
 
+    test "a wanted book carries its covers' eBay prices and is scannable by every printing" do
+      want = create_want(title: "The Birthgrave", author: "Tanith Lee", isbns: [ "9780879971779" ])
+      author_dead!(want, "2015")
+      add_printing(want, 2, binding: "pb", publish_date: "1979", publisher: "Orbit", cover_artist: "Peter Jones",
+                            cover_group: "2", isbn10: "0860079422")
+      want.update!(target_price: 500)
+      now = Time.current
+      [ 450, 900, 1200, 300 ].each_with_index do |price, i|
+        want.work.ebay_listings.create!(ebay_item_id: "l#{i}", title: "Birthgrave", price:, shipping: 0, found_by: "keyword",
+                                        matched_pub_ids: [ 2 ], identified_by: "cover", first_seen_at: now, last_seen_at: now,
+                                        status: i == 3 ? "dismissed" : "new") # dismissed still counts towards the price
+      end
+
+      db = build_and_open
+      eid = "wishlist:#{want.id}"
+
+      assert_equal [ { "target_pence" => 500, "rule" => "a_format" } ], db.execute("SELECT target_pence, rule FROM wants WHERE entry_id = ?", [ eid ])
+      cover = db.execute("SELECT * FROM covers WHERE entry_id = ?", [ eid ]).sole
+      assert_equal [ "2", "Peter Jones", 1, 675, 4, 300 ],
+                   cover.values_at("cover_id", "artists", "chosen", "median_pence", "listing_count", "cheapest_pence")
+      isbn = Isbn.to_13("0860079422")
+      assert_equal [ [ isbn, eid, "2" ] ], db.execute("SELECT * FROM cover_isbns").map(&:values)
+      assert_includes db.execute("SELECT isbn13, entry_id FROM isbn_index").map(&:values), [ isbn, eid ]
+    end
+
     test "meta carries version, entry count, generation time" do
       db = build_and_open
       meta = db.execute("SELECT key, value FROM meta").to_h { |r| [ r["key"], r["value"] ] }

@@ -233,3 +233,19 @@ main { padding: 0 1rem 3rem; }
   color: #fff;
   font-size: 1.1rem;
 }
+
+/* --- wanted book prices (docs/MOBILE.md, "Prices") --- */
+.prices {
+  margin-top: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.5rem;
+  background: var(--wish-bg);
+}
+.prices .label { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--wish); margin-top: 0.35rem; }
+.prices .label:first-child { margin-top: 0; }
+.prices .cover { font-weight: 600; font-size: 0.9rem; display: block; }
+.prices .price { font-size: 1.05rem; font-weight: 700; margin-top: 0.1rem; }
+.prices .price + .cover { margin-top: 0.4rem; }
+.prices ul { list-style: none; margin: 0.2rem 0 0; padding: 0; }
+.prices li { margin-top: 0.3rem; }
+.prices li .cover { font-weight: 500; }

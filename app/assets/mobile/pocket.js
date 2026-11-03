@@ -187,7 +187,47 @@
     return row;
   }
 
+  // A wanted book's prices (docs/MOBILE.md, "Prices"): its target and
+  // rule, and each cover the rule offers with its eBay going rate. Absent
+  // from snapshots built before 2026-11-03 — then there's nothing to show.
+  function wantOf(entryId) {
+    try {
+      const w = db.prepare("SELECT target_pence, rule FROM wants WHERE entry_id = ?");
+      w.bind([entryId]);
+      const want = w.step() ? w.getAsObject() : null;
+      w.free();
+      if (!want) return null;
+      const c = db.prepare(
+        "SELECT cover_id, summary, artists, favourite, chosen, median_pence, listing_count, cheapest_pence FROM covers WHERE entry_id = ?"
+      );
+      c.bind([entryId]);
+      want.covers = [];
+      while (c.step()) want.covers.push(c.getAsObject());
+      c.free();
+      return want;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Every cover printed under this ISBN — publishers reused ISBNs across
+  // reprints with new covers (Grafton's Songs of Distant Earth), so a scan
+  // can't always tell which cover is in hand.
+  function coverIdsFor(isbn13, entryId) {
+    try {
+      const s = db.prepare("SELECT DISTINCT cover_id FROM cover_isbns WHERE isbn13 = ? AND entry_id = ?");
+      s.bind([isbn13, entryId]);
+      const ids = [];
+      while (s.step()) ids.push(s.getAsObject().cover_id);
+      s.free();
+      return ids;
+    } catch (_) {
+      return [];
+    }
+  }
+
   // --- render -------------------------------------------------------
+  const money = (p) => "£" + (p / 100).toFixed(2);
   const blobUrl = (bytes) =>
     bytes && bytes.length ? URL.createObjectURL(new Blob([bytes], { type: "image/webp" })) : null;
 
@@ -291,7 +331,58 @@
   // instead. A work that's *also* wishlisted (you own one printing but
   // still want another) keeps the compact inline WISHLIST lozenge here in
   // the head, since it already gets real edition cards below.
-  function entryHtml(row, note) {
+  // One cover's price line: "usually £10.45 · 18 listings · cheapest £3.37".
+  // Under 3 listings there's no "usual" (Finds::MIN_LISTINGS) — just what
+  // they cost: "1 listing: £32.16", "2 listings: £8.57–£12.43".
+  function coverPriceText(c) {
+    if (!c.listing_count) return "no eBay listings right now";
+    if (c.listing_count < 3) {
+      const lo = c.cheapest_pence, hi = 2 * c.median_pence - c.cheapest_pence; // median of 2 is their mean
+      const range = c.listing_count === 1 || lo === hi ? money(lo) : money(lo) + "–" + money(hi);
+      return `${c.listing_count} ${c.listing_count === 1 ? "listing" : "listings"}: ${range}`;
+    }
+    const parts = [];
+    if (c.median_pence != null) parts.push("usually " + money(c.median_pence));
+    parts.push(c.listing_count + (c.listing_count === 1 ? " listing" : " listings"));
+    if (c.cheapest_pence != null && c.listing_count > 1) parts.push("cheapest " + money(c.cheapest_pence));
+    return parts.join(" · ");
+  }
+
+  function coverLabel(c) {
+    return (c.favourite ? "★ " : "") + [c.artists || "Artist unknown", c.summary].filter(Boolean).join(" · ");
+  }
+
+  // Under a wanted book: the scanned printing's cover(s) first (is this a
+  // good price for *this* cover?), then the other covers being hunted —
+  // covers with no listings folded into one line at the end.
+  function pricesHtml(row, scanned) {
+    if (!row.wishlisted) return "";
+    const want = wantOf(row.id);
+    if (!want) return "";
+    if (want.rule === "buy_new") {
+      return `<div class="prices"><div class="meta">Buy new — not hunting second-hand copies of this one</div></div>`;
+    }
+    const ids = scanned ? coverIdsFor(scanned, row.id) : [];
+    const matched = want.covers.filter((c) => ids.includes(c.cover_id));
+    const others = want.covers.filter((c) => c.chosen && !matched.includes(c));
+    const priced = others.filter((c) => c.listing_count);
+    const unpriced = others.filter((c) => !c.listing_count);
+    const target = want.target_pence != null ? `<div class="meta">Your target: ${money(want.target_pence)}</div>` : "";
+    const line = (c) => `<li><span class="cover">${esc(coverLabel(c))}</span><span class="meta">${esc(coverPriceText(c))}</span></li>`;
+    const big = (c) => `<div class="cover">${esc(coverLabel(c))}</div>
+      <div class="price">${esc(coverPriceText(c))}</div>
+      ${c.chosen ? "" : `<div class="meta">Not a cover you're hunting</div>`}`;
+    return `<div class="prices">
+      ${matched.length === 1 ? `<div class="label">This printing on eBay</div>${big(matched[0])}` : ""}
+      ${matched.length > 1 ? `<div class="label">This ISBN was used for ${matched.length} covers — check which you have</div>${matched.map(big).join("")}` : ""}
+      ${scanned && !matched.length ? `<div class="meta">This printing isn't one of the covers being hunted</div>` : ""}
+      ${target}
+      ${priced.length ? `<div class="label">${matched.length ? "Other covers you're hunting" : "Covers you're hunting, on eBay"}</div><ul>${priced.map(line).join("")}</ul>` : ""}
+      ${unpriced.length ? `<div class="meta">No listings right now: ${esc(unpriced.map((c) => [c.artists, c.summary].filter(Boolean).join(" · ")).join("; "))}</div>` : ""}
+    </div>`;
+  }
+
+  function entryHtml(row, note, scanned) {
     const eds = row.editions || [];
     const wishlistOnly = row.wishlisted && eds.length === 0;
 
@@ -301,6 +392,7 @@
       <div class="meta">${esc(row.authors || "")}${row.year ? " · " + row.year : ""}</div>
       ${row.wishlisted && !wishlistOnly ? `<span class="pill wish">WISHLIST</span>` : ""}
       ${wishlistOnly ? wishlistCardHtml(row) : ""}
+      ${pricesHtml(row, scanned)}
       ${eds.map((e) => editionCardHtml(e, row.matched && e.id === row.matched)).join("")}`;
   }
 
@@ -330,7 +422,7 @@
       // A work-level hit with no matched edition = you own a *different*
       // printing than the one just scanned.
       const note = row.kind === "work" && !row.matched ? "you own a different edition:" : null;
-      els.results.appendChild(el("entry", entryHtml(row, note)));
+      els.results.appendChild(el("entry", entryHtml(row, note, code)));
     } else {
       els.results.appendChild(el("entry neither", `
         <div class="head">
