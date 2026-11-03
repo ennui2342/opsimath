@@ -88,6 +88,10 @@ provider records.
 
 ### Step 2 — build the record
 
+*Since 2026-11-03 the edition is anchored to one primary printing rather
+than merged across providers — see "Anchored editions: one primary
+printing". The add flow itself is unchanged.*
+
 Picking a card creates the `Edition` (and the `Work`, if new); every
 provider record on the card becomes one of its `EnrichmentRecord`s, and
 fields are filled through the existing machinery — `FieldApplier`, field
@@ -472,6 +476,182 @@ to change.
      work has them the picker fetches from ISFDB by its ISBN.
 8. Later: discovery; then federation. Reviews' route to scifipraxis is
    punted — posting to Goodreads was manual anyway, so nothing is lost.
+
+## Anchored editions: one primary printing (design, 2026-11-03)
+
+**Status: agreed with Mark 2026-11-03, not yet built.** Supersedes the
+multi-source field merge described in "The two-step model", step 2, for
+how an edition's fields are kept — not for how a book is added.
+
+### Why
+
+The enrichment machinery (per-provider `EnrichmentRecord`s, `FieldApplier`
+planning each field, bundled `PendingDecision`s for disagreements) was
+built when Goodreads was the source of truth and ISFDB the enrichment:
+every disagreement needed a referee. Two things have changed.
+
+1. **Many "conflicts" were identity conflicts in disguise.** Goodreads
+   described one printing, ISFDB another (reused ISBNs, reissues), and
+   merging fields across them made editions that describe no real book —
+   Fahrenheit 451 with one printing's cover and another's date. Printing
+   choice (2026-09) and "Not this printing?" (step 7) were already moves
+   away from merging.
+2. **Goodreads is gone, and ISFDB is the better data.** What's left of
+   the merge model is mostly a review queue Mark can't clear without
+   digging books out to check them by eye.
+
+Mark asked the decisive question: what does all the cross-provider
+reconciliation actually *gain*? Looking at what the data is used for:
+
+| Used for | Needs | Manual work |
+|---|---|---|
+| Shop app: owned? which printing? another printing's barcode | the book's ISBNs, any provider | none — automatic |
+| Bargain hunting, covers, new printings | ISFDB's printing list per book | none — automatic |
+| Book page: the edition's cover, publisher, date, artist | one good record of the printing | one choice, at add time |
+| Review queue | multi-source field merge | all 417 decisions |
+
+The valuable part — book-level links — is automatic. The manual burden
+is all in merging fields per edition. Librarium never tried this: it used
+providers to identify your edition and left it there. That, plus
+automatic background links, is the model.
+
+### The model
+
+1. **Each edition is anchored to one primary printing**: the ISFDB
+   publication where ISFDB has the book, else the Open Library edition.
+   With neither, the edition stands on its own — Mark's values and any
+   legacy Goodreads values.
+2. **The primary's fields are trusted.** Refreshes follow its link and
+   update quietly — no review decisions. If ISFDB adds a cover scan or
+   corrects a date, it arrives.
+3. **Mark's manual values always win** (`field_sources` "manual"); no
+   refresh touches them.
+4. **Other providers only fill gaps**, and only when matched to the same
+   printing (a unique shared ISBN, or a cross-reference id). They never
+   overrule the primary and never raise a conflict; if the primary later
+   gains a value, it replaces the gap-filler quietly. Useful, not
+   essential (Mark).
+5. **What stays manual** is only a genuine "which printing is this?" — a
+   reused ISBN across covers, or the evidence below that the anchor is
+   the wrong printing — and Mark can leave those until he cares about the
+   book.
+
+The edition is still opsimath's record — anchored, augmented, correctable
+— not a copy of the provider's. It's narrower than "best of every
+record", deliberately: that's the version that stays up to date without a
+referee.
+
+### Book-level links (automatic)
+
+What providers know about a *book* (`work_identifiers`,
+`provider_editions`) is kept by `KnownEditionsRefresh` as now, but as a
+reconciliation loop rather than a one-off ISBN lookup, the same for every
+provider:
+
+1. **Gather evidence**: the book's edition ISBNs, its want's seed ISBNs,
+   every ISBN any provider has already given for it, any provider ids
+   already stored.
+2. **Each provider identifies the book**, strongest evidence first:
+   a stored id; a cross-reference id another provider recorded (Open
+   Library editions often carry Goodreads ids — every edition has one —
+   and ISFDB publications can carry Open Library ids; *measure the yield
+   before relying on it*: ISFDB's identifier table was real but low-yield
+   in September, `non_isbn_enrichment_dead_ends`); an ISBN; then title +
+   author through **one shared matcher**. A provider only supplies *how
+   to search*; what counts as a match lives in one place.
+3. **Repeat once** when a new link appeared — a link brings ISBNs, so
+   "found by Open Library" becomes "found by ISFDB".
+4. **Unlinked books stay due** (weekly), so a book a provider adds later
+   is picked up then; a book Mark adds that no provider has is simply
+   unlinked until one does.
+
+The shared matcher is today's ISFDB title fallback generalised: folded
+short title + author surname; records with no English printing dropped
+(same-titled translations); an exact full-title match preferred
+(adaptations); identical English records taken together (one book
+credited two ways); anything else ambiguous takes nothing. Measured on
+ISFDB: 19 of 25 previously unfound, all correct (see "ISFDB by title").
+
+New printings arrive on a book's printing list as providers add them —
+worth surfacing later ("a new printing of a book you want").
+
+### Editions follow their anchor
+
+An edition's anchor is its provider identifier: an `isfdb` (pub id) or
+`openlibrary` `EditionIdentifier`. Already true for 1,387 of 2,060
+editions (ISFDB). For the rest: a unique ISBN match among the book's
+`provider_editions`, else a printing choice. Once anchored, each refresh
+re-applies the anchored record through `SourceRecorder` under the rules
+above — fills, and quiet updates of fields the primary supplied — instead
+of today's one-shot `IsfdbEditionEnricher` (ISBN-only, ISFDB-only, run
+once per edition and never again).
+
+### Authority stays shared
+
+The publisher authority file is already provider-neutral: one preferred
+name per publisher, collecting variant spellings from any source —
+Goodreads, ISFDB, Open Library, Mark. That's the library norm (the
+Library of Congress name authority file: one record, all its forms;
+VIAF: national authority files clustered into one identity). Only the
+`/settings/authorities` preview compares against ISFDB's spelling
+specifically; it should take any provider's.
+
+### Where the code is ISFDB-specific
+
+| Area | Now | Plan |
+|---|---|---|
+| Edition enrichment (`IsfdbEditionEnricher`) | ISFDB-only, one-shot | generic anchored refresh; ISFDB's *rules* (publisher variants, EDTF precision) kept as its rules |
+| Printing choice decisions | raw ISFDB candidates | stays ISFDB (the printing-level provider), raised by the anchoring step |
+| Title fallback (`Providers::Isfdb#by_title`) | ISFDB-only | the shared matcher, every provider |
+| Author alive/dead (`Isfdb::ContributorLifeRefresh`) | ISFDB-only | any provider with author dates (Open Library has them) |
+| Authority preview | ISFDB's publisher | any provider's |
+| Bargain hunting (`hunted_printing?`, eBay `matched_pub_ids`, cover groups) | ISFDB printings only | **kept, deliberately**: only ISFDB has bindings (A/B-format) and cover artists. Later, a provider-neutral "printing" so another source could feed it |
+| Goodreads importer / `ShelfSync` | legacy | frozen; Goodreads ids stay as provenance and a cross-reference |
+
+### The existing queue
+
+Measured 2026-11-03 (prod copy): 417 pending — 313 ISFDB field
+conflicts, all on editions already anchored to an ISFDB printing; 103
+printing choices; 1 Goodreads conflict.
+
+Every one of the 313 is held up by only 1–3 real disagreements, in four
+fields; everything else in them is ISFDB filling an empty field, held
+hostage by the bundle:
+
+| Field | Real disagreements | Fills | Typical |
+|---|---|---|---|
+| publish_date | 283 | — | "1990" (Goodreads) → "1990-02" |
+| publisher | 277 | 1 | "Littlehampton Book Services Ltd" (a distributor) → "Magnum"; "Futura Orbit" → "Orbit" |
+| cover_image | 36 | 216 | (51 identical) |
+| format | 9 | 1 | "paperback" → "hardcover" |
+| page_count / language / cover_artist / format_detail | 0 | 310 / 290 / 230 / 128 | — |
+
+Date disagreements by size: 221 same year (ISFDB only more precise), 27
+one year, **35 two or more years** — mostly the anchor being the wrong
+printing of a reused ISBN (NEL *The Dragon in the Sea* 1969 vs 1979,
+Sphere *Babel-17* 1969 vs 1977).
+
+**Policy**: ISFDB wins for anchored editions. Resolve automatically,
+accepting ISFDB's values, **except** a decision whose date differs by 2+
+years or whose format differs — an identity question, not a data-quality
+one. Those (~40) go to Mark as "which printing is this?", reached from
+the book page; the rest (~270) close. The 103 printing choices stay
+Mark's, to do lazily. Before applying, re-run this breakdown on prod and
+spot-check examples per field.
+
+### Build order
+
+1. **Queue policy**: auto-resolve the ~270, re-raise the ~40 as printing
+   questions. Immediate relief, and the rule the new model enforces
+   anyway.
+2. **Shared matcher + reconciliation loop** for book-level links (every
+   provider; cross-reference ids measured first; repeat-once; weekly
+   retry for unlinked). Replaces the ISFDB-only fallback.
+3. **Anchored edition refresh**: primary trusted, manual wins, gap fill
+   from matched secondaries; retire `IsfdbEditionEnricher`'s fetch path.
+4. **Author dates from any provider; authority preview from any.**
+5. *(Later)* Surfacing new printings; a provider-neutral printing for
+   bargain hunting.
 
 ## ISFDB by title when there's no ISBN (2026-11-03)
 
