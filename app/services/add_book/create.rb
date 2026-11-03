@@ -25,6 +25,7 @@ module AddBook
         work ||= create_work(found)
         work.want || work.create_want!(seed_isbns: seed_isbns(found), cover_url: found&.dig("cover_url")).tap do |want|
           want.attach_cover_from_url(want.cover_url) if want.cover_url
+          WantPrintingsJob.perform_later(want.id)
         end
       end
     end

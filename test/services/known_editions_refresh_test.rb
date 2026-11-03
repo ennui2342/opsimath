@@ -10,8 +10,8 @@ class KnownEditionsRefreshTest < ActiveSupport::TestCase
     def name = "isfdb" # uses isfdb's settings
     def capabilities = %i[known_editions]
 
-    def known_editions(isbns:, work_ids: [])
-      @calls << { isbns:, work_ids: }
+    def known_editions(isbns:, work_ids: [], title: nil, author: nil)
+      @calls << { isbns:, work_ids:, title: }
       raise @error if @error
 
       isbn = isbns.find { |i| @by_isbn.key?(i) }
@@ -67,6 +67,7 @@ class KnownEditionsRefreshTest < ActiveSupport::TestCase
 
   test "skips a work fetched recently with unchanged ISBNs; re-asks when its ISBNs change" do
     ProviderEditionRefresh.create!(work: @work, provider: "isfdb", refreshed_at: 1.day.ago, queried_isbns: [ "9780765304674" ])
+    @work.provider_editions.create!(provider: "isfdb", provider_id: "1") # found something: no title-fallback retry
     assert_equal 0, refresh(FakeProvider.new).due
 
     ProviderEditionRefresh.find_by(work: @work).update!(queried_isbns: [ "9999999999999" ])
@@ -86,18 +87,32 @@ class KnownEditionsRefreshTest < ActiveSupport::TestCase
     assert_not ProviderEditionRefresh.exists?(work: @work)
   end
 
-  test "a work with no ISBN and no provider id isn't sent to the provider" do
+  test "a work with no ISBN and no provider id is still asked — by its title, for the provider to search" do
     bare = Work.create!(title: "No ISBN", literary_form: "novel")
     provider = FakeProvider.new
 
     refresh(provider)
 
-    assert_equal 1, provider.calls.size # only Crossfire
-    assert ProviderEditionRefresh.exists?(work: bare, provider: "isfdb") # but marked as asked
+    assert_includes provider.calls, { isbns: [], work_ids: [], title: "No ISBN" }
+    assert ProviderEditionRefresh.exists?(work: bare, provider: "isfdb")
   end
 
   test "the migration carried ISFDB's step 2 timestamps over" do
     assert ProviderEditionRefresh.column_names.include?("queried_isbns")
     assert_not Work.column_names.include?("known_editions_refreshed_at")
+  end
+
+  test "a work found empty before the title fallback is asked again; one with editions isn't" do
+    bare = Work.create!(title: "Found Nothing", literary_form: "novel")
+    [ @work, bare ].each do |w|
+      ProviderEditionRefresh.create!(work: w, provider: "isfdb", refreshed_at: KnownEditionsRefresh::TITLE_FALLBACK_SINCE - 1.hour,
+                                     queried_isbns: w == @work ? [ "9780765304674" ] : [])
+    end
+    @work.provider_editions.create!(provider: "isfdb", provider_id: "1")
+    provider = FakeProvider.new
+
+    refresh(provider)
+
+    assert_equal [ "Found Nothing" ], provider.calls.map { |c| c[:title] }
   end
 end

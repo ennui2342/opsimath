@@ -177,4 +177,8 @@ class CatalogueActionsTest < ActionDispatch::IntegrationTest
 
     assert_equal [ newer, @edition, sold ], @work.reload.editions_in_order
   end
+
+  test "wanting a book looks up its printings straight away" do
+    assert_enqueued_with(job: WantPrintingsJob) { post work_want_url(@work) }
+  end
 end

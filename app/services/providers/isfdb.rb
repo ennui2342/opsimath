@@ -17,9 +17,16 @@ module Providers
     # resolves to the same title. The list also holds each omnibus or
     # collection containing the work, each reporting its own main title, so
     # the work's own title id is taken only from its own printings.
-    def known_editions(isbns:, work_ids: [])
-      raw = ::Isfdb::WorkEditions.for(nil, client: @client, isbns:)
+    #
+    # A work with no ISBN that resolves (an ISBN-less edition, a want with
+    # none) falls back to a title + author search: the one ISFDB title whose
+    # title and author match the work's — never a guess among several — with
+    # the printings the search lists for it.
+    def known_editions(isbns:, work_ids: [], title: nil, author: nil)
+      raw = isbns.any? ? ::Isfdb::WorkEditions.for(nil, client: @client, isbns:) : []
       own = isbns.map { |i| i.length == 10 ? Isbn.to_13(i) : i }.compact
+      return by_title(title, author, work_ids) if raw.empty? && title.present?
+
       editions = raw.filter_map { |ed| edition(ed) }
       title_ids = raw.select { |ed| own.include?(isbn_of(ed)) }.filter_map { |ed| ed["_isfdb_title_id"].presence&.to_s }.uniq
       KnownEditions.new(work_ids: title_ids, editions:)
@@ -43,6 +50,29 @@ module Providers
     def edition_from(raw) = edition(raw)
 
     private
+
+    def by_title(title, author, work_ids)
+      surname = fold(author).split.last
+      candidates = @client.search([ title, author ].compact.join(" "), editions_per_title: 200).group_by { |ed| ed["_isfdb_title_id"].to_s }
+                          .select do |id, eds|
+                            next false if id.blank?
+                            next work_ids.include?(id) if work_ids.any?
+
+                            fold(short(eds.first["title"])) == fold(short(title)) &&
+                              (surname.nil? || Array(eds.first["authors"]).any? { |a| fold(a).split.last == surname })
+                          end
+      return KnownEditions.new(work_ids: [], editions: []) unless candidates.size == 1
+
+      # The search's own printings of that title — exactly its editions
+      # (an ISBN lookup from one of them can wander into the series:
+      # Calder's Dead Boys pulled in Dead Girls and Dead Things).
+      title_id, pubs = candidates.first
+      KnownEditions.new(work_ids: [ title_id ], editions: pubs.filter_map { |ed| edition(ed) }.uniq(&:id))
+    end
+
+    def short(text) = text.to_s.split(/[:(]/).first.to_s
+
+    def fold(text) = I18n.transliterate(text.to_s.tr("’‘", "''")).downcase.delete("'").gsub(/[^a-z0-9]+/, " ").strip
 
     def works_from(raw)
       raw.group_by { |ed| ed["_isfdb_title_id"] }.filter_map do |title_id, eds|

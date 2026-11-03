@@ -18,6 +18,10 @@ class KnownEditionsRefresh
     "isfdb" => { pool_size: 6, deadline: 15.minutes, max_age: 7.days },
     "openlibrary" => { pool_size: 1, deadline: 30.minutes, max_age: 30.days }
   }.freeze
+  # Works a provider found nothing for before ISFDB's title + author
+  # fallback (2026-11-03) are asked again on the next run rather than
+  # waiting out max_age. Self-expiring: every refresh after it is newer.
+  TITLE_FALLBACK_SINCE = Time.utc(2026, 11, 3, 22).freeze
   UPDATED_COLUMNS = %i[isbn13 isbn10 title publisher binding publish_date language page_count cover_url cover_artist updated_at].freeze
 
   Result = Struct.new(:provider, :works, :due, :refreshed, :truncated, keyword_init: true) do
@@ -28,6 +32,20 @@ class KnownEditionsRefresh
 
   def self.run_all = Providers.with(:known_editions).map { |provider| run(provider:) }
 
+  # One work, now, from every provider, due or not — a book just wanted, so
+  # its bargain-hunting page isn't empty until the night.
+  def self.refresh_work(work)
+    work = Work.includes(:want, { work_contributors: :contributor }, editions: :edition_identifiers).find(work.id)
+    Providers.with(:known_editions).each { |provider| new(provider:).refresh_one(work) }
+  end
+
+  def refresh_one(work)
+    isbns = source_isbns(work)
+    ids = WorkIdentifier.where(work:, id_type: @id_type).pluck(:value)
+    known = fetch(work, isbns, ids)
+    persist(work, known, isbns) if known
+  end
+
   def initialize(provider:, **overrides)
     @provider = provider
     settings = SETTINGS.fetch(provider.name).merge(overrides)
@@ -36,13 +54,15 @@ class KnownEditionsRefresh
   end
 
   def run
-    works = Work.includes(:want, editions: :edition_identifiers).to_a
+    works = Work.includes(:want, { work_contributors: :contributor }, editions: :edition_identifiers).to_a
     isbns_by_id = works.to_h { |w| [ w.id, source_isbns(w) ] }
     refreshes = ProviderEditionRefresh.where(provider: @provider.name).index_by(&:work_id)
     ids_by_work = WorkIdentifier.where(id_type: @id_type).pluck(:work_id, :value).group_by(&:first).transform_values { |v| v.map(&:last) }
+    found = ProviderEdition.where(provider: @provider.name).distinct.pluck(:work_id).to_set
     due = works.select do |w|
       r = refreshes[w.id]
-      r.nil? || r.refreshed_at < @max_age.ago || r.queried_isbns.sort != isbns_by_id[w.id].sort
+      r.nil? || r.refreshed_at < @max_age.ago || r.queried_isbns.sort != isbns_by_id[w.id].sort ||
+        (r.refreshed_at < TITLE_FALLBACK_SINCE && !found.include?(w.id))
     end
 
     fetched = Concurrent::Hash.new
@@ -79,10 +99,10 @@ class KnownEditionsRefresh
   end
 
   # Providers::KnownEditions, or nil on a provider failure (left due).
+  # The title and first author let a provider look the work up when it
+  # has no ISBN to go on (Providers::Isfdb's title fallback).
   def fetch(work, isbns, work_ids)
-    return Providers::KnownEditions.new(work_ids: [], editions: []) if isbns.empty? && work_ids.empty?
-
-    @provider.known_editions(isbns:, work_ids:)
+    @provider.known_editions(isbns:, work_ids:, title: work.title, author: work.authors.first&.name)
   rescue StandardError => e
     Rails.logger.warn("known editions refresh (#{@provider.name}): work ##{work.id} — #{e.class}: #{e.message}")
     nil

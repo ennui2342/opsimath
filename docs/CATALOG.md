@@ -473,6 +473,25 @@ to change.
 8. Later: discovery; then federation. Reviews' route to scifipraxis is
    punted — posting to Goodreads was manual anyway, so nothing is lost.
 
+## ISFDB by title when there's no ISBN (2026-11-03)
+
+Mark wanted *The Fifth Head of Cerberus*; its bargain page said ISFDB
+had no printings. His copy (Gollancz 2004) has only a Goodreads id, and a
+want added from the book page has no seed ISBNs, so the refresh had
+nothing to ask ISFDB with — though ISFDB lists 21 printings (title 1957).
+`Providers::Isfdb#known_editions` now falls back, when no ISBN resolves,
+to a title + author search: the one ISFDB title whose folded short title
+and author surname match — none or several and it takes nothing — with
+the printings the search lists for it (an ISBN lookup from one of them
+wandered into the series: Calder's *Dead Boys* pulled in *Dead Girls*).
+On a 25-book sample of works ISFDB hadn't found by ISBN, 13 were found,
+all correctly; ~4.6s each. Works found empty before this are re-asked on
+the next run (`TITLE_FALLBACK_SINCE`), then weekly as usual.
+
+Wanting a book (book page, or "Want it" in Add a book) now runs
+`WantPrintingsJob` straight away: its printings fetched and covers
+grouped, so the bargain page fills in within a minute, not overnight.
+
 ## Pending decisions stay live (2026-11-02)
 
 Mark: anything that changes an edition outside the review screen can

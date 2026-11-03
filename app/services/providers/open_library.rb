@@ -19,7 +19,7 @@ module Providers
 
     # The work's Open Library editions: its work key from a previous run, or
     # found from the work's own ISBNs (an edition record names its work).
-    def known_editions(isbns:, work_ids: [])
+    def known_editions(isbns:, work_ids: [], **)
       work_key = work_ids.first || isbns.first(ISBN_ATTEMPTS).lazy.filter_map { |i| @client.isbn(i)&.dig("works", 0, "key")&.delete_prefix("/works/") }.first
       return KnownEditions.new(work_ids: [], editions: []) unless work_key
 

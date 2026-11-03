@@ -7,7 +7,7 @@ class WantsController < ApplicationController
   before_action :set_work
 
   def create
-    @work.create_want! unless @work.want
+    WantPrintingsJob.perform_later(@work.create_want!.id) unless @work.want
     redirect_to work_path(@work), notice: "Added to your wishlist."
   end
 
