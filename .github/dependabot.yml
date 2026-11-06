@@ -3,8 +3,12 @@
 # - Routine version updates wait out a cooldown after each release, so a
 #   malicious or broken release is usually caught and yanked before it's
 #   proposed here. Security updates (Dependabot alerts) skip the cooldown.
-# - Minor and patch version updates are grouped into one PR per ecosystem
-#   per week; majors come one at a time, for a human.
+# - Patch updates are grouped into one PR per ecosystem per week, which
+#   merges itself once CI passes (dependabot-automerge.yml); minor updates
+#   are a separate weekly group, and majors come one at a time — both for
+#   a human. (Until 2026-11-06 patch and minor shared one group, whose PR
+#   counted as "minor" whenever it held a single minor bump — so nothing
+#   ever auto-merged.)
 version: 2
 updates:
 - package-ecosystem: bundler
@@ -16,8 +20,10 @@ updates:
     default-days: 7
     semver-major-days: 14
   groups:
-    gems-minor-and-patch:
-      update-types: [minor, patch]
+    gems-patch:
+      update-types: [patch]
+    gems-minor:
+      update-types: [minor]
 
 # The cover-compare sidecar (Python, its own image).
 - package-ecosystem: pip
@@ -28,8 +34,10 @@ updates:
     default-days: 7
     semver-major-days: 14
   groups:
-    cover-compare-minor-and-patch:
-      update-types: [minor, patch]
+    cover-compare-patch:
+      update-types: [patch]
+    cover-compare-minor:
+      update-types: [minor]
 
 # Base images: the Rails app's and cover-compare's.
 - package-ecosystem: docker
@@ -47,5 +55,7 @@ updates:
   cooldown:
     default-days: 7
   groups:
-    actions-minor-and-patch:
-      update-types: [minor, patch]
+    actions-patch:
+      update-types: [patch]
+    actions-minor:
+      update-types: [minor]
