@@ -644,6 +644,15 @@ spot-check examples per field.
 1. **Queue policy**: auto-resolve the ~270, re-raise the ~40 as printing
    questions. Immediate relief, and the rule the new model enforces
    anyway.
+   **Built 2026-11-06** (`ReviewQueue::IsfdbWins`, `rake
+   review_queue:isfdb_wins` — dry run unless `APPLY=1`). Accepts through
+   the review screen's own path; flags the rest with payload
+   `identity_question` — the book page then says "ISFDB's record looks
+   like a different printing: ISFDB's printing is dated 1979; yours 1970.
+   Which is yours?" and links to the edition picker. UAT trial on the prod
+   copy: 274 accepted, 42 flagged, 1 Goodreads rejected; 418 → 143
+   pending (42 + the 101 printing choices), 3 seconds. The publisher
+   authority file is empty on prod, so ISFDB's spelling is what lands.
 2. **Shared matcher + reconciliation loop** for book-level links (every
    provider; cross-reference ids measured first; repeat-once; weekly
    retry for unlinked). Replaces the ISFDB-only fallback.

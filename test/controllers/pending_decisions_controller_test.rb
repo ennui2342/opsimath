@@ -334,4 +334,16 @@ class PendingDecisionsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to work_path(work)
     assert @pending.reload.accepted?
   end
+
+  test "a decision flagged as a printing question sends the book page to the edition picker" do
+    sign_in_as users(:one)
+    @edition.edition_identifiers.create!(id_type: "isfdb", value: "1")
+    @pending.update!(payload: @pending.payload.merge("identity_question" => "ISFDB's printing is dated 1979; yours 1969"))
+    work = @edition.works.first
+
+    get work_url(work)
+
+    assert_select "p", text: /looks like a different printing: ISFDB's printing is dated 1979; yours 1969/
+    assert_select "a[href=?]", edit_work_edition_change_path(work, @edition), text: "Which is yours?"
+  end
 end

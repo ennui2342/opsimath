@@ -7,7 +7,12 @@ module ApplicationHelper
     source = SOURCE_LABELS.fetch(decision.payload["source"].to_s, decision.payload["source"].to_s.humanize.presence || "A provider")
     fields = Array(decision.payload["fields"]).map { |f| f == "cover_image" ? "cover" : f.humanize(capitalize: false) }
     case decision.kind
-    when "enrichment_conflict" then "#{source}'s record differs on #{fields.to_sentence.presence || 'some details'}."
+    when "enrichment_conflict"
+      if decision.payload["identity_question"]
+        "#{source}'s record looks like a different printing: #{decision.payload['identity_question']}."
+      else
+        "#{source}'s record differs on #{fields.to_sentence.presence || 'some details'}."
+      end
     when "edition_reconciliation" then "#{source} lists a different edition of this book."
     else "A decision about this edition is waiting."
     end

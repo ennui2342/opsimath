@@ -61,6 +61,9 @@
               <% if decision.kind == "enrichment_printing_choice" %>
                 Several printings share this ISBN.
                 <%= link_to "Which is yours?", edit_work_edition_change_path(@work, edition), class: "font-medium underline" %>
+              <% elsif decision.payload["identity_question"] %>
+                <%= decision_summary(decision) %>
+                <%= link_to "Which is yours?", edit_work_edition_change_path(@work, edition), class: "font-medium underline" %>
               <% else %>
                 <%= decision_summary(decision) %>
                 <%= link_to "Review", pending_decision_path(decision, work_id: @work.id), class: "font-medium underline" %>
