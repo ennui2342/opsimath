@@ -653,6 +653,10 @@ spot-check examples per field.
    copy: 274 accepted, 42 flagged, 1 Goodreads rejected; 418 → 143
    pending (42 + the 101 printing choices), 3 seconds. The publisher
    authority file is empty on prod, so ISFDB's spelling is what lands.
+   **Applied on prod 2026-11-06** (Mark's go-ahead; verified backup
+   `tmp/opsimath-prod-pre-queue-policy-20261106-113137.dump`): 270
+   accepted, 1 rejected, 42 flagged — 418 → 145 pending (42 printing
+   questions + 103 printing choices).
 2. **Shared matcher + reconciliation loop** for book-level links (every
    provider; cross-reference ids measured first; repeat-once; weekly
    retry for unlinked). Replaces the ISFDB-only fallback.
