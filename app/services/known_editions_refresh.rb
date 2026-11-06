@@ -18,9 +18,13 @@ class KnownEditionsRefresh
     "isfdb" => { pool_size: 6, deadline: 15.minutes, max_age: 7.days },
     "openlibrary" => { pool_size: 1, deadline: 30.minutes, max_age: 30.days }
   }.freeze
-  # Works a provider found nothing for before ISFDB's title + author
-  # fallback (2026-11-03) are asked again on the next run rather than
-  # waiting out max_age. Self-expiring: every refresh after it is newer.
+  # A book a provider hasn't found is asked again weekly whatever its
+  # max_age — so one a provider adds later is picked up then.
+  UNLINKED_RETRY = 7.days
+  CROSS_ISBNS = 5
+  # Works a provider found nothing for before title + author matching
+  # (2026-11-03) are asked again on the next run rather than waiting out
+  # their retry. Self-expiring: every refresh after it is newer.
   TITLE_FALLBACK_SINCE = Time.utc(2026, 11, 3, 22).freeze
   UPDATED_COLUMNS = %i[isbn13 isbn10 title publisher binding publish_date language page_count cover_url cover_artist updated_at].freeze
 
@@ -35,7 +39,7 @@ class KnownEditionsRefresh
   # One work, now, from every provider, due or not — a book just wanted, so
   # its bargain-hunting page isn't empty until the night.
   def self.refresh_work(work)
-    work = Work.includes(:want, { work_contributors: :contributor }, editions: :edition_identifiers).find(work.id)
+    work = Work.includes(:want, :provider_editions, { work_contributors: :contributor }, editions: :edition_identifiers).find(work.id)
     Providers.with(:known_editions).each { |provider| new(provider:).refresh_one(work) }
   end
 
@@ -54,7 +58,7 @@ class KnownEditionsRefresh
   end
 
   def run
-    works = Work.includes(:want, { work_contributors: :contributor }, editions: :edition_identifiers).to_a
+    works = Work.includes(:want, :provider_editions, { work_contributors: :contributor }, editions: :edition_identifiers).to_a
     isbns_by_id = works.to_h { |w| [ w.id, source_isbns(w) ] }
     refreshes = ProviderEditionRefresh.where(provider: @provider.name).index_by(&:work_id)
     ids_by_work = WorkIdentifier.where(id_type: @id_type).pluck(:work_id, :value).group_by(&:first).transform_values { |v| v.map(&:last) }
@@ -62,7 +66,7 @@ class KnownEditionsRefresh
     due = works.select do |w|
       r = refreshes[w.id]
       r.nil? || r.refreshed_at < @max_age.ago || r.queried_isbns.sort != isbns_by_id[w.id].sort ||
-        (r.refreshed_at < TITLE_FALLBACK_SINCE && !found.include?(w.id))
+        (!found.include?(w.id) && (r.refreshed_at < UNLINKED_RETRY.ago || r.refreshed_at < TITLE_FALLBACK_SINCE))
     end
 
     fetched = Concurrent::Hash.new
@@ -89,23 +93,50 @@ class KnownEditionsRefresh
   private
 
   # The work's own ISBNs, ISBN-13 first, then those it was wanted under —
-  # a wanted book has no edition of its own until one is owned.
+  # a wanted book has no edition of its own until one is owned — then a few
+  # that *other* providers have given for it: a book Open Library found is
+  # one ISFDB can now find by ISBN, and the other way round. Only English
+  # printings of the book itself (not an omnibus containing it, not a
+  # translation, which would identify a different record), and few
+  # (CROSS_ISBNS): a provider tries them one at a time.
   def source_isbns(work)
     own = work.editions.flat_map(&:edition_identifiers)
               .select { |i| i.id_type == "isbn13" || i.id_type == "isbn10" }
               .sort_by { |i| i.id_type == "isbn13" ? 0 : 1 }
               .map(&:value)
-    (own + Array(work.want&.seed_isbns)).uniq
+    title = WorkMatcher.key(WorkMatcher.short(work.title))
+    cross = work.provider_editions
+                .select { |e| e.provider != @provider.name && WorkMatcher.english_language?(e.language) }
+                .select { |e| WorkMatcher.key(WorkMatcher.short(e.title)) == title }
+                .filter_map(&:isbn).uniq.first(CROSS_ISBNS)
+    (own + Array(work.want&.seed_isbns) + cross).uniq
   end
 
-  # Providers::KnownEditions, or nil on a provider failure (left due).
-  # The title and first author let a provider look the work up when it
-  # has no ISBN to go on (Providers::Isfdb's title fallback).
+  # Providers::KnownEditions, or nil on a provider failure (left due). By
+  # stored id or ISBN first; when that finds nothing, by title and author
+  # — the provider's own search, WorkMatcher deciding what matches.
   def fetch(work, isbns, work_ids)
-    @provider.known_editions(isbns:, work_ids:, title: work.title, author: work.authors.first&.name)
+    known = @provider.known_editions(isbns:, work_ids:)
+    return known if known.editions.any? || known.work_ids.any? || work.title.blank?
+
+    by_title(work) || known
   rescue StandardError => e
     Rails.logger.warn("known editions refresh (#{@provider.name}): work ##{work.id} — #{e.class}: #{e.message}")
     nil
+  end
+
+  def by_title(work)
+    return unless @provider.capabilities.include?(:search_works)
+
+    author = work.authors.first&.name
+    matches = WorkMatcher.match(@provider.search_works(title: work.title, author:, complete: true), title: work.title, author:)
+    return if matches.empty?
+
+    # ISFDB's search carries each title's printings; Open Library's lists
+    # works, whose editions are a further call.
+    editions = matches.flat_map { |m| Array(m.editions) }
+    editions = matches.flat_map { |m| @provider.known_editions(isbns: [], work_ids: [ m.id ]).editions } if editions.empty?
+    Providers::KnownEditions.new(work_ids: matches.map(&:id), editions: editions.uniq(&:id))
   end
 
   def persist(work, known, isbns)

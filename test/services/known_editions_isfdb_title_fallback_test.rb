@@ -1,5 +1,7 @@
 require "test_helper"
 
+# A book with no usable ISBN, found by title + author through the provider's
+# own search (KnownEditionsRefresh#by_title + WorkMatcher) — here, ISFDB.
 class KnownEditionsIsfdbTitleFallbackTest < ActiveSupport::TestCase
   FakeClient = Struct.new(:search_results, :editions_by_isbn, :searched) do
     def search(query, **) = (self.searched = query) && search_results
@@ -7,8 +9,8 @@ class KnownEditionsIsfdbTitleFallbackTest < ActiveSupport::TestCase
     def lookup_isbn(_isbn) = []
   end
 
-  def pub(id, title_id, title, author, isbn = nil, **attrs)
-    { "_isfdb_pub_id" => id, "_isfdb_title_id" => title_id, "title" => title, "authors" => [ author ], "isbn_13" => isbn }.merge(attrs)
+  def pub(id, title_id, title, author, isbn = nil, extra = {})
+    { "_isfdb_pub_id" => id, "_isfdb_title_id" => title_id, "title" => title, "authors" => [ author ], "isbn_13" => isbn, "language" => "eng" }.merge(extra)
   end
 
   setup do
@@ -17,8 +19,8 @@ class KnownEditionsIsfdbTitleFallbackTest < ActiveSupport::TestCase
     edition = Edition.create!(publisher: "Gollancz") # no ISBN: only a Goodreads id
     EditionContent.create!(work: @work, edition:)
     edition.edition_identifiers.create!(id_type: "goodreads", value: "29416510")
-    @full = [ pub(1, 1957, "The Fifth Head of Cerberus", "Gene Wolfe", "9780684128306", publisher: "Scribner's"),
-              pub(2, 1957, "The Fifth Head of Cerberus", "Gene Wolfe", "9780575015975", publisher: "Gollancz") ]
+    @full = [ pub(1, 1957, "The Fifth Head of Cerberus", "Gene Wolfe", "9780684128306", "publisher" => "Scribner's"),
+              pub(2, 1957, "The Fifth Head of Cerberus", "Gene Wolfe", "9780575015975", "publisher" => "Gollancz") ]
   end
 
   def refresh(client)

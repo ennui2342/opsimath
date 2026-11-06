@@ -34,6 +34,17 @@ module Providers
       assert_equal 3, known.editions.size
     end
 
+    test "known editions follows every stored work id — Open Library keeps duplicate works for one book" do
+      stub_request(:get, "https://openlibrary.org/works/OL15842257W/editions.json?limit=500").to_return(fixture("editions_crossfire.json"))
+      stub_request(:get, "https://openlibrary.org/works/OL2W/editions.json?limit=500")
+        .to_return(status: 200, body: { entries: [ { key: "/books/OL9M", title: "Crossfire" } ] }.to_json, headers: { "Content-Type" => "application/json" })
+
+      known = @provider.known_editions(isbns: [], work_ids: %w[OL15842257W OL2W])
+
+      assert_equal %w[OL15842257W OL2W], known.work_ids
+      assert_equal 4, known.editions.size
+    end
+
     test "known editions: no ISBN Open Library has means nothing, after a bounded number of tries" do
       isbns = %w[9780000000001 9780000000002 9780000000003 9780000000004]
       isbns.each { |i| stub_request(:get, "https://openlibrary.org/isbn/#{i}.json").to_return(status: 404) }

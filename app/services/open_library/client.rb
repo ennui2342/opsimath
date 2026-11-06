@@ -36,7 +36,7 @@ module OpenLibrary
     # Work search: one doc per Open Library work. `q:` is free text (title
     # and author words together, as typed); `title:`/`author:` are fielded.
     def search(title: nil, author: nil, q: nil, limit: 10)
-      params = { q:, title:, author:, limit:, fields: "key,title,author_name,first_publish_year,edition_count,cover_i" }.compact
+      params = { q:, title:, author:, limit:, fields: "key,title,author_name,first_publish_year,edition_count,cover_i,language" }.compact
       get_json("/search.json?#{URI.encode_www_form(params)}").fetch("docs", [])
     end
 

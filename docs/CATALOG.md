@@ -660,6 +660,22 @@ spot-check examples per field.
 2. **Shared matcher + reconciliation loop** for book-level links (every
    provider; cross-reference ids measured first; repeat-once; weekly
    retry for unlinked). Replaces the ISFDB-only fallback.
+   **Built 2026-11-06**: `WorkMatcher` holds the rule (plus ignoring a
+   leading article — Lem's "Futurological Congress" is ISFDB's "*The*
+   Futurological Congress" — and name suffixes, "Kurt Vonnegut, Jr.");
+   `KnownEditionsRefresh` asks each provider by id or ISBN, then — when
+   that finds nothing — by its own `search_works(complete: true)`. A
+   book's ISBNs include up to 5 that *other* providers gave, English
+   printings of the book itself only; new ones change `queried_isbns`, so
+   the book is re-asked — that's the repeat. Unlinked books are retried
+   weekly for every provider (`UNLINKED_RETRY`). Open Library follows
+   every stored work id (up to 4 — it keeps duplicate works). Measured on
+   books each provider hadn't found: ISFDB 16/20 by title (~11s each),
+   Open Library 17/20 (~3s each) — including non-SF ISFDB will never have
+   (Berger's *Ways of Seeing*). Cross-reference ids not done yet (to
+   measure). Open Library's lists include translations; harmless — the
+   picker hides them, cross ISBNs take English only, bargain hunting
+   ignores Open Library.
 3. **Anchored edition refresh**: primary trusted, manual wins, gap fill
    from matched secondaries; retire `IsfdbEditionEnricher`'s fetch path.
 4. **Author dates from any provider; authority preview from any.**

@@ -19,11 +19,18 @@ module Providers
 
     # The work's Open Library editions: its work key from a previous run, or
     # found from the work's own ISBNs (an edition record names its work).
-    def known_editions(isbns:, work_ids: [], **)
-      work_key = work_ids.first || isbns.first(ISBN_ATTEMPTS).lazy.filter_map { |i| @client.isbn(i)&.dig("works", 0, "key")&.delete_prefix("/works/") }.first
-      return KnownEditions.new(work_ids: [], editions: []) unless work_key
+    #
+    # Open Library keeps duplicate works for one book (Lord of Light: three),
+    # so a book can hold several stored work ids — each one's editions are
+    # fetched, up to MAX_WORKS.
+    MAX_WORKS = 4
 
-      KnownEditions.new(work_ids: [ work_key ], editions: editions(work_key))
+    def known_editions(isbns:, work_ids: [])
+      keys = work_ids.first(MAX_WORKS).presence ||
+             [ isbns.first(ISBN_ATTEMPTS).lazy.filter_map { |i| @client.isbn(i)&.dig("works", 0, "key")&.delete_prefix("/works/") }.first ].compact
+      return KnownEditions.new(work_ids: [], editions: []) if keys.empty?
+
+      KnownEditions.new(work_ids: keys, editions: keys.flat_map { |key| editions(key) }.uniq(&:id))
     end
 
     # One result per Open Library work; editions are fetched once a work is
@@ -31,13 +38,13 @@ module Providers
     # Open Library often has several works for one book (Crossfire: three).
     # `title:` alone is sent as free text — the add-a-book box takes title
     # and author words together, as typed.
-    def search_works(title:, author: nil)
-      docs = author ? @client.search(title:, author:) : @client.search(q: title)
+    def search_works(title:, author: nil, complete: false)
+      docs = author ? @client.search(title:, author:, limit: complete ? 20 : 10) : @client.search(q: title)
       docs.map do |doc|
         Work.new(provider: name, id: doc["key"].to_s.delete_prefix("/works/"), title: doc["title"],
                  authors: Array(doc["author_name"]), first_year: doc["first_publish_year"],
                  cover_url: doc["cover_i"].to_i.positive? ? format(COVER_URL, doc["cover_i"]) : nil,
-                 edition_count: doc["edition_count"], editions: nil)
+                 edition_count: doc["edition_count"], editions: nil, languages: Array(doc["language"]))
       end
     end
 

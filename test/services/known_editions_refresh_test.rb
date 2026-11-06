@@ -10,8 +10,8 @@ class KnownEditionsRefreshTest < ActiveSupport::TestCase
     def name = "isfdb" # uses isfdb's settings
     def capabilities = %i[known_editions]
 
-    def known_editions(isbns:, work_ids: [], title: nil, author: nil)
-      @calls << { isbns:, work_ids:, title: }
+    def known_editions(isbns:, work_ids: [])
+      @calls << { isbns:, work_ids: }
       raise @error if @error
 
       isbn = isbns.find { |i| @by_isbn.key?(i) }
@@ -87,14 +87,25 @@ class KnownEditionsRefreshTest < ActiveSupport::TestCase
     assert_not ProviderEditionRefresh.exists?(work: @work)
   end
 
-  test "a work with no ISBN and no provider id is still asked — by its title, for the provider to search" do
+  test "a work with no ISBN and no provider id is still asked, and marked as asked" do
     bare = Work.create!(title: "No ISBN", literary_form: "novel")
     provider = FakeProvider.new
 
     refresh(provider)
 
-    assert_includes provider.calls, { isbns: [], work_ids: [], title: "No ISBN" }
+    assert_includes provider.calls, { isbns: [], work_ids: [] }
     assert ProviderEditionRefresh.exists?(work: bare, provider: "isfdb")
+  end
+
+  test "another provider's English ISBNs of the book help this one find it; translations and omnibuses don't" do
+    @work.provider_editions.create!(provider: "openlibrary", provider_id: "OL1M", title: "Crossfire", isbn13: "9780000000011", language: "eng")
+    @work.provider_editions.create!(provider: "openlibrary", provider_id: "OL2M", title: "Crossfire", isbn13: "9780000000022", language: "ger")
+    @work.provider_editions.create!(provider: "openlibrary", provider_id: "OL3M", title: "The Crossfire Omnibus", isbn13: "9780000000033", language: "eng")
+    provider = FakeProvider.new
+
+    refresh(provider)
+
+    assert_equal [ "9780765304674", "9780000000011" ], provider.calls.find { |c| c[:isbns].include?("9780765304674") }[:isbns]
   end
 
   test "the migration carried ISFDB's step 2 timestamps over" do
@@ -113,6 +124,7 @@ class KnownEditionsRefreshTest < ActiveSupport::TestCase
 
     refresh(provider)
 
-    assert_equal [ "Found Nothing" ], provider.calls.map { |c| c[:title] }
+    assert_equal 1, provider.calls.size # only Found Nothing
+    assert_equal [], provider.calls.sole[:isbns]
   end
 end

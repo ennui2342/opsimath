@@ -9,7 +9,10 @@
 # Capabilities:
 #   :known_editions  every edition the provider knows for a catalogued
 #                    work, found via the work's ISBNs or a provider work id
-#   :search_works    title + author search, one result per provider work
+#   :search_works    title + author search, one result per provider work —
+#                    also how a book with no usable ISBN is identified
+#                    (KnownEditionsRefresh + WorkMatcher); `complete: true`
+#                    asks for every edition a provider can return with it
 module Providers
   # One edition as a provider knows it — the shape ProviderEdition stores.
   Edition = Struct.new(:provider, :id, :work_id, :title, :isbn13, :isbn10, :publisher, :binding,
@@ -18,7 +21,7 @@ module Providers
   end
 
   # One work in a search result, with whatever editions came with it.
-  Work = Struct.new(:provider, :id, :title, :authors, :first_year, :cover_url, :edition_count, :editions,
+  Work = Struct.new(:provider, :id, :title, :authors, :first_year, :cover_url, :edition_count, :editions, :languages,
                     keyword_init: true)
 
   # What a provider knows for one catalogued work: the provider's id(s) for
