@@ -19,6 +19,12 @@ updates:
   cooldown:
     default-days: 7
     semver-major-days: 14
+  ignore:
+    # image_processing 2.x breaks Active Storage variants under Rails 8.1
+    # (the :thumb WebP cover variant fails: "undefined method 'new' for
+    # nil" — PR #26, 2026-11-06). Revisit when Rails supports it.
+    - dependency-name: image_processing
+      update-types: ["version-update:semver-major"]
   groups:
     gems-patch:
       update-types: [patch]
