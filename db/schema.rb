@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_03_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_07_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -77,6 +77,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_120000) do
     t.string "name", null: false
     t.datetime "updated_at", null: false
     t.string "wikidata_id"
+  end
+
+  create_table "catalogue_events", force: :cascade do |t|
+    t.string "origin", null: false
+    t.string "kind", null: false
+    t.bigint "work_id"
+    t.text "summary", null: false
+    t.jsonb "details", default: {}, null: false
+    t.datetime "reported_at"
+    t.datetime "created_at", null: false
+    t.index ["origin", "reported_at"], name: "index_catalogue_events_on_origin_and_reported_at"
+    t.index ["work_id"], name: "index_catalogue_events_on_work_id"
   end
 
   create_table "collecting_profiles", force: :cascade do |t|
@@ -560,6 +572,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_120000) do
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "api_tokens", "users"
   add_foreign_key "authority_variants", "authority_terms"
+  add_foreign_key "catalogue_events", "works", on_delete: :nullify
   add_foreign_key "copies", "editions"
   add_foreign_key "copies", "storage_locations"
   add_foreign_key "ebay_listings", "works", on_delete: :cascade

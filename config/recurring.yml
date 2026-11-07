@@ -36,6 +36,14 @@ production:
     class: PendingDecisionSweepJob
     queue: default
     schedule: every day at 3:10am
+  catalogue_edits_report:
+    class: CatalogueEditsReportJob
+    queue: default
+    schedule: every 15 minutes
+  catalogue_digest:
+    class: CatalogueDigestJob
+    queue: default
+    schedule: every day at 4:30am
   mobile_snapshot:
     class: MobileSnapshotJob
     queue: default

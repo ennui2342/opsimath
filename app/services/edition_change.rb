@@ -17,6 +17,7 @@ class EditionChange
   IDENTIFIERS = %w[isbn13 isbn10] + PROVIDERS
 
   def self.run(edition, card)
+    was = CatalogueEvent.edition_label(edition)
     Edition.transaction do
       settle_decisions(edition) # first: re-filling would close a stale conflict as "accepted"
       edition.update!(PendingDecision::EDITION_FIELD_ORDER.index_with(nil)
@@ -24,7 +25,12 @@ class EditionChange
       edition.cover_image.detach # not purge: the blob can be shared with a provider record
       edition.edition_identifiers.where(id_type: IDENTIFIERS).destroy_all
       edition.enrichment_records.where(provider: PROVIDERS).destroy_all
-      AddBook::Create.fill(edition.reload, card).tap { PendingDecisionSweep.for_edition(edition.id) }
+      AddBook::Create.fill(edition.reload, card).tap do |filled|
+        PendingDecisionSweep.for_edition(edition.id)
+        work = filled.works.first
+        CatalogueEvent.record(kind: "printing_changed", work:,
+                              summary: "#{CatalogueEvent.title(work)}: now the #{CatalogueEvent.edition_label(filled)} printing (was #{was})")
+      end
     end
   end
 

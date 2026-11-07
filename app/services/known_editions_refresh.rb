@@ -142,6 +142,8 @@ class KnownEditionsRefresh
   def persist(work, known, isbns)
     now = Time.current
     rows = known.editions.map { |e| row(work, e, now) }.uniq { |r| r[:provider_id] }
+    had_ids = work.provider_editions.where(provider: @provider.name).pluck(:provider_id)
+    had_links = work.work_identifiers.where(id_type: @id_type).pluck(:value)
 
     ProviderEdition.transaction do
       if rows.any?
@@ -155,6 +157,27 @@ class KnownEditionsRefresh
       ProviderEditionRefresh.upsert({ work_id: work.id, provider: @provider.name, refreshed_at: now, queried_isbns: isbns },
                                     unique_by: [ :work_id, :provider ])
     end
+    record_events(work, known.work_ids - had_links, had_ids.empty? ? [] : rows.reject { |r| had_ids.include?(r[:provider_id]) })
+  end
+
+  # For #catalogue's morning digest: a book newly linked to this provider,
+  # and new printings of a book it already knew — not a first fill, which
+  # the link already says.
+  PROVIDER_LABELS = { "isfdb" => "ISFDB", "openlibrary" => "Open Library" }.freeze
+
+  def record_events(work, new_links, new_rows)
+    label = PROVIDER_LABELS.fetch(@provider.name, @provider.name)
+    wanted = work.want.present?
+    if new_links.any?
+      CatalogueEvent.record(kind: "linked", origin: "known_editions", work:, details: { provider: @provider.name, wanted: },
+                            summary: "#{work.title} found in #{label}")
+    end
+    return if new_rows.empty?
+
+    printings = new_rows.map { |r| [ r[:publisher], r[:publish_date].to_s[0, 4].presence ].compact.join(" ") }.uniq
+    CatalogueEvent.record(kind: "new_printings", origin: "known_editions", work:,
+                          details: { provider: @provider.name, wanted:, count: new_rows.size, printings: },
+                          summary: "#{work.title}: #{new_rows.size} new #{'printing'.pluralize(new_rows.size)} in #{label} (#{printings.first(3).join(', ')})")
   end
 
   def row(work, edition, now)

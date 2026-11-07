@@ -672,8 +672,10 @@ spot-check examples per field.
    every stored work id (up to 4 — it keeps duplicate works). Measured on
    books each provider hadn't found: ISFDB 16/20 by title (~11s each),
    Open Library 17/20 (~3s each) — including non-SF ISFDB will never have
-   (Berger's *Ways of Seeing*). Cross-reference ids not done yet (to
-   measure). Open Library's lists include translations; harmless — the
+   (Berger's *Ways of Seeing*). **Cross-reference ids measured and
+   dropped** (2026-11-07): Open Library found 3 of 30 unlinked books by
+   Goodreads id (`id_goodreads`), all ordinary titles the title search
+   finds anyway — not worth a step. Open Library's lists include translations; harmless — the
    picker hides them, cross ISBNs take English only, bargain hunting
    ignores Open Library.
 3. **Anchored edition refresh**: primary trusted, manual wins, gap fill
@@ -715,6 +717,25 @@ the next run (`TITLE_FALLBACK_SINCE`), then weekly as usual.
 Wanting a book (book page, or "Want it" in Add a book) now runs
 `WantPrintingsJob` straight away: its printings fetched and covers
 grouped, so the bargain page fills in within a minute, not overnight.
+
+## #catalogue: what changed, on Discord (2026-11-07)
+
+Mark: with nightly jobs now changing the catalogue on their own, a
+summary of each change — in its own channel, out of #general's way.
+Changes are recorded as they happen as `CatalogueEvent`s — one readable
+line each ("Added The Days of Glory: Five Star (UK) 1973, owned", "Kraken
+(Pan 2011): owned → sold", "Brasyl: 1 new printing in ISFDB") — rather
+than read back from paper_trail, which stores only each record's previous
+state. `origin` is "web" for Mark's edits, else the job.
+`CatalogueReport` posts Mark's edits every 15 minutes once a burst has
+settled, and a 04:30 digest of the jobs' changes: books newly found by a
+provider, new printings of books already known (wanted books first,
+starred), decisions the sweep closed, the phone app rebuilt. Recorded
+where things change: add a book, want/unwant, printing changed, status
+and purchase details, edition deleted, readings, review-screen and
+metadata-cog decisions; KnownEditionsRefresh, the sweep, the snapshot
+job. Posts go to `credentials.discord.catalogue_channel_id` only — never
+#general — and wait (recorded, unposted) until it's set.
 
 ## Pending decisions stay live (2026-11-02)
 

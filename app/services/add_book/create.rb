@@ -26,6 +26,7 @@ module AddBook
         work.want || work.create_want!(seed_isbns: seed_isbns(found), cover_url: found&.dig("cover_url")).tap do |want|
           want.attach_cover_from_url(want.cover_url) if want.cover_url
           WantPrintingsJob.perform_later(want.id)
+          CatalogueEvent.record(kind: "wanted", work:, summary: "Wanted #{work.title}")
         end
       end
     end
@@ -47,8 +48,18 @@ module AddBook
                           date_started: reading[:date_started], date_finished: reading[:date_finished], rating: reading[:rating])
         end
         work.want&.retire!(keep: work) if own
+        CatalogueEvent.record(kind: "added", work:, summary: added_summary(work, edition, own:, replaces:, reading:))
         [ work, edition ]
       end
+    end
+
+    def self.added_summary(work, edition, own:, replaces:, reading:)
+      held = if replaces then "owned, replacing the #{CatalogueEvent.edition_label(replaces)}"
+      elsif own then "owned"
+      else "not mine"
+      end
+      read = { "completed" => ", read", "reading" => ", reading now" }[reading&.dig(:status)]
+      "Added #{work.title}: #{CatalogueEvent.edition_label(edition)}, #{held}#{read}"
     end
 
     def self.create_work(found)

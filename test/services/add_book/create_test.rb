@@ -60,6 +60,7 @@ module AddBook
       assert edition.cover_image.attached?
       assert_equal "openlibrary", edition.field_sources["cover_image"]
       assert_equal 0, PendingDecision.count
+      assert_equal "Added Crossfire: Tor 2003, owned", CatalogueEvent.last.summary
     end
 
     test "edition with a reading: open, or finished with a date and rating" do

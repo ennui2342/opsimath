@@ -15,7 +15,8 @@ module EditionHolding
   def self.copy(edition) = edition.copies.min_by(&:id)
 
   def self.update(edition, status:, details: {})
-    status = status.presence_in(STATUSES.keys) || status(edition)
+    was = status(edition)
+    status = status.presence_in(STATUSES.keys) || was
     Copy.transaction do
       if status == "not_mine"
         Reading.where(copy_id: edition.copies.select(:id)).update_all(copy_id: nil)
@@ -23,6 +24,13 @@ module EditionHolding
       else
         (copy(edition) || edition.copies.build).update!(details.to_h.slice(*DETAILS).merge(disposition: status))
       end
+    end
+    work = edition.works.first
+    label = "#{CatalogueEvent.title(work)} (#{CatalogueEvent.edition_label(edition)})"
+    if was != status
+      CatalogueEvent.record(kind: "status", work:, summary: "#{label}: #{STATUSES[was].downcase} → #{STATUSES[status].downcase}")
+    elsif details.to_h.compact_blank.any?
+      CatalogueEvent.record(kind: "details", work:, summary: "#{label}: purchase details updated")
     end
   end
 end

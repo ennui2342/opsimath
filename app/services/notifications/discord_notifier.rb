@@ -17,13 +17,21 @@ module Notifications
     COLOR_BY_LEVEL = { info: 0x5865F2, warn: 0xFAA61A, error: 0xED4245 }.freeze
 
     def initialize(bot_token: Rails.application.credentials.dig(:discord, :bot_token),
-                    channel_id: Rails.application.credentials.dig(:discord, :channel_id))
+                    channel_id: Rails.application.credentials.dig(:discord, :channel_id),
+                    channels: { catalogue: Rails.application.credentials.dig(:discord, :catalogue_channel_id) })
       @bot_token = bot_token
       @channel_id = channel_id
+      @channels = channels
     end
 
+    # An event for a named channel (#catalogue) goes only there — never
+    # into the default channel instead; with that channel not configured,
+    # it's logged (LogNotifier) and not posted.
     def notify(event)
-      uri = URI("https://discord.com/api/v10/channels/#{@channel_id}/messages")
+      channel_id = event.channel ? @channels[event.channel] : @channel_id
+      return if channel_id.blank?
+
+      uri = URI("https://discord.com/api/v10/channels/#{channel_id}/messages")
       request = Net::HTTP::Post.new(uri)
       request["Authorization"] = "Bot #{@bot_token}"
       request["Content-Type"] = "application/json"

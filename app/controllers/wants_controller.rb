@@ -7,7 +7,10 @@ class WantsController < ApplicationController
   before_action :set_work
 
   def create
-    WantPrintingsJob.perform_later(@work.create_want!.id) unless @work.want
+    unless @work.want
+      WantPrintingsJob.perform_later(@work.create_want!.id)
+      CatalogueEvent.record(kind: "wanted", work: @work, summary: "Wanted #{@work.title} (you have an edition — an upgrade hunt)")
+    end
     redirect_to work_path(@work), notice: "Added to your wishlist."
   end
 
@@ -16,6 +19,7 @@ class WantsController < ApplicationController
     return redirect_to(work_path(@work)) unless want
 
     want.retire!
+    CatalogueEvent.record(kind: "unwanted", work: (@work if Work.exists?(@work.id)), summary: "No longer wanted: #{@work.title}")
     if Work.exists?(@work.id)
       redirect_to work_path(@work), notice: "Removed from your wishlist."
     else

@@ -181,4 +181,15 @@ class CatalogueActionsTest < ActionDispatch::IntegrationTest
   test "wanting a book looks up its printings straight away" do
     assert_enqueued_with(job: WantPrintingsJob) { post work_want_url(@work) }
   end
+
+  test "catalogue changes are recorded for #catalogue as Mark makes them" do
+    patch holding_work_edition_url(@work, @edition), params: { status: "sold" }
+    post work_readings_url(@work), params: { reading: { edition_id: @edition.id, date_started: "2026-11-01", source: "owned_copy" } }
+    post work_want_url(@work)
+
+    assert_equal [ "Neuromancer (Ace Books 1984): owned → sold", "Neuromancer: started reading",
+                   "Wanted Neuromancer (you have an edition — an upgrade hunt)" ],
+                 CatalogueEvent.order(:id).pluck(:summary)
+    assert CatalogueEvent.all.all? { |e| e.origin == "web" }
+  end
 end

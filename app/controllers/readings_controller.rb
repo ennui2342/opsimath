@@ -23,6 +23,7 @@ class ReadingsController < ApplicationController
   def destroy
     @reading.reviews.update_all(reading_id: nil) # a review outlives the reading it came from
     @reading.destroy!
+    CatalogueEvent.record(kind: "reading", work: @work, summary: "#{@work.title}: a reading deleted")
     redirect_to work_path(@work), notice: "Reading deleted."
   end
 
@@ -42,7 +43,10 @@ class ReadingsController < ApplicationController
   def save_and_return(reading, notice)
     if reading.save
       yield if block_given?
-      redirect_to work_path(@work), notice: notice.respond_to?(:call) ? notice.call : notice
+      text = notice.respond_to?(:call) ? notice.call : notice
+      rating = " (#{reading.rating.to_i}★)" if reading.completed? && reading.rating
+      CatalogueEvent.record(kind: "reading", work: @work, summary: "#{@work.title}: #{text.to_s.chomp('.').downcase}#{rating}")
+      redirect_to work_path(@work), notice: text
     else
       redirect_to work_path(@work), alert: reading.errors.full_messages.to_sentence
     end

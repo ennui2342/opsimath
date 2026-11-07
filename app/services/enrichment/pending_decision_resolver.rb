@@ -39,6 +39,7 @@ module Enrichment
       else accept_enrichment(selected_fields)
       end
       @pending_decision.update!(status: "accepted", resolved_at: Time.current, payload: @pending_decision.payload)
+      record_event("accepted")
       # Accepting one source's values can settle another's disagreement.
       PendingDecisionSweep.for_edition(@pending_decision.payload["entity_id"]) if @pending_decision.payload["entity_type"] == "Edition"
     end
@@ -46,6 +47,20 @@ module Enrichment
     def reject
       @pending_decision.candidate_covers.purge_later if @pending_decision.candidate_covers.attached?
       @pending_decision.update!(status: "rejected", resolved_at: Time.current)
+      record_event("rejected")
+    end
+
+    # "Noir: accepted ISFDB's publisher, language" — what the review changed.
+    def record_event(verdict)
+      entity = @pending_decision.entity
+      work = entity.is_a?(Edition) ? entity.works.first : (entity if entity.is_a?(Work))
+      source = ApplicationHelper::SOURCE_LABELS.fetch(@pending_decision.payload["source"].to_s, @pending_decision.payload["source"].to_s.humanize)
+      what = case @pending_decision.kind
+      when "enrichment_printing_choice" then "chose its printing"
+      when "enrichment_conflict" then "#{verdict} #{source}'s #{Array(@pending_decision.payload['fields']).map { |f| f == 'cover_image' ? 'cover' : f.humanize(capitalize: false) }.to_sentence}"
+      else "#{verdict} a #{@pending_decision.kind.humanize(capitalize: false)}"
+      end
+      CatalogueEvent.record(kind: "decision", work:, summary: "#{CatalogueEvent.title(work)}: #{what}")
     end
 
     private

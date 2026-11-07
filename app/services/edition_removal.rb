@@ -15,6 +15,7 @@ class EditionRemoval
     raise Refused, "Another book shares this edition." if edition.works.where.not(id: work.id).exists?
     raise Refused, "That's not another edition of this book." if move_to && (move_to == edition || !work.editions.include?(move_to))
 
+    label = CatalogueEvent.edition_label(edition)
     Edition.transaction do
       decisions(edition).each { |d| d.update!(status: "rejected", resolved_at: Time.current) }
       if move_to
@@ -24,6 +25,7 @@ class EditionRemoval
       end
       edition.copies.reload.each(&:destroy!)
       edition.reload.destroy!
+      CatalogueEvent.record(kind: "edition_deleted", work:, summary: "#{work.title}: deleted the #{label} edition#{" (its readings moved)" if move_to}")
     end
   end
 

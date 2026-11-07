@@ -18,10 +18,21 @@ module Enrichment
 
     # Returns the list of fields actually applied (for the flash message).
     def apply(picks)
-      Array(picks).reject(&:blank?).map { |pick| apply_one(pick) }.tap { PendingDecisionSweep.for_edition(@edition.id) }
+      Array(picks).reject(&:blank?).map { |pick| apply_one(pick) }.tap do |fields|
+        PendingDecisionSweep.for_edition(@edition.id)
+        work = @edition.works.first
+        CatalogueEvent.record(kind: "metadata", work:, summary: "#{CatalogueEvent.title(work)}: chose #{picks_text(picks)}") if fields.any?
+      end
     end
 
     private
+
+    def picks_text(picks)
+      Array(picks).reject(&:blank?).map do |pick|
+        provider, field = pick.to_s.split(":", 2)
+        "#{field == 'cover_image' ? 'cover' : field.humanize(capitalize: false)} from #{ApplicationHelper::SOURCE_LABELS.fetch(provider, provider)}"
+      end.to_sentence
+    end
 
     def apply_one(pick)
       provider, field = pick.to_s.split(":", 2)

@@ -5,6 +5,10 @@ class PendingDecisionSweepJob < ApplicationJob
 
   def perform
     counts = PendingDecisionSweep.all
-    Rails.logger.info("pending decision sweep: #{counts.inspect}") if counts.any?
+    return if counts.empty?
+
+    Rails.logger.info("pending decision sweep: #{counts.inspect}")
+    CatalogueEvent.record(kind: "decisions_closed", origin: "sweep", details: counts,
+                          summary: "Closed #{counts.values.sum} review #{'decision'.pluralize(counts.values.sum)} with nothing left to decide")
   end
 end

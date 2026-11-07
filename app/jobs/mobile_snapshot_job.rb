@@ -6,6 +6,7 @@ class MobileSnapshotJob < ApplicationJob
 
   def perform
     snapshot = MobileSnapshot.regenerate!
+    CatalogueEvent.record(kind: "snapshot", origin: "mobile_snapshot", summary: "Phone app data rebuilt: version #{snapshot.version}, #{snapshot.entry_count} books")
     Rails.logger.info(
       "mobile snapshot v#{snapshot.version}: #{snapshot.entry_count} entries, #{snapshot.byte_size} bytes"
     )
