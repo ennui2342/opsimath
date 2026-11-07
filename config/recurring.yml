@@ -32,10 +32,15 @@ production:
     class: EbaySweepJob
     queue: default
     schedule: every day at 4:00am
+  # After the providers' printing lists (2:40, up to ~45 minutes).
+  anchored_refresh:
+    class: AnchoredRefreshJob
+    queue: default
+    schedule: every day at 3:30am
   pending_decision_sweep:
     class: PendingDecisionSweepJob
     queue: default
-    schedule: every day at 3:10am
+    schedule: every day at 3:45am
   catalogue_edits_report:
     class: CatalogueEditsReportJob
     queue: default
@@ -47,4 +52,4 @@ production:
   mobile_snapshot:
     class: MobileSnapshotJob
     queue: default
-    schedule: every day at 3:20am
+    schedule: every day at 3:55am

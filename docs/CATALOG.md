@@ -680,6 +680,24 @@ spot-check examples per field.
    ignores Open Library.
 3. **Anchored edition refresh**: primary trusted, manual wins, gap fill
    from matched secondaries; retire `IsfdbEditionEnricher`'s fetch path.
+   **Built 2026-11-07** (`AnchoredRefresh`, `AnchoredRefreshJob` nightly
+   at 03:30 after the printing lists; `rake anchored_refresh:plan` dry
+   run / `:apply`). Reads the anchor from `provider_editions`, no network.
+   Dry run on prod changed the plan in one way: **trust is per provider.**
+   ISFDB anchors fill, update and replace; **Open Library anchors only
+   fill** (and update what they supplied) — their replacements weren't
+   better than what was there: group names for imprints ("Orbit" →
+   "Little, Brown Book Group Limited"), exact-day dates ("1967" →
+   "1973-08-12"), guessed formats. Metadata-cog picks are now sourced
+   "manual", so the refresh never overrides a hand choice (Mark: the cog
+   stays the way to finesse a field). Measured: 1,222 editions anchored to
+   ISFDB, 201 anchorable by a unique ISBN (200 Open Library), 145 held,
+   128 ISFDB-linked with no stored record (to look into), 367 with no
+   anchor. Changes: 155 ISFDB publisher spellings ("Tor Books" → "Tor",
+   "GOLLANCZ" → "Gollancz"), 10 other ISFDB fills/updates (Mirrored
+   Heavens' ISFDB cover scan), ~436 Open Library fills (153 page counts,
+   150 languages, 125 covers for editions with none). Each edition
+   changed is one line in the 04:30 #catalogue digest.
 4. **Authority preview from any provider.** (Author dates stay
    ISFDB-only — Mark, 2026-11-07: the living-author rule is now a switch
    he expects to turn off; see docs/BARGAIN_HUNTING.md.)

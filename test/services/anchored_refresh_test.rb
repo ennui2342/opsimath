@@ -50,4 +50,43 @@ class AnchoredRefreshTest < ActiveSupport::TestCase
 
     assert_equal [ [ :language, "eng", "openlibrary" ] ], plan.secondary.map { |f| [ f.field, f.proposed, f.source ] }
   end
+
+  test "Open Library as the anchor fills gaps but doesn't overrule what's there" do
+    @row.destroy
+    ol = @work.provider_editions.create!(provider: "openlibrary", provider_id: "OL9M", isbn13: "9780340228654",
+                                         publisher: "Hodder & Stoughton Ltd", publish_date: "1978-05-11", language: "eng")
+
+    p = plan
+
+    assert_equal [ :by_isbn, "openlibrary" ], [ p.anchor_status, p.anchor.provider ]
+    assert_equal :keep, action(p, :publisher)
+    assert_equal :fill, action(p, :language)
+  end
+
+  test "apply: writes with the provider as source, keeps Mark's own, records the anchor, the record and an event" do
+    stub_request(:get, %r{https://covers\.test/.*}).to_return(status: 200, body: File.binread(Rails.root.join("test/fixtures/files/cover.png")),
+                                                             headers: { "Content-Type" => "image/png" })
+    @row.update!(cover_url: "https://covers.test/42.jpg")
+
+    assert_equal 1, AnchoredRefresh.apply(Edition.where(id: @edition.id).includes(:edition_identifiers, works: :provider_editions))
+    @edition.reload
+
+    assert_equal [ "Coronet Books", "1978-05", 189, "eng", "mass_market" ],
+                 [ @edition.publisher, @edition.publish_date, @edition.page_count, @edition.language, @edition.format_detail ]
+    assert_equal [ "isfdb", "manual" ], @edition.field_sources.values_at("publisher", "page_count")
+    assert @edition.cover_image.attached?
+    assert @edition.edition_identifiers.exists?(id_type: "isfdb", value: "42") # anchored by ISBN, now recorded
+    assert_equal "https://covers.test/42.jpg", EnrichmentRecord.find_by(entity: @edition, provider: "isfdb").raw_payload["cover_url"]
+    assert_match(/The Stochastic Man: .*publisher.* from ISFDB/, CatalogueEvent.last.summary)
+
+    assert_equal 0, AnchoredRefresh.apply(Edition.where(id: @edition.id).includes(:edition_identifiers, works: :provider_editions)) # nothing left
+  end
+
+  test "a value chosen with the metadata cog is Mark's: the refresh leaves it" do
+    @edition.edition_identifiers.create!(id_type: "isfdb", value: "42")
+    EnrichmentRecord.create!(entity: @edition, provider: "goodreads", external_id: "1", fetched_at: Time.current, raw_payload: {}, fields: { "publisher" => "Hodder and Stoughton" })
+    Enrichment::EditionMetadataResolver.apply(@edition, picks: [ "goodreads:publisher" ])
+
+    assert_equal :manual, action(plan, :publisher)
+  end
 end

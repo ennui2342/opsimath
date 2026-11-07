@@ -21,15 +21,15 @@ module Enrichment
       assert_equal %w[publisher language], applied
       assert_equal "Orbit", @edition.publisher
       assert_equal "eng", @edition.language
-      assert_equal "isfdb", @edition.field_sources["publisher"]
-      assert_equal "isfdb", @edition.field_sources["language"]
+      assert_equal "manual", @edition.field_sources["publisher"] # a pick is Mark's own choice — AnchoredRefresh leaves it
+      assert_equal "manual", @edition.field_sources["language"] # a pick is Mark's own choice — AnchoredRefresh leaves it
     end
 
     test "picks from different sources for different fields in one call" do
       EditionMetadataResolver.apply(@edition, picks: [ "goodreads:publisher" ])
 
       assert_equal "Orbit (Goodreads)", @edition.reload.publisher
-      assert_equal "goodreads", @edition.field_sources["publisher"]
+      assert_equal "manual", @edition.field_sources["publisher"] # a pick is Mark's own choice — AnchoredRefresh leaves it
     end
 
     test "cover_image pick attaches that source's cover blob" do
@@ -40,7 +40,7 @@ module Enrichment
       @edition.reload
       assert @edition.cover_image.attached?
       assert_equal "isfdb-bytes", @edition.cover_image.download
-      assert_equal "isfdb", @edition.field_sources["cover_image"]
+      assert_equal "manual", @edition.field_sources["cover_image"] # a pick is Mark's own choice — AnchoredRefresh leaves it
     end
 
     test "blank/empty picks are a no-op" do

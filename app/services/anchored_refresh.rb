@@ -11,7 +11,11 @@
 #   :fill            empty on the edition — take the anchor's value
 #   :update          the value came from the anchor's provider, which now says otherwise
 #   :replace         it came from another provider (Goodreads) or no recorded
-#                    source, and the anchor says otherwise — the anchor wins
+#                    source, and the anchor says otherwise — the anchor wins,
+#                    when its provider is TRUSTED (ISFDB)
+#   :keep            the same, from a provider that isn't trusted to overrule
+#                    (Open Library: group names for imprints, exact-day dates,
+#                    guessed formats — no better than what's there)
 #   :manual          Mark's own value — never touched
 #   :anchor_blank    the anchor has nothing — the edition's value stays
 # Then, for fields still empty, other providers' records of the same
@@ -21,13 +25,18 @@
 # decision flagged "looks like a different printing" — are held: refreshing
 # them from a wrong anchor would make things worse.
 #
-# `plan` is a dry run.
+# `plan` is a dry run; `apply` does it (nightly, AnchoredRefreshJob): the
+# anchor recorded on an edition anchored by ISBN, the fields written with
+# the provider as their source, the cover downloaded, the provider's record
+# of the edition kept current, and one #catalogue event per edition.
 class AnchoredRefresh
   FieldPlan = Struct.new(:field, :action, :current, :proposed, :source, keyword_init: true)
   EditionPlan = Struct.new(:edition, :work, :anchor_status, :anchor, :fields, :secondary, keyword_init: true)
   # anchor_status: :anchored | :by_isbn (would be anchored now) | :held | :missing_record | :ambiguous | :unanchored
 
   FIELDS = %i[publisher publish_date page_count language cover_artist format format_detail].freeze
+  TRUSTED = %w[isfdb].freeze
+  WRITES = %i[fill update replace secondary_fill].freeze
   ANCHOR_TYPES = %w[isfdb openlibrary].freeze
 
   def self.plan(editions = default_scope) = new.plan(editions)
@@ -41,7 +50,68 @@ class AnchoredRefresh
     editions.find_each.map { |edition| plan_edition(edition, held) }
   end
 
+  def self.apply(editions = default_scope) = new.apply(editions)
+
+  # -> number of editions changed
+  def apply(editions)
+    plan(editions).count { |p| apply_edition(p) }
+  end
+
   private
+
+  APPLIABLE = %i[anchored by_isbn].freeze
+
+  def apply_edition(plan)
+    return false unless APPLIABLE.include?(plan.anchor_status)
+
+    writes = plan.fields.select { |f| WRITES.include?(f.action) } + plan.secondary
+    return false if writes.empty? && plan.anchor_status == :anchored
+
+    edition, anchor = plan.edition, plan.anchor
+    Edition.transaction do
+      edition.edition_identifiers.find_or_create_by!(id_type: anchor.provider, value: anchor.provider_id) if plan.anchor_status == :by_isbn
+      changed = writes.filter_map { |f| write(edition, f, f.action == :secondary_fill ? f.source : anchor.provider) }
+      remember(edition, anchor)
+      PendingDecisionSweep.for_edition(edition.id)
+      record_event(plan, changed) if changed.any?
+      changed.any?
+    end
+  end
+
+  # -> the field written, or nil (a cover that couldn't be downloaded)
+  def write(edition, plan, provider)
+    if plan.field == :cover_image
+      data = HasCoverImage.fetch_image(plan.proposed) or return
+      edition.cover_image.attach(**data)
+      edition.update!(field_sources: edition.field_sources.merge("cover_image" => provider))
+    else
+      edition.update!(plan.field => plan.proposed, field_sources: edition.field_sources.merge(plan.field.to_s => provider))
+    end
+    plan.field
+  end
+
+  # The provider's record of this edition (EnrichmentRecord), as the
+  # anchor now says — the cog compares against it, and the next run's
+  # cover check reads its cover_url.
+  #
+  # Merged, not replaced: an ISFDB record keeps isfdb-adapter's raw shape,
+  # which other code re-reads (IsfdbEditionEnricher.reprocess).
+  def remember(edition, anchor)
+    record = EnrichmentRecord.find_or_initialize_by(entity: edition, provider: anchor.provider)
+    raw = record.raw_payload.presence || anchor.attributes.slice(*%w[provider_id isbn13 isbn10 title publisher binding publish_date language page_count cover_artist])
+    record.update!(external_id: anchor.provider_id, fetched_at: Time.current,
+                   raw_payload: raw.merge("cover_url" => anchor.cover_url),
+                   fields: record.fields.merge(proposals(anchor).except(:cover_image).compact.transform_keys(&:to_s)))
+  end
+
+  LABELS = { "isfdb" => "ISFDB", "openlibrary" => "Open Library" }.freeze
+
+  def record_event(plan, fields)
+    names = fields.map { |f| f == :cover_image ? "cover" : f.to_s.humanize(capitalize: false) }
+    CatalogueEvent.record(kind: "refreshed", origin: "anchored_refresh", work: plan.work,
+                          details: { provider: plan.anchor.provider, fields: fields.map(&:to_s), anchored_now: plan.anchor_status == :by_isbn },
+                          summary: "#{CatalogueEvent.title(plan.work)}: #{names.to_sentence} from #{LABELS.fetch(plan.anchor.provider, plan.anchor.provider)}")
+  end
 
   def held_edition_ids
     PendingDecision.pending.where("payload->>'entity_type' = 'Edition'")
@@ -100,7 +170,8 @@ class AnchoredRefresh
         elsif current.to_s.strip == value.to_s.strip then :same
         elsif source == "manual" then :manual
         elsif source == anchor.provider then :update
-        else :replace
+        elsif TRUSTED.include?(anchor.provider) then :replace
+        else :keep
         end
       FieldPlan.new(field:, action:, current:, proposed: value, source:)
     end

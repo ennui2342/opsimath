@@ -3,7 +3,8 @@ module Enrichment
   # sources — the reconcile-edition screen's submit, and the quick
   # right-click cover-swap modal (a single "<provider>:cover_image" pick to
   # the same endpoint). Each pick names which EnrichmentRecord to take one
-  # field's value from. No FieldApplier conflict gate: the reviewer is
+  # field's value from. A pick is Mark's own choice, so the field is
+  # sourced "manual" — AnchoredRefresh never overwrites it. No FieldApplier conflict gate: the reviewer is
   # choosing directly in front of the full comparison, the same trust
   # EditionReconciliationResolver and IsfdbEditionEnricher#commit_choice
   # already extend to a direct human pick.
@@ -48,14 +49,14 @@ module Enrichment
     def apply_field(record, field)
       raise InvalidPick, "#{record.provider} has no #{field} on file" unless record.fields.key?(field)
 
-      @edition.update!(field => record.fields[field], field_sources: @edition.field_sources.merge(field => record.provider))
+      @edition.update!(field => record.fields[field], field_sources: @edition.field_sources.merge(field => "manual"))
     end
 
     def apply_cover(record)
       raise InvalidPick, "#{record.provider} has no cover on file" unless record.cover_image.attached?
 
       @edition.cover_image.attach(record.cover_image.blob)
-      @edition.update!(field_sources: @edition.field_sources.merge("cover_image" => record.provider))
+      @edition.update!(field_sources: @edition.field_sources.merge("cover_image" => "manual"))
     end
   end
 end

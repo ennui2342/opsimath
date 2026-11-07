@@ -1,5 +1,10 @@
 namespace :anchored_refresh do
   # docs/CATALOG.md "Anchored editions", step 3 — what a refresh would do.
+  desc "Apply: bring every anchored edition up to date (what the nightly job does)"
+  task apply: :environment do
+    puts "editions changed: #{AnchoredRefresh.apply}"
+  end
+
   desc "Dry run: anchors, and per-field actions, with examples"
   task plan: :environment do
     plans = AnchoredRefresh.plan

@@ -5,7 +5,8 @@
 module CatalogueReport
   SETTLE = 2.minutes # a burst of edits still going isn't cut in half
   MAX_LINES = 40      # Discord caps a description at 4096 characters
-  JOB_LABELS = { "known_editions" => "Provider lookups", "sweep" => "Review queue", "mobile_snapshot" => "Phone app" }.freeze
+  JOB_LABELS = { "known_editions" => "Provider lookups", "sweep" => "Review queue", "mobile_snapshot" => "Phone app",
+                 "anchored_refresh" => "Editions refreshed" }.freeze
 
   # Mark's edits since the last post. -> number posted
   def self.post_edits(now: Time.current)
@@ -41,7 +42,14 @@ module CatalogueReport
       ordered = printings.sort_by { |e| e.details["wanted"] ? 0 : 1 }
       lines.concat(ordered.first(15).map { |e| "• #{'★ ' if e.details['wanted']}#{e.summary}" })
     end
-    (events - linked - printings).group_by(&:origin).each do |origin, es|
+    refreshed = events.select { |e| e.kind == "refreshed" }
+    if refreshed.any?
+      fields = refreshed.flat_map { |e| Array(e.details["fields"]) }.tally.sort_by { |_, n| -n }
+                        .map { |f, n| "#{f == 'cover_image' ? 'covers' : f.humanize(capitalize: false)} #{n}" }
+      lines << "**Editions refreshed from their printing:** #{refreshed.size} (#{fields.join(', ')})"
+      lines.concat(refreshed.first(8).map { |e| "• #{e.summary}" })
+    end
+    (events - linked - printings - refreshed).group_by(&:origin).each do |origin, es|
       lines << "**#{JOB_LABELS.fetch(origin, origin.humanize)}:** #{es.map(&:summary).uniq.join('; ')}"
     end
     lines
