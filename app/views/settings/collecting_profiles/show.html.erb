@@ -13,7 +13,13 @@
       <label class="text-sm">
         <span class="<%= label %>">Buy new if published within (years)</span>
         <input type="number" name="recent_years" min="0" value="<%= @profile.recent_years %>" class="w-24 <%= input %>">
-        <span class="mt-1 block text-xs text-gray-500 dark:text-gray-400">…or the author is alive, when there's no A-format</span>
+        <span class="mt-1 block text-xs text-gray-500 dark:text-gray-400">when there's no A-format</span>
+      </label>
+      <label class="flex items-center gap-2 self-center text-sm">
+        <input type="hidden" name="buy_new_for_living_authors" value="0">
+        <input type="checkbox" name="buy_new_for_living_authors" value="1" <%= "checked" if @profile.buy_new_for_living_authors %>
+               class="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-2 focus:ring-green-600 dark:border-gray-600 dark:bg-gray-800">
+        …or whenever the author is alive (ISFDB's dates)
       </label>
       <label class="text-sm">
         <span class="<%= label %>">Favourite artist from (owned covers)</span>

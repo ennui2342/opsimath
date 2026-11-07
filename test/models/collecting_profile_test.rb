@@ -40,6 +40,17 @@ class CollectingProfileTest < ActiveSupport::TestCase
     assert_not verdict.hunt?
   end
 
+  test "with the living-author rule off, only recency decides: an older book by a living author is hunted" do
+    @profile.buy_new_for_living_authors = false
+    living!
+    printing(1, "hc", "1990")
+    tp = printing(2, "tp", "1991")
+    assert_equal [ :b_format, [ tp ] ], [ @profile.verdict(@item).rule, @profile.verdict(@item).wanted ]
+
+    printing(3, "hc", (Date.current.year - 1).to_s)
+    assert_equal :buy_new, CollectingProfile.new(recent_years: 50, buy_new_for_living_authors: false).verdict(@item.reload).rule
+  end
+
   test "no A-format and a recent book: buy new, even if the author has died" do
     dead!
     printing(1, "hc", (Date.current.year - 2).to_s)

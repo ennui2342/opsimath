@@ -680,7 +680,9 @@ spot-check examples per field.
    ignores Open Library.
 3. **Anchored edition refresh**: primary trusted, manual wins, gap fill
    from matched secondaries; retire `IsfdbEditionEnricher`'s fetch path.
-4. **Author dates from any provider; authority preview from any.**
+4. **Authority preview from any provider.** (Author dates stay
+   ISFDB-only — Mark, 2026-11-07: the living-author rule is now a switch
+   he expects to turn off; see docs/BARGAIN_HUNTING.md.)
 5. *(Later)* Surfacing new printings; a provider-neutral printing for
    bargain hunting.
 

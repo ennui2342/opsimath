@@ -56,5 +56,11 @@ module Settings
       assert_response :unprocessable_entity
       assert_equal 5, @profile.reload.recent_years
     end
+
+    test "the living-author rule can be switched off" do
+      patch settings_collecting_profile_url, params: { recent_years: 5, favourite_artist_min_owned: 5, buy_new_for_living_authors: "0" }
+
+      assert_not @profile.reload.buy_new_for_living_authors
+    end
   end
 end

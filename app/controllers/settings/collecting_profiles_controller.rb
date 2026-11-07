@@ -16,6 +16,7 @@ module Settings
       never = (@profile.favourite_artists_never - shown) | not_favourite
       always = params[:favourite_artists_always].to_s.lines.map(&:strip).compact_blank.uniq
       if @profile.update(recent_years: params[:recent_years], favourite_artist_min_owned: params[:favourite_artist_min_owned],
+                         buy_new_for_living_authors: params[:buy_new_for_living_authors] == "1",
                          favourite_artists_always: always, favourite_artists_never: never)
         redirect_to settings_collecting_profile_path, notice: "Saved."
       else

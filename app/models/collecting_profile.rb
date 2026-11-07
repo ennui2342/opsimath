@@ -7,8 +7,9 @@
 # - A want with printing_override_ids wants exactly those printings.
 # - A book with an A-format printing wants all its A-formats.
 # - A book with no A-format, if it's recent (first published within
-#   recent_years) or its author is alive, is *buy new* — not hunted, so
-#   the author is paid. buy_new_override forces this either way.
+#   recent_years) or — with buy_new_for_living_authors on — its author is
+#   alive, is *buy new* — not hunted, so the author is paid.
+#   buy_new_override forces this either way.
 # - Otherwise (an older book by a dead author, never in A-format) it
 #   wants its B-formats (ISFDB `tp`), or any physical printing if it was
 #   never paperbacked at all.
@@ -81,6 +82,6 @@ class CollectingProfile < ApplicationRecord
   def buy_new?(want, first_year)
     return want.buy_new_override unless want.buy_new_override.nil?
 
-    want.author_status != :dead || recent?(first_year)
+    recent?(first_year) || (buy_new_for_living_authors && want.author_status != :dead)
   end
 end

@@ -681,3 +681,13 @@ next.
 - **Batch item lookup** — `getItems` (up to 20 listings per call) would
   cut the `getItem` cost; check it's available to a standard keyset
   before relying on it.
+
+
+## Living-author rule as a switch (2026-11-07)
+
+Mark: make the author-status half of "buy new" an on/off setting — he
+expects to turn it off and go by recency alone; no need to extend author
+dates beyond ISFDB. `collecting_profiles.buy_new_for_living_authors`
+(default on, `/settings/collecting`): off, a book with no A-format is buy
+new only when first published within `recent_years`; everything older is
+hunted, whatever the author's status.
