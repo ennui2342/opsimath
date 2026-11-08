@@ -46,6 +46,18 @@ module Isfdb
     # A long-lived title's list is big (The Lord of the Rings: ~240
     # printings) and the adapter assembles each one, so this call gets a
     # longer timeout than the single-edition lookups.
+    # A story series' book-length titles, in series order: [{ "external_id"
+    # (title id), "position" (0 = unnumbered), "title", "release_date",
+    # "cover_url", "language", "authors" }] — nil when there's no such series.
+    def series_volumes(id)
+      response = get("/series/#{Integer(id)}/volumes", read_timeout: 60)
+      return nil if response.is_a?(Net::HTTPNotFound)
+
+      raise ServiceError, "isfdb-adapter returned #{response.code} for series #{id}" unless response.is_a?(Net::HTTPSuccess)
+
+      JSON.parse(response.body)
+    end
+
     # A publisher's line (ISFDB publication series) and every printing in
     # it, in number order: { "id", "name", "publications" => [...] }. nil
     # when there's no such line, or the mirror hasn't imported line names

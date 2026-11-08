@@ -26,7 +26,16 @@ Rails.application.routes.draw do
 
   # Who and what a book belongs to, linked from the book page.
   resources :authors, only: [ :show ]
-  resources :series, only: [ :show ]
+  # A story series' page; wanting a book in it, or the whole series.
+  resources :series, only: [ :show ] do
+    member do
+      post :want_volume
+      post :collect
+      delete :collect, action: :stop
+      post :exclude
+      post :include
+    end
+  end
   get "publisher", to: "publishers#show", as: :publisher
   get "artist", to: "artists#show", as: :artist
   # Publishers' lines (ISFDB publication series), and collecting one.

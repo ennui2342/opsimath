@@ -65,4 +65,10 @@ class LinesControllerTest < ActionDispatch::IntegrationTest
     delete collect_line_url(77)
     assert_not LineWant.exists?(line_want.id)
   end
+
+  test "the publisher page lists its lines" do
+    get publisher_url(name: "The Women's Press")
+
+    assert_select "a[href=?]", line_path(77), text: "The Women's Press Science Fiction"
+  end
 end

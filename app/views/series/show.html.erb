@@ -1,17 +1,69 @@
 <% content_for :title, @series.name %>
-<% works = @entries.map(&:work) %>
-<% position = @entries.to_h { |ws| [ ws.work_id, ws.position && format("%g", ws.position) ] } %>
+<% entries = @volumes.entries %>
+<% badges = ApplicationHelper::WORK_STATUS_BADGES %>
+<% small = "rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600" %>
 
 <div class="w-full max-w-3xl">
   <p class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Series</p>
   <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100"><%= @series.name %></h1>
   <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-    <%= [ "#{pluralize(works.size, 'book')} in your catalogue#{" of #{@series.total_count}" if @series.total_count}",
-          "#{works.count { |w| w.statuses.include?(:owned) }} owned",
-          "#{works.count { |w| w.statuses.include?(:read) }} read" ].join(" · ") %>
+    <%= [ pluralize(entries.size, "book"),
+          "#{entries.count { |e| e.status == :owned }} owned",
+          "#{entries.count { |e| e.work&.statuses&.include?(:read) }} read" ].join(" · ") %>
+    <% if @volumes.isfdb_id %> · <%= link_to "ISFDB", "https://www.isfdb.org/cgi-bin/pe.cgi?#{@volumes.isfdb_id}", target: "_blank", rel: "noopener", class: "hover:underline" %><% end %>
   </p>
 
-  <div class="mt-6"><%= render "works/book_list", works:, note: ->(w) { position[w.id] && "##{position[w.id]}" } %></div>
+  <% if @volumes.complete %>
+    <div class="mt-3 flex flex-wrap items-center gap-3 text-sm">
+      <% if @series_want %>
+        <span class="text-gray-700 dark:text-gray-300">Collecting this series<%= " · last checked #{time_ago_in_words(@series_want.synced_at)} ago" if @series_want.synced_at %></span>
+        <%= button_to "Stop collecting", collect_series_path(@series), method: :delete, class: small,
+                      form: { data: { turbo_confirm: "Stop collecting #{@series.name}? The wants it added go; books you wanted anyway stay." } } %>
+      <% elsif @volumes.missing.any? %>
+        <%= button_to "Collect this series", collect_series_path(@series), method: :post,
+                      class: "rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600" %>
+        <span class="text-xs text-gray-500 dark:text-gray-400">Wants every book in it you don't have — and any added to the series later.</span>
+      <% end %>
+    </div>
+  <% else %>
+    <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Showing the books in your catalogue. The full series appears once it's matched to ISFDB, which happens as its books' printings are looked up.</p>
+  <% end %>
+
+  <ul class="mt-6 divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
+    <% entries.each do |e| %>
+      <% excluded = @series_want && e.title_id && @series_want.excluded?(e.title_id) %>
+      <li class="flex items-center justify-between gap-4 px-4 py-3 <%= "opacity-60" if e.status == :missing %>">
+        <span class="flex min-w-0 items-baseline gap-3">
+          <span class="w-10 flex-none text-right text-xs tabular-nums text-gray-400 dark:text-gray-500"><%= "##{format('%g', e.position)}" if e.position %></span>
+          <span class="min-w-0">
+            <% if e.work %>
+              <%= link_to e.title, work_path(e.work), class: "block truncate font-medium text-gray-900 hover:underline dark:text-gray-100" %>
+            <% else %>
+              <span class="block truncate font-medium text-gray-900 dark:text-gray-100"><%= e.title %></span>
+            <% end %>
+            <span class="block truncate text-xs text-gray-500 dark:text-gray-400"><%= [ e.authors.join(", ").presence, e.year ].compact.join(" · ") %></span>
+          </span>
+        </span>
+        <span class="flex flex-none flex-wrap items-center justify-end gap-1">
+          <% if e.work %>
+            <% e.work.statuses.each do |s| %><%= render Ui::BadgeComponent.new(text: badges[s].first, variant: badges[s].last) %><% end %>
+          <% else %>
+            <%= render Ui::BadgeComponent.new(text: excluded ? "Not collecting" : "Not in your catalogue") %>
+          <% end %>
+          <% if %i[missing catalogued].include?(e.status) && e.title_id %>
+            <% unless excluded %>
+              <%= button_to "Want it", want_volume_series_path(@series), params: { title_id: e.title_id }, class: small %>
+              <%= link_to "Add", add_book_path(q: [ e.title, e.authors.first ].compact.join(" ")), class: small %>
+            <% end %>
+            <% if @series_want %>
+              <%= button_to excluded ? "Collect again" : "Not this one", (excluded ? include_series_path(@series) : exclude_series_path(@series)),
+                            params: { title_id: e.title_id }, class: "text-xs text-gray-500 hover:underline dark:text-gray-400" %>
+            <% end %>
+          <% end %>
+        </span>
+      </li>
+    <% end %>
+  </ul>
 
   <%= link_to "Back to books", works_path, class: "mt-8 inline-block text-sm text-gray-500 hover:underline dark:text-gray-400" %>
 </div>

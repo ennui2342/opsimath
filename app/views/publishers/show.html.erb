@@ -7,6 +7,12 @@
     <%= pluralize(@editions.size, "edition") %> in your catalogue
     <% if @spellings.size > 1 %>· as <%= @spellings.map { |s, n| "#{s} (#{n})" }.join(", ") %><% end %>
   </p>
+  <% if @lines.any? %>
+    <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+      Lines:
+      <%= safe_join(@lines.map { |id, name, _| link_to(name, line_path(id), class: "text-gray-800 hover:underline dark:text-gray-200") }, " · ") %>
+    </p>
+  <% end %>
 
   <ul class="mt-6 divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700 <%= "hidden" if @editions.empty? %>">
     <% @editions.each do |edition| %>

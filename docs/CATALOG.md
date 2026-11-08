@@ -828,6 +828,17 @@ Discworld) would mis-tie a Goodreads series. Runs for a book just added
 (BookAddedJob); the nightly run over the whole catalogue waits for a dry
 run (`WorkSeriesSync.plan`) Mark has seen.
 
+**Series pages** (2026-11-08): a series tied to ISFDB (or whose books'
+printings all name one ISFDB series) lists every book-length title ISFDB
+files there (isfdb-adapter `/series/:id/volumes`, cached a day; other
+languages' omnibuses left out) beside the catalogue's own members, in
+series order — Mark's numbering where he has one. A book he doesn't have
+gets **Want it** (into the catalogue, the series and the wishlist) and
+**Add**. **Collect this series** is a `SeriesWant`, synced with the line
+wants at 02:30: every book he doesn't own or want becomes a want for the
+book (not a printing); "Not this one" sticks; stopping removes only its
+wants. The publisher page lists the publisher's lines, a way into them.
+
 **Publishers' lines** (built 2026-11-08): each stored ISFDB printing
 keeps its line (`provider_editions.pub_series_id/_name/_num`); the book
 page shows an edition's line ("The Women's Press Science Fiction #2"),

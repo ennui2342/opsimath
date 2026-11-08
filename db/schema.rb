@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_08_170000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_08_180000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -386,6 +386,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_170000) do
     t.index ["series_id"], name: "index_series_arcs_on_series_id"
   end
 
+  create_table "series_wants", force: :cascade do |t|
+    t.bigint "series_id", null: false
+    t.integer "excluded_title_ids", default: [], null: false, array: true
+    t.datetime "synced_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["series_id"], name: "index_series_wants_on_series_id", unique: true
+  end
+
   create_table "sessions", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "ip_address"
@@ -450,8 +459,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_170000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "line_want_id"
+    t.bigint "series_want_id"
     t.index ["legacy_wishlist_item_id"], name: "index_wants_on_legacy_wishlist_item_id", unique: true
     t.index ["line_want_id"], name: "index_wants_on_line_want_id"
+    t.index ["series_want_id"], name: "index_wants_on_series_want_id"
     t.index ["work_id"], name: "index_wants_on_work_id", unique: true
   end
 
@@ -613,9 +624,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_170000) do
   add_foreign_key "reviews", "readings"
   add_foreign_key "reviews", "works"
   add_foreign_key "series_arcs", "series"
+  add_foreign_key "series_wants", "series", on_delete: :cascade
   add_foreign_key "sessions", "users"
   add_foreign_key "storage_locations", "storage_locations", column: "parent_location_id"
   add_foreign_key "wants", "line_wants", on_delete: :nullify
+  add_foreign_key "wants", "series_wants", on_delete: :nullify
   add_foreign_key "wants", "works", on_delete: :cascade
   add_foreign_key "wishlist_items", "series"
   add_foreign_key "wishlist_items", "works"
