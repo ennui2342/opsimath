@@ -8,7 +8,9 @@ class WishlistItemView
   # `listings`: what's shown — live, not dismissed, cheapest first.
   # `priced`: the cover's market — live listings including dismissed ones,
   # whose prices are still what the cover sells for (Finds' median).
-  Cover = Struct.new(:id, :printings, :artists, :favourite, :chosen, :listings, :priced, keyword_init: true) do
+  # `new`: one of its printings was announced as new in the last NEW_FOR
+  # (a newsworthy printing, KnownEditionsRefresh#record_events).
+  Cover = Struct.new(:id, :printings, :artists, :favourite, :chosen, :listings, :priced, :new, keyword_init: true) do
     def cover_url = printings.filter_map(&:cover_url).first
 
     def first_year = printings.filter_map(&:year).min
@@ -38,7 +40,15 @@ class WishlistItemView
     @live = @market.select { |l| l.status == "new" }
   end
 
+  NEW_FOR = 30.days
+
   def hunted? = verdict.hunt?
+
+  # The ISFDB pub ids announced as new printings of this book lately.
+  def new_pub_ids
+    @new_pub_ids ||= CatalogueEvent.where(kind: "new_printings", work_id: want.work_id, created_at: NEW_FOR.ago..)
+                                   .flat_map { |e| Array(e.details["provider_ids"]) if e.details["provider"] == "isfdb" }.compact.map(&:to_i).to_set
+  end
 
   def overridden? = !want.printing_override_ids.nil?
 
@@ -48,7 +58,7 @@ class WishlistItemView
       artists = printings.flat_map(&:artists).uniq
       Cover.new(id:, printings:, artists:, favourite: (artists & @favourites).any?,
                 chosen: printings.any? { |p| verdict.wanted?(p) },
-                listings: @live.select { |l| (l.matched_pub_ids & ids).any? },
+                listings: @live.select { |l| (l.matched_pub_ids & ids).any? }, new: ids.any? { |i| new_pub_ids.include?(i) },
                 priced: @market.select { |l| (l.matched_pub_ids & ids).any? })
     end.sort_by { |c| [ c.first_year || 9999, c.id ] }
   end

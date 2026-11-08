@@ -21,22 +21,22 @@
     <div class="mb-4 grid grid-cols-3 gap-2 text-center">
       <div class="rounded-lg border border-green-200 bg-green-50 px-2 py-3 dark:border-green-900 dark:bg-green-950">
         <span class="block text-2xl font-bold tabular-nums text-green-700 dark:text-green-300"><%= @preview.corroborated %></span>
-        <span class="text-xs text-green-800 dark:text-green-300">ISFDB corroborates</span>
+        <span class="text-xs text-green-800 dark:text-green-300">a provider corroborates</span>
       </div>
       <div class="rounded-lg border px-2 py-3 <%= @preview.contradicted.positive? ? "border-conflict-300 bg-conflict-100 dark:border-conflict-800 dark:bg-conflict-900" : "border-gray-200 dark:border-gray-700" %>">
         <span class="block text-2xl font-bold tabular-nums <%= "text-conflict-800 dark:text-conflict-200" if @preview.contradicted.positive? %>"><%= @preview.contradicted %></span>
-        <span class="text-xs text-gray-600 dark:text-gray-400">ISFDB names another</span>
+        <span class="text-xs text-gray-600 dark:text-gray-400">a provider names another</span>
       </div>
       <div class="rounded-lg border px-2 py-3 <%= @preview.unmatched.positive? ? "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950" : "border-gray-200 dark:border-gray-700" %>">
         <span class="block text-2xl font-bold tabular-nums <%= "text-amber-700 dark:text-amber-300" if @preview.unmatched.positive? %>"><%= @preview.unmatched %></span>
-        <span class="text-xs text-gray-600 dark:text-gray-400">no ISFDB record</span>
+        <span class="text-xs text-gray-600 dark:text-gray-400">no provider record</span>
       </div>
     </div>
 
     <% if @preview.risky? %>
       <% flagged = [
-           ("ISFDB names a different publisher for #{@preview.contradicted}" if @preview.contradicted.positive?),
-           ("#{@preview.unmatched} with no ISFDB record to catch a wrong rewrite" if @preview.unmatched.positive?)
+           ("a provider names a different publisher for #{@preview.contradicted}" if @preview.contradicted.positive?),
+           ("#{@preview.unmatched} with no provider record to catch a wrong rewrite" if @preview.unmatched.positive?)
          ].compact.to_sentence %>
       <p class="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
         <strong>Check the flagged rows.</strong>
@@ -47,7 +47,7 @@
     <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
       <table class="w-full text-sm">
         <thead class="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-900 dark:text-gray-400">
-          <tr><th class="px-3 py-2">Book</th><th class="px-3 py-2">On file</th><th class="px-3 py-2">ISFDB says</th></tr>
+          <tr><th class="px-3 py-2">Book</th><th class="px-3 py-2">On file</th><th class="px-3 py-2">Providers say</th></tr>
         </thead>
         <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
           <% @preview.editions.each do |e| %>
@@ -57,12 +57,13 @@
               </td>
               <td class="px-3 py-2 font-mono text-xs"><%= e[:publisher] %></td>
               <td class="px-3 py-2 font-mono text-xs">
+                <% provider = { "isfdb" => "ISFDB", "openlibrary" => "Open Library" }[e[:provider]] %>
                 <% if e[:status] == :unmatched %>
-                  <span class="text-gray-400 italic">not in ISFDB</span>
+                  <span class="text-gray-400 italic">no provider record</span>
                 <% elsif e[:status] == :contradicted %>
-                  <span class="text-conflict-800 dark:text-conflict-200"><%= e[:isfdb] %> ⚠</span>
+                  <span class="text-conflict-800 dark:text-conflict-200"><%= e[:provider_name] %> ⚠</span> <span class="text-gray-400">(<%= provider %>)</span>
                 <% else %>
-                  <span class="text-green-700 dark:text-green-400"><%= e[:isfdb] %></span>
+                  <span class="text-green-700 dark:text-green-400"><%= e[:provider_name] %></span> <span class="text-gray-400">(<%= provider %>)</span>
                 <% end %>
               </td>
             </tr>

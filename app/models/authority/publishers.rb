@@ -38,13 +38,15 @@ module Authority
     # review screen and settings can show it. Mark, 2026-09-06, after
     # nearly making `Pan Books Ltd` a variant of `Tor / Pan Macmillan UK`
     # (would have blindly rewritten 6 old Pan paperbacks): a preview that
-    # separates the rewrites ISFDB corroborates from the ones nothing
-    # would catch.
+    # separates the rewrites a provider corroborates from the ones nothing
+    # would catch. Any provider's record of the edition counts — ISFDB
+    # first, then Open Library (2026-11-08); not Goodreads, usually where
+    # the value on file came from.
     Preview = Struct.new(:preferred, :editions, keyword_init: true) do
-      # editions: [{ id:, title:, publisher:, isfdb:, status: }]
-      #   :corroborated — ISFDB names a publisher that resolves to this term
-      #   :contradicted — ISFDB names a different publisher (rewrite raises a fresh conflict — recoverable)
-      #   :unmatched    — no ISFDB record (blind rewrite, nothing catches a mistake)
+      # editions: [{ id:, title:, publisher:, provider_name:, provider:, status: }]
+      #   :corroborated — a provider names a publisher that resolves to this term
+      #   :contradicted — a provider names a different publisher (rewrite raises a fresh conflict — recoverable)
+      #   :unmatched    — no provider record (blind rewrite, nothing catches a mistake)
       def rewritten = editions.size
       def corroborated = editions.count { |e| e[:status] == :corroborated }
       def contradicted = editions.count { |e| e[:status] == :contradicted }
@@ -65,30 +67,42 @@ module Authority
       end
 
       # Dry run — the editions `apply` would rewrite, each tagged by
-      # whether ISFDB corroborates the rewrite. `variant_labels` may
+      # whether a provider corroborates the rewrite. `variant_labels` may
       # include the preferred form itself (harmless — filtered).
       def preview(preferred:, variant_labels:)
         all_keys = ([ preferred ] + Array(variant_labels)).filter_map { |l| Authority.normalize(l).presence }.to_set
         rewrite_keys = all_keys - [ Authority.normalize(preferred) ]
 
         editions = editions_with_normalized_publisher(rewrite_keys).map do |e|
-          isf = isfdb_publisher(e)
+          name, provider = provider_publisher(e)
           work = e.works.first
           { id: e.id, work_id: work&.id, title: e.works.map(&:title).join(", ").presence || "Edition ##{e.id}",
-            publisher: e.publisher, isfdb: isf, status: preview_status(isf, all_keys) }
+            publisher: e.publisher, provider_name: name, provider:, status: preview_status(name, all_keys) }
         end
         order = %i[contradicted unmatched corroborated]
         Preview.new(preferred: preferred,
                     editions: editions.sort_by { |x| [ order.index(x[:status]), x[:title].downcase ] })
       end
 
-      # :corroborated — ISFDB names a publisher that resolves to this term
-      # :contradicted — ISFDB names a different publisher
-      # :unmatched    — no ISFDB record to check against
-      def preview_status(isfdb_name, term_keys)
-        return :unmatched if isfdb_name.blank?
+      # :corroborated — a provider names a publisher that resolves to this term
+      # :contradicted — a provider names a different publisher
+      # :unmatched    — no provider record to check against
+      def preview_status(provider_name, term_keys)
+        return :unmatched if provider_name.blank?
 
-        term_keys.include?(Authority.normalize(isfdb_name)) ? :corroborated : :contradicted
+        term_keys.include?(Authority.normalize(provider_name)) ? :corroborated : :contradicted
+      end
+
+      PREVIEW_PROVIDERS = %w[isfdb openlibrary].freeze
+
+      # [publisher, provider] from the first provider with a record of the
+      # edition naming one, or nil.
+      def provider_publisher(edition)
+        PREVIEW_PROVIDERS.each do |provider|
+          name = EnrichmentRecord.latest(entity: edition, provider:)&.fields&.dig("publisher")
+          return [ name, provider ] if name.present?
+        end
+        nil
       end
 
       def apply(term)

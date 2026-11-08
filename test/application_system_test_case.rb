@@ -20,4 +20,15 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
     driver_option.add_argument("--disable-dev-shm-usage")
     driver_option.binary = "/usr/bin/chromium" if File.exist?("/usr/bin/chromium")
   end
+
+  # CI's headless Chrome occasionally stalls on a page load and the
+  # WebDriver call times out (Net::ReadTimeout — PendingDecisionsTest,
+  # 2026-11-03 and -06, on the very first visit). Retry once with a fresh
+  # browser rather than fail the run; a second stall still fails.
+  def visit(...)
+    super
+  rescue Net::ReadTimeout
+    page.driver.quit
+    super
+  end
 end

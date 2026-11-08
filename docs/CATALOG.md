@@ -712,8 +712,23 @@ spot-check examples per field.
 4. **Authority preview from any provider.** (Author dates stay
    ISFDB-only — Mark, 2026-11-07: the living-author rule is now a switch
    he expects to turn off; see docs/BARGAIN_HUNTING.md.)
+   **Built 2026-11-08**: the `/settings/authorities` preview checks a
+   provider's record of each edition — ISFDB first, then Open Library —
+   and says which; not Goodreads, usually where the value came from.
 5. *(Later)* Surfacing new printings; a provider-neutral printing for
    bargain hunting.
+   **New printings, built 2026-11-08**: the 04:30 digest stars wanted
+   books' newsworthy printings, and a bargain-hunting cover card says
+   **New** for 30 days when one of its printings was announced
+   (`WishlistItemView::Cover#new`, from the `new_printings` events' pub
+   ids — not from when a row first landed, so this week's catch-up didn't
+   make every cover "new").
+   **Provider-neutral printing: deferred, deliberately.** It pays off only
+   when a second source has bindings (A/B format) and cover artists, and
+   none does — Open Library's formats are the guesses step 3 declined to
+   trust. Reworking eBay `matched_pub_ids`, cover groups and overrides
+   now would change nothing visible. Revisit if a provider with
+   printing-level format and artist data is added.
 
 ## ISFDB by title when there's no ISBN (2026-11-03)
 

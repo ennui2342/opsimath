@@ -138,6 +138,16 @@ module Authority
                    preview.editions.map { |e| e[:status] } # contradicted/unmatched surfaced first
     end
 
+    test "preview takes Open Library's record when ISFDB has none" do
+      ol = Edition.create!(publisher: "Pan Books Ltd")
+      EnrichmentRecord.create!(entity: ol, provider: "openlibrary", external_id: "OL1M", fetched_at: Time.current,
+                               fields: { "publisher" => "Tor / Pan Macmillan UK" }, raw_payload: {})
+
+      row = Authority::Publishers.preview(preferred: "Tor / Pan Macmillan UK", variant_labels: [ "Pan Books Ltd" ]).editions.sole
+
+      assert_equal [ :corroborated, "openlibrary" ], row.values_at(:status, :provider)
+    end
+
     test "preview excludes editions already on the preferred form" do
       Edition.create!(publisher: "Tor / Pan Macmillan UK")
       on_variant = Edition.create!(publisher: "Pan Books Ltd")

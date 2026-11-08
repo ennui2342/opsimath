@@ -9,7 +9,7 @@ module Settings
     before_action :set_vocabulary
 
     # Dry run — what `create` would rewrite, each edition tagged by
-    # whether ISFDB corroborates it. JSON for the inline panel's compact
+    # whether a provider corroborates it. JSON for the inline panel's compact
     # summary; HTML for the settings confirm page.
     def preview
       @preferred = preferred_label

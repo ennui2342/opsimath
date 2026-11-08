@@ -190,7 +190,8 @@ class KnownEditionsRefresh
 
     printings = new_rows.map { |r| [ r[:publisher], r[:publish_date].to_s[0, 4].presence ].compact.join(" ") }.uniq
     CatalogueEvent.record(kind: "new_printings", origin: "known_editions", work:,
-                          details: { provider: @provider.name, wanted:, count: new_rows.size, printings: },
+                          details: { provider: @provider.name, wanted:, count: new_rows.size, printings:,
+                                     provider_ids: new_rows.map { |r| r[:provider_id] } },
                           summary: "#{work.title}: #{new_rows.size} new #{'printing'.pluralize(new_rows.size)} in #{label} (#{printings.first(3).join(', ')})")
   end
 

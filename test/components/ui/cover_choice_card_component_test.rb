@@ -45,5 +45,11 @@ module Ui
       assert_link "£4.01 + £2.70 · Good", href: "https://www.ebay.co.uk/itm/1"
       assert_text "+ 2 more"
     end
+
+    test "a cover with a newly announced printing says New" do
+      render_inline(CoverChoiceCardComponent.new(cover: cover(new: true)))
+
+      assert_selector "span", text: "New"
+    end
   end
 end

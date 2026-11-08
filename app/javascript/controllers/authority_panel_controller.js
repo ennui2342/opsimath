@@ -67,9 +67,9 @@ export default class extends Controller {
       if (p.rewritten === 0) {
         this.previewTarget.textContent = "No catalogued edition uses a variant — nothing would be rewritten."
       } else {
-        const bits = [`${p.corroborated} match ISFDB`]
-        if (p.contradicted) bits.push(`${p.contradicted} ISFDB names another`)
-        if (p.unmatched) bits.push(`${p.unmatched} not in ISFDB`)
+        const bits = [`${p.corroborated} match a provider`]
+        if (p.contradicted) bits.push(`${p.contradicted} a provider names another`)
+        if (p.unmatched) bits.push(`${p.unmatched} with no provider record`)
         this.previewTarget.textContent = `Would rewrite ${p.rewritten} edition${p.rewritten === 1 ? "" : "s"}: ${bits.join(", ")}.`
       }
       this.previewTarget.classList.toggle("text-amber-700", p.risky)
