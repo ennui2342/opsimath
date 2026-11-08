@@ -35,7 +35,7 @@ export default class extends Controller {
     }
     try {
       await this.loadScanner()
-      this.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+      this.stream = await navigator.mediaDevices.getUserMedia(window.OpsimathScan.CAMERA)
       this.videoTarget.srcObject = this.stream
       await this.videoTarget.play()
       this.overlayTarget.hidden = false

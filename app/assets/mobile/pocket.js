@@ -509,7 +509,7 @@
       window.OpsimathScan.prepare(cfg.zxingWasmUrl);
       bareUpc = null;
       confirm = window.OpsimathScan.confirmer();
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      stream = await navigator.mediaDevices.getUserMedia(window.OpsimathScan.CAMERA);
       els.cam.srcObject = stream;
       await els.cam.play();
       els.scanner.hidden = false;

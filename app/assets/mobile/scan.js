@@ -21,14 +21,30 @@
     prepared = true;
   }
 
-  // One video frame -> zxing results.
+  // The camera, asked for HD: at a phone's default 640x480 a UPC add-on's
+  // bars are a pixel or two wide and read wrong (Beggars and Choosers'
+  // 55010 as 25011 every time; from a full-size photo zxing reads it
+  // right, 2026-11-08).
+  const CAMERA = {
+    video: {
+      facingMode: "environment",
+      width: { ideal: 1920 },
+      height: { ideal: 1080 },
+      advanced: [{ focusMode: "continuous" }],
+    },
+  };
+
+  // One video frame -> zxing results, decoding the middle of the frame
+  // (where the on-screen guide box is) at full resolution.
   async function readFrame(video) {
+    const w = video.videoWidth, h = video.videoHeight;
+    const cw = Math.round(w * 0.8), ch = Math.round(h * 0.6);
     canvas = canvas || document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = cw;
+    canvas.height = ch;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    ctx.drawImage(video, 0, 0);
-    const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(video, (w - cw) / 2, (h - ch) / 2, cw, ch, 0, 0, cw, ch);
+    const image = ctx.getImageData(0, 0, cw, ch);
     return window.ZXingWASM.readBarcodes(image, {
       formats: ["EAN13", "UPCA"], eanAddOnSymbol: "Read", tryHarder: true, maxNumberOfSymbols: 2,
     });
@@ -72,5 +88,5 @@
     };
   }
 
-  window.OpsimathScan = { prepare, readFrame, interpret, confirmer };
+  window.OpsimathScan = { prepare, readFrame, interpret, confirmer, CAMERA };
 })();
