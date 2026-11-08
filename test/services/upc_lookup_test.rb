@@ -44,6 +44,14 @@ class UpcLookupTest < ActiveSupport::TestCase
     assert_equal [ tor["isbn_13"] ], UpcLookup.call(upc: "070999012346", add_on: "57636").isbns # known now
   end
 
+  test "only mass-market printings teach the prefix: a misread add-on matching trade paperbacks teaches nothing" do
+    middle("25011", pub("082025011", binding: "tp"), pub("125025011", binding: "tp"))
+
+    result = UpcLookup.call(upc: "037145005997", add_on: "25011")
+    assert_equal 2, result.isbns.size # still offered
+    assert_not UpcPrefix.exists?(manufacturer: "37145")
+  end
+
   test "a scan sharing no prefix with what's known so far starts afresh rather than ruling everything out" do
     UpcPrefix.create!(manufacturer: "70999", candidates: %w[0812 0441])
     middle("11111", pub("055311111"))

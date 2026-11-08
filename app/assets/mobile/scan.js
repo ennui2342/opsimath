@@ -59,5 +59,18 @@
     return upc;
   }
 
-  window.OpsimathScan = { prepare, readFrame, interpret };
+  // Add-ons misread now and then (25011 for 55010, 2026-11-08), so one is
+  // trusted only once the same five digits have been read twice. Fed each
+  // frame's interpretation; -> the code to act on, or null to keep looking.
+  function confirmer() {
+    const seen = {};
+    return function (code) {
+      if (!code || code.kind === "isbn" || !code.addOn) return code && code.kind === "isbn" ? code : null;
+      const key = code.upc + " " + code.addOn;
+      seen[key] = (seen[key] || 0) + 1;
+      return seen[key] >= 2 ? code : null;
+    };
+  }
+
+  window.OpsimathScan = { prepare, readFrame, interpret, confirmer };
 })();

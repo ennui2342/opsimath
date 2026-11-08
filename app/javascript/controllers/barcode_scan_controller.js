@@ -40,6 +40,7 @@ export default class extends Controller {
       this.overlayTarget.hidden = false
       this.hintTarget.textContent = "Point at the barcode"
       this.upc = null
+      this.confirm = window.OpsimathScan.confirmer()
       this.poll = setInterval(() => this.detect(), 250)
     } catch (e) {
       this.close()
@@ -67,8 +68,9 @@ export default class extends Controller {
     this.busy = true
     try {
       const code = window.OpsimathScan.interpret(await window.OpsimathScan.readFrame(this.videoTarget))
-      if (code?.kind === "isbn") return this.submit(code.isbn)
-      if (code?.kind === "upc" && code.addOn) return this.submit(`${code.upc} ${code.addOn}`)
+      const confirmed = this.confirm(code)
+      if (confirmed?.kind === "isbn") return this.submit(confirmed.isbn)
+      if (confirmed?.kind === "upc") return this.submit(`${confirmed.upc} ${confirmed.addOn}`)
       if (code?.kind === "upc") {
         this.upc ||= { code: code.upc, polls: 0 }
         this.hintTarget.textContent = "A US retail UPC — hold steady to read the small barcode beside it too"

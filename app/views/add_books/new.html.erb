@@ -31,6 +31,11 @@
       That's a US retail UPC — it names the publisher and price, not the book. Add the five digits printed
       over the small barcode beside it (e.g. <span class="font-mono"><%= @query %> 30054</span>) and search again.
     </p>
+  <% elsif (upc = UpcLookup.parse(@query)) && @results.empty? %>
+    <p class="text-sm text-gray-500 dark:text-gray-400">
+      No printing has <span class="font-mono"><%= upc.last %></span> in the middle of its ISBN. Check it against the five digits
+      printed over the small barcode beside the UPC — a scan can misread them — and search again with the right ones.
+    </p>
   <% elsif @query.present? && @results.empty? %>
     <p class="text-sm text-gray-500 dark:text-gray-400">Nothing found in ISFDB or Open Library for “<%= @query %>”. Try fewer words, or the author's surname with a title word.</p>
   <% end %>

@@ -31,7 +31,11 @@ class UpcLookup
 
     printings = @client.isbns_with_middle(add_on).select { |p| english?(p) && physical?(p) }
     by_prefix = printings.group_by { |p| isbn10(p)&.first(4) }.except(nil)
-    known = learn(upc[1, 5], by_prefix.keys)
+    # Learnt only from mass-market printings: a UPC with an add-on is a
+    # mass-market's, and a misread add-on (25011 for 55010 on a Tor,
+    # 2026-11-08) usually matches only other formats, so it teaches nothing.
+    mass_market = by_prefix.select { |_, ps| ps.any? { |p| p["binding"] == "pb" } }.keys
+    known = learn(upc[1, 5], mass_market) || (by_prefix.keys & [ UpcPrefix.find_by(manufacturer: upc[1, 5])&.prefix ]).first
     chosen = known ? by_prefix.slice(known) : by_prefix
     isbns = chosen.values.flatten.sort_by { |p| p["binding"] == "pb" ? 0 : 1 }.filter_map { |p| isbn13(p) }.uniq
     Result.new(isbns:, prefix: known)

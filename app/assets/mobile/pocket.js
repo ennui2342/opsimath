@@ -501,12 +501,14 @@
   let scanPoll = null;
   let scanBusy = false;
   let bareUpc = null;
+  let confirm = null;
 
   async function openScanner() {
     if (!db) return setStatus("no snapshot yet — connect once first", "error");
     try {
       window.OpsimathScan.prepare(cfg.zxingWasmUrl);
       bareUpc = null;
+      confirm = window.OpsimathScan.confirmer();
       stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
       els.cam.srcObject = stream;
       await els.cam.play();
@@ -525,14 +527,15 @@
     scanBusy = true;
     try {
       const code = window.OpsimathScan.interpret(await window.OpsimathScan.readFrame(els.cam));
-      if (code && code.kind === "isbn") {
+      const confirmed = confirm(code);
+      if (confirmed && confirmed.kind === "isbn") {
         closeScanner();
         els.q.value = "";
-        renderLookup(code.isbn, byIsbn(code.isbn));
-      } else if (code && code.kind === "upc" && code.addOn) {
+        renderLookup(confirmed.isbn, byIsbn(confirmed.isbn));
+      } else if (confirmed && confirmed.kind === "upc") {
         closeScanner();
         els.q.value = "";
-        renderUpc(code.upc, code.addOn);
+        renderUpc(confirmed.upc, confirmed.addOn);
       } else {
         if (code && code.kind === "upc") bareUpc = bareUpc || { upc: code.upc, polls: 0 };
         if (bareUpc && ++bareUpc.polls > ADD_ON_WAIT) {
