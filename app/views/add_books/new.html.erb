@@ -6,7 +6,7 @@
 <div class="w-full max-w-3xl">
   <h1 class="mb-4 text-2xl font-bold">Add a book</h1>
 
-  <%= form_with url: add_book_path, method: :get, class: "mb-6 flex gap-2", data: { controller: "barcode-scan",
+  <%= form_with url: add_book_path, method: :get, class: "mb-6 flex flex-wrap gap-2", data: { controller: "barcode-scan",
                  barcode_scan_scripts_value: [ asset_path("zxing_reader.js"), asset_path("scan.js") ].to_json,
                  barcode_scan_wasm_url_value: asset_path("zxing_reader.wasm"), barcode_scan_secure_url_value: "#{Rails.application.config.x.public_url}#{add_book_path(scan: 1)}",
                 barcode_scan_autostart_value: params[:scan].present? } do %>
@@ -24,6 +24,9 @@
       <button type="button" data-action="barcode-scan#close" aria-label="Close scanner"
               class="absolute right-4 top-4 rounded-full bg-black/60 px-3 py-1 text-xl text-white">✕</button>
     </div>
+    <p hidden data-barcode-scan-target="check" class="w-full basis-full text-sm text-amber-800 dark:text-amber-200">
+      A US retail UPC: check the five digits after it against those printed over the small barcode beside it (or type them), then search.
+    </p>
   <% end %>
 
   <% if @query.match?(/\A\d{12}\z/) %>

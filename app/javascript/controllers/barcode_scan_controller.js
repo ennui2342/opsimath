@@ -5,9 +5,10 @@ import { Controller } from "@hotwired/stimulus"
 // pocket app's scanner; both read through app/assets/mobile/scan.js
 // (zxing-cpp in WebAssembly, loaded on first use). An EAN-13 is the ISBN.
 // A US mass-market's retail UPC names only publisher and price: with its
-// 5-digit add-on it's searched as "UPC add-on" (UpcLookup); if the camera
-// gets the UPC but not the add-on in a few seconds, the UPC is put in the
-// box for the five digits to be typed.
+// 5-digit add-on it's searched as "UPC add-on" (UpcLookup) — put in the box
+// first for the add-on to be checked against the printed digits, since it
+// can read wrong; if the camera gets the UPC but not the add-on in a few
+// seconds, the UPC alone goes in the box for the five digits to be typed.
 //
 // Browsers only offer the camera to a secure page, so on the plain-HTTP
 // internal address the button instead goes to the same page on the HTTPS
@@ -15,7 +16,7 @@ import { Controller } from "@hotwired/stimulus"
 const ADD_ON_WAIT = 12 // polls (~3s) to wait for an add-on after a bare UPC
 
 export default class extends Controller {
-  static targets = ["input", "button", "overlay", "video", "hint"]
+  static targets = ["input", "button", "overlay", "video", "hint", "check"]
   static values = { secureUrl: String, autostart: Boolean, scripts: Array, wasmUrl: String }
 
   connect() {
@@ -70,24 +71,32 @@ export default class extends Controller {
       const code = window.OpsimathScan.interpret(await window.OpsimathScan.readFrame(this.videoTarget))
       const confirmed = this.confirm(code)
       if (confirmed?.kind === "isbn") return this.submit(confirmed.isbn)
-      if (confirmed?.kind === "upc") return this.submit(`${confirmed.upc} ${confirmed.addOn}`)
+      // The add-on is read wrong too often to search on unchecked (Beggars
+      // and Choosers: 55010 read as 25011 on every try, 2026-11-08): it goes
+      // in the box to be checked against the printed digits first.
+      if (confirmed?.kind === "upc") return this.fillForCheck(`${confirmed.upc} ${confirmed.addOn}`)
       if (code?.kind === "upc") {
         this.upc ||= { code: code.upc, polls: 0 }
         this.hintTarget.textContent = "A US retail UPC — hold steady to read the small barcode beside it too"
       }
-      if (this.upc && ++this.upc.polls > ADD_ON_WAIT) {
-        this.close()
-        this.inputTarget.value = `${this.upc.code} `
-        this.inputTarget.placeholder = ""
-        this.inputTarget.focus()
-        this.inputTarget.setSelectionRange(this.inputTarget.value.length, this.inputTarget.value.length)
-        this.inputTarget.title = "Type the five digits printed over the small barcode beside the UPC"
-      }
+      if (this.upc && ++this.upc.polls > ADD_ON_WAIT) this.fillForCheck(`${this.upc.code} `)
     } catch (_) {
       // transient decode errors are normal
     } finally {
       this.busy = false
     }
+  }
+
+  // A UPC into the box, with the add-on as read (if it was) for Mark to
+  // check against the five digits printed over the small barcode — or type
+  // — before searching.
+  fillForCheck(value) {
+    this.close()
+    this.inputTarget.value = value
+    this.inputTarget.focus()
+    this.inputTarget.setSelectionRange(value.length, value.length)
+    if (this.hasHintTarget) this.hintTarget.textContent = ""
+    this.checkTarget.hidden = false
   }
 
   submit(value) {
