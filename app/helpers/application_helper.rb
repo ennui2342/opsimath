@@ -1,4 +1,9 @@
 module ApplicationHelper
+  # A book's statuses (Work#statuses) as badges — the Books list, the book
+  # page, and the author / series / publisher pages.
+  WORK_STATUS_BADGES = { owned: [ "Owned", :success ], wanted: [ "Wanted", :default ], reading: [ "Reading", :accent ],
+                         read: [ "Read", :info ], dnf: [ "DNF", :default ] }.freeze
+
   SOURCE_LABELS = { "isfdb" => "ISFDB", "openlibrary" => "Open Library", "goodreads" => "Goodreads" }.freeze
 
   # One line for a queued decision on the book page: "ISFDB's record

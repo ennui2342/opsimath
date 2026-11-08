@@ -7,8 +7,19 @@ module Ui
   # (docs/MOBILE.md) renders the identical shape in plain JS/CSS — see
   # docs/DESIGN_SYSTEM.md "Edition card" for the shared spec.
   class EditionCardComponent < ApplicationComponent
-    def initialize(edition:)
+    # `publisher_url:` (web book page): the publisher in the headline links
+    # to its page. Same text either way — the pocket app's twin is unaffected.
+    def initialize(edition:, publisher_url: nil)
       @edition = edition
+      @publisher_url = publisher_url
+    end
+
+    # The headline with its publisher linked, when there's a link to give.
+    def headline_html
+      return headline unless @publisher_url && @edition.publisher.present?
+
+      rest = headline.delete_prefix(@edition.publisher)
+      helpers.safe_join([ helpers.link_to(@edition.publisher, @publisher_url, class: "hover:underline"), rest ])
     end
 
     # The bold top line — what most distinguishes one printing from

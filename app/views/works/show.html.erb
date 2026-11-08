@@ -1,5 +1,5 @@
 <% content_for :title, @work.title %>
-<% badge = { owned: [ "Owned", :success ], wanted: [ "Wanted", :default ], reading: [ "Reading", :accent ], read: [ "Read", :info ], dnf: [ "DNF", :default ] } %>
+<% badge = ApplicationHelper::WORK_STATUS_BADGES %>
 <% primary = "rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600" %>
 <% secondary = "rounded-md bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600" %>
 <% open_reading = @work.readings.find(&:open?) %>
@@ -15,13 +15,16 @@
   <% end %>
 
   <p class="mt-1 text-gray-700 dark:text-gray-300">
-    <%= @work.work_contributors.sort_by { |wc| wc.display_order || Float::INFINITY }.map { |wc| "#{wc.contributor.name} (#{wc.role})" }.join(", ") %>
+    <%= safe_join(@work.work_contributors.sort_by { |wc| wc.display_order || Float::INFINITY }.map do |wc|
+          link = link_to(wc.contributor.name, author_path(wc.contributor), class: "hover:underline")
+          wc.role == "author" ? link : safe_join([ link, " (#{wc.role})" ])
+        end, ", ") %>
   </p>
 
   <% if @work.work_series.any? %>
     <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
       <% @work.work_series.each do |ws| %>
-        <%= ws.series.name %><%= " ##{ws.position}" if ws.position %><%= ", " unless ws == @work.work_series.last %>
+        <%= link_to ws.series.name, series_path(ws.series), class: "hover:underline" %><%= " ##{format('%g', ws.position)}" if ws.position %><%= ", " unless ws == @work.work_series.last %>
       <% end %>
     </p>
   <% end %>
@@ -55,7 +58,7 @@
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <% @work.editions_in_order.each do |edition| %>
         <div>
-          <%= render(Ui::EditionCardComponent.new(edition: edition)) %>
+          <%= render(Ui::EditionCardComponent.new(edition:, publisher_url: (publisher_path(name: edition.publisher) if edition.publisher.present?))) %>
           <% Array(@decisions[edition.id]).each do |decision| %>
             <p class="mt-2 rounded-md border border-conflict-200 bg-conflict-100 px-3 py-2 text-sm text-conflict-800 dark:border-conflict-900 dark:bg-conflict-900 dark:text-conflict-200">
               <% if decision.kind == "enrichment_printing_choice" %>

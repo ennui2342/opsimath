@@ -24,6 +24,11 @@ Rails.application.routes.draw do
   get "add/editions", to: "add_books#editions", as: :add_book_editions
   post "add", to: "add_books#create"
 
+  # Who and what a book belongs to, linked from the book page.
+  resources :authors, only: [ :show ]
+  resources :series, only: [ :show ]
+  get "publisher", to: "publishers#show", as: :publisher
+
   resources :wishlist_items, path: "wishlist", only: [ :index, :show, :update ] do
     # One cover in or out of the chosen set, from a find card.
     post "covers/:cover_id/drop", action: :drop_cover, on: :member, as: :drop_cover

@@ -5,6 +5,9 @@
 # — not a throughput screen).
 class WorksController < ApplicationController
   FILTERS = %w[owned wanted reading read dnf].freeze
+  # What a book list needs to show titles, authors and statuses
+  # (works/_book_list) without a query per row.
+  LIST_INCLUDES = [ :want, { work_contributors: :contributor }, :readings, { editions: :copies } ].freeze
 
   # Every catalogued book with where it stands for Mark — owned, wanted,
   # reading, read, did not finish — filterable by that (since the wishlist

@@ -23,19 +23,5 @@
     </p>
   <% end %>
 
-  <ul class="divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700 <%= "hidden" if @works.empty? %>">
-    <% @works.each do |work| %>
-      <li>
-        <%= link_to work_path(work), class: "flex items-center justify-between gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800" do %>
-          <span class="min-w-0">
-            <span class="block truncate font-medium text-gray-900 dark:text-gray-100"><%= work.title %></span>
-            <span class="block truncate text-xs text-gray-500 dark:text-gray-400"><%= work.authors.map(&:name).join(", ") %></span>
-          </span>
-          <span class="flex flex-none flex-wrap justify-end gap-1">
-            <% @statuses[work.id].each do |s| %><%= render Ui::BadgeComponent.new(text: badge[s].first, variant: badge[s].last) %><% end %>
-          </span>
-        <% end %>
-      </li>
-    <% end %>
-  </ul>
+  <%= render "works/book_list", works: @works %>
 </div>

@@ -764,6 +764,28 @@ Wanting a book (book page, or "Want it" in Add a book) now runs
 `WantPrintingsJob` straight away: its printings fetched and covers
 grouped, so the bargain page fills in within a minute, not overnight.
 
+## Author, series and publisher pages (2026-11-08)
+
+Linked from the book page: each author's name (`/authors/:id`), each
+series (`/series/:id`), and each edition card's publisher (`/publisher?
+name=`). An author page lists their books in publication order, other
+roles (editor, translator) apart; a series page in series order,
+numbered — so a gap shows (the Culture without *Use of Weapons*); a
+publisher page the editions under that imprint, its spellings taken
+together the way the edition picker groups them ("Panther" 48, "Panther /
+Granada" 12, "Panther Books" 9). Each row carries the book's statuses
+(`works/_book_list`, shared with the Books list).
+
+**Publication series** — a publisher's branded line, numbered within it
+(The Women's Press Science Fiction; the SF Master Series, ISFDB pub series
+579) — are ISFDB's third kind, distinct from publisher and story series;
+it's what Mark collects as a set and would want as a whole. isfdb-adapter
+39814fc returns each printing's line and number and `GET /pubseries/{id}`
+(deploy task ed9d4f02); line pages, and wanting a line, follow.
+
+Data note: the Goodreads import recorded some cover artists as authors
+(*Slan* — van Vogt, Chris Foss), so they get author pages too.
+
 ## #catalogue: what changed, on Discord (2026-11-07)
 
 Mark: with nightly jobs now changing the catalogue on their own, a

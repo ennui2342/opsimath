@@ -1,0 +1,33 @@
+<% content_for :title, @name %>
+
+<div class="w-full max-w-3xl">
+  <p class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Publisher</p>
+  <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100"><%= @name %></h1>
+  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+    <%= pluralize(@editions.size, "edition") %> in your catalogue
+    <% if @spellings.size > 1 %>· as <%= @spellings.map { |s, n| "#{s} (#{n})" }.join(", ") %><% end %>
+  </p>
+
+  <ul class="mt-6 divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700 <%= "hidden" if @editions.empty? %>">
+    <% @editions.each do |edition| %>
+      <% work = edition.works.first %>
+      <% status = EditionHolding.status(edition) %>
+      <li>
+        <%= link_to (work ? work_path(work) : "#"), class: "flex items-center justify-between gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800" do %>
+          <span class="flex min-w-0 items-baseline gap-3">
+            <span class="w-10 flex-none text-right text-xs tabular-nums text-gray-400 dark:text-gray-500"><%= edition.publish_date.to_s[0, 4] %></span>
+            <span class="min-w-0">
+              <span class="block truncate font-medium text-gray-900 dark:text-gray-100"><%= work&.title || "Edition ##{edition.id}" %></span>
+              <span class="block truncate text-xs text-gray-500 dark:text-gray-400"><%= [ work&.authors&.map(&:name)&.join(", ").presence, (edition.format_detail || edition.format)&.humanize, edition.cover_artist ].compact_blank.join(" · ") %></span>
+            </span>
+          </span>
+          <span class="flex flex-none gap-1">
+            <%= render Ui::BadgeComponent.new(text: EditionHolding::STATUSES.fetch(status), variant: status == "owned" ? :success : :default) %>
+          </span>
+        <% end %>
+      </li>
+    <% end %>
+  </ul>
+
+  <%= link_to "Back to books", works_path, class: "mt-8 inline-block text-sm text-gray-500 hover:underline dark:text-gray-400" %>
+</div>

@@ -1,0 +1,22 @@
+<%# A list of books, each linked to its page with its statuses — the Books
+    list, and the author / series pages. `note` (optional): a lambda giving
+    a short prefix per book ("#3", "1974"). %>
+<% note = local_assigns[:note] %>
+<ul class="divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700 <%= "hidden" if works.empty? %>">
+  <% works.each do |work| %>
+    <li>
+      <%= link_to work_path(work), class: "flex items-center justify-between gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800" do %>
+        <span class="flex min-w-0 items-baseline gap-3">
+          <% if note && (n = note.call(work)).present? %><span class="w-10 flex-none text-right text-xs tabular-nums text-gray-400 dark:text-gray-500"><%= n %></span><% end %>
+          <span class="min-w-0">
+            <span class="block truncate font-medium text-gray-900 dark:text-gray-100"><%= work.title %></span>
+            <span class="block truncate text-xs text-gray-500 dark:text-gray-400"><%= work.authors.map(&:name).join(", ") %></span>
+          </span>
+        </span>
+        <span class="flex flex-none flex-wrap justify-end gap-1">
+          <% work.statuses.each do |s| %><%= render Ui::BadgeComponent.new(text: ApplicationHelper::WORK_STATUS_BADGES[s].first, variant: ApplicationHelper::WORK_STATUS_BADGES[s].last) %><% end %>
+        </span>
+      <% end %>
+    </li>
+  <% end %>
+</ul>

@@ -1,0 +1,22 @@
+<% content_for :title, @author.name %>
+<% isfdb = @author.external_ids["isfdb"] %>
+<% all = @by_role.values.flatten.uniq %>
+
+<div class="w-full max-w-3xl">
+  <p class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Author</p>
+  <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100"><%= @author.name %></h1>
+  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+    <%= [ ("died #{@author.died_date}" if @author.died_date.present?),
+          pluralize(all.size, "book") + " in your catalogue",
+          ("#{all.count { |w| w.statuses.include?(:owned) }} owned"),
+          ("#{all.count { |w| w.statuses.include?(:read) }} read") ].compact.join(" · ") %>
+    <% if isfdb %>· <%= link_to "ISFDB", "https://www.isfdb.org/cgi-bin/ea.cgi?#{ERB::Util.url_encode(isfdb)}", target: "_blank", rel: "noopener", class: "hover:underline" %><% end %>
+  </p>
+
+  <% @by_role.sort_by { |role, _| role == "author" ? 0 : 1 }.each do |role, works| %>
+    <h2 class="mb-2 mt-6 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400"><%= role == "author" ? "Books" : "As #{role.humanize(capitalize: false)}" %></h2>
+    <%= render "works/book_list", works:, note: ->(w) { w.original_publication_year } %>
+  <% end %>
+
+  <%= link_to "Back to books", works_path, class: "mt-8 inline-block text-sm text-gray-500 hover:underline dark:text-gray-400" %>
+</div>
