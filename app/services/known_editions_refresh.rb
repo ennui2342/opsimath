@@ -36,7 +36,8 @@ class KnownEditionsRefresh
   # (and its line, and counted anthologies as books) are fetched again:
   # every ISFDB work is due once more, over as many nights as it takes.
   UPDATED_COLUMNS = %i[isbn13 isbn10 title publisher binding publish_date language page_count cover_url cover_artist
-                       pub_series_id pub_series_name pub_series_num series_id series_name series_num updated_at].freeze
+                       pub_series_id pub_series_name pub_series_num series_id series_name series_num
+                       author_names author_ids updated_at].freeze
 
   Result = Struct.new(:provider, :works, :due, :refreshed, :truncated, keyword_init: true) do
     def to_s = "#{provider}: works=#{works} due=#{due} refreshed=#{refreshed}#{' TRUNCATED' if truncated}"
@@ -215,6 +216,7 @@ class KnownEditionsRefresh
       page_count: edition.page_count, cover_url: edition.cover_url, cover_artist: edition.cover_artist,
       pub_series_id: edition.pub_series_id, pub_series_name: edition.pub_series_name, pub_series_num: edition.pub_series_num,
       series_id: edition.series_id, series_name: edition.series_name, series_num: edition.series_num,
+      author_names: Array(edition.author_names), author_ids: Array(edition.author_ids),
       created_at: now, updated_at: now
     }
   end

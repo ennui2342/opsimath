@@ -842,6 +842,17 @@ wanted books' first, and visiting an unlinked author's page links them.
 The artist page's ★ makes an artist a favourite or not, overriding the
 owned-covers rule either way (the always / never lists).
 
+**Authors linked through their books** (2026-11-08): each ISFDB
+printing keeps its credited authors with their ISFDB ids
+(`provider_editions.author_names/author_ids`; isfdb-adapter@d925a6b).
+`AuthorLinks`, nightly after the printing refresh, links an unlinked
+author when their books' own printings credit them by name with one id —
+or, for a sole-author book credited under another name (a pseudonym, a
+spelling), when two or more books agree. An author already linked by name
+to a different id is reported (`AuthorLinks.plan`), not changed. A
+linked author's life dates are then read by id; name search stays the
+fallback.
+
 **Removing a book** (2026-11-08, two Books of Blood): "Remove this book
 from the catalogue…" at the foot of the book page (WorkRemoval) deletes
 the work and its editions — for a duplicate or a mistake; getting rid of

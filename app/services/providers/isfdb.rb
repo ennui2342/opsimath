@@ -86,7 +86,8 @@ module Providers
         pub_series_id: ed["_isfdb_pub_series_id"].presence&.to_i, pub_series_name: ed["pub_series"].presence,
         pub_series_num: ed["pub_series_num"].presence,
         series_id: ed["_isfdb_series_id"].presence&.to_i, series_name: ed["series"].presence,
-        series_num: ed["_isfdb_series_num"].presence&.then { |n| n.to_d.nonzero? } # 0: in the series, unnumbered
+        series_num: ed["_isfdb_series_num"].presence&.then { |n| n.to_d.nonzero? }, # 0: in the series, unnumbered
+        author_names: Array(ed["authors"]), author_ids: Array(ed["_isfdb_author_ids"]).map(&:to_i)
       )
     end
   end

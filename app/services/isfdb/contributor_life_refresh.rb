@@ -58,7 +58,7 @@ module Isfdb
       pool = Concurrent::FixedThreadPool.new(@pool_size)
       stale.each do |contributor|
         pool.post do
-          status = lookup(contributor.name)
+          status = contributor.external_ids["isfdb"].present? ? by_id(contributor.external_ids["isfdb"]) : lookup(contributor.name)
           found[contributor.id] = status if status
         end
       end
@@ -69,7 +69,7 @@ module Isfdb
       now = Time.current
       stale.select { |c| found.key?(c.id) }.each do |contributor|
         author_id, died = found[contributor.id]
-        ids = author_id ? contributor.external_ids.merge("isfdb" => author_id.to_s) : contributor.external_ids
+        ids = author_id ? contributor.external_ids.merge("isfdb" => author_id.to_s) : contributor.external_ids.except("isfdb")
         contributor.update_columns(died_date: died, life_checked_at: now, external_ids: ids)
       end
 
@@ -94,6 +94,16 @@ module Isfdb
       author ? [ author["external_id"].to_i, author["died_date"].presence ] : [ nil, nil ]
     rescue StandardError => e
       Rails.logger.warn("wishlist author refresh: #{name} — #{e.class}: #{e.message}")
+      nil
+    end
+
+    # A linked author (AuthorLinks, or an earlier name match): their dates
+    # by id — no name search.
+    def by_id(author_id)
+      author = @client.author(author_id)
+      author ? [ author["external_id"].to_i, author["died_date"].presence ] : [ nil, nil ]
+    rescue StandardError => e
+      Rails.logger.warn("contributor life refresh: ISFDB author #{author_id} — #{e.class}: #{e.message}")
       nil
     end
 

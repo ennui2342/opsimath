@@ -10,6 +10,7 @@ class WorkKnownEditionsRefreshJob < ApplicationJob
   def perform
     results = KnownEditionsRefresh.run_all
     results.each { |r| Rails.logger.info("known editions refresh: #{r}") }
+    Rails.logger.info("authors linked to ISFDB through their books: #{AuthorLinks.run}")
     results.join("; ")
   end
 end
