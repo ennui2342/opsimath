@@ -6,13 +6,61 @@ module Ui
   # one row, ISFDB/Goodreads (hyperlinked) on the next. The pocket app
   # (docs/MOBILE.md) renders the identical shape in plain JS/CSS — see
   # docs/DESIGN_SYSTEM.md "Edition card" for the shared spec.
+  #
+  # Three sizes, one card (Mark, 2026-11-08: "change the card and it will
+  # update everywhere"): `:full` on the book page; `:row`, the compressed
+  # card for any list of Mark's editions (author, series, publisher pages,
+  # the Books list) — smaller cover, the book's title and credited author,
+  # headline, detail line and lozenges, no identifiers or cog; `:tile`, the
+  # same parts cover-first for a grid (artist, line pages). Books not in the
+  # catalogue use Ui::BookCandidateCardComponent, built to the same shape.
   class EditionCardComponent < ApplicationComponent
+    SIZES = %i[full row tile].freeze
+
     # `publisher_url:` (web book page): the publisher in the headline links
     # to its page. Same text either way — the pocket app's twin is unaffected.
-    def initialize(edition:, publisher_url: nil)
+    # `work:` the book it's listed as (an omnibus edition is in several);
+    # `number:` a leading "#3" / year in a row; `context_author:` the
+    # page's own author, whose name the author line leaves out.
+    def initialize(edition:, publisher_url: nil, size: :full, work: nil, number: nil, context_author: nil)
+      raise ArgumentError, "size: #{size}" unless SIZES.include?(size)
+
       @edition = edition
       @publisher_url = publisher_url
+      @size = size
+      @work = work || edition.works.first
+      @number = number
+      @context_author = context_author
     end
+
+    def full? = @size == :full
+    def row? = @size == :row
+
+    def title = @work&.title || "Edition ##{@edition.id}"
+
+    def work_url = @work && helpers.work_path(@work)
+
+    # Who this edition credits: its ISFDB printing's credit where ISFDB
+    # records one (a pseudonym — "Richard Bachman (Stephen King)" — when it
+    # isn't the book's author), else the book's authors. nil when it would
+    # only repeat the page's own author.
+    def author_line
+      book = Array(@work&.authors).map(&:name)
+      credited = printing&.author_names.presence || book
+      pseudonymous = book.any? && credited.map { |n| Authority.normalize(n) }.sort != book.map { |n| Authority.normalize(n) }.sort
+      return if !pseudonymous && @context_author && credited.map { |n| Authority.normalize(n) } == [ Authority.normalize(@context_author) ]
+
+      line = self.class.names(credited)
+      pseudonymous ? "#{line} (#{self.class.names(book)})" : line.presence
+    end
+
+    # "A, B, C" — or "A, B, C and 4 others" for an anthology's list.
+    def self.names(list)
+      list.size > 3 ? "#{list.first(3).join(', ')} and #{list.size - 3} others" : list.join(", ")
+    end
+
+    # Compact headline for a row or tile: publisher · year.
+    def short_headline = [ @edition.publisher.presence, @edition.publish_date&.slice(0, 4) ].compact.join(" · ").presence || format_line
 
     # The headline with its publisher linked, when there's a link to give.
     def headline_html
@@ -105,6 +153,18 @@ module Ui
     end
 
     private
+
+    # The ISFDB printing this edition is (its `isfdb` identifier), from the
+    # book's known printings.
+    def printing
+      return @printing if defined?(@printing)
+
+      # Only from printings already loaded: the Books list (every book)
+      # doesn't load them, and shows the book's authors instead.
+      pub = @edition.edition_identifiers.find { |i| i.id_type == "isfdb" }&.value
+      loaded = @work&.association(:provider_editions)&.loaded?
+      @printing = pub && loaded ? @work.provider_editions.find { |p| p.provider == "isfdb" && p.provider_id == pub } : nil
+    end
 
     def identifier_rows
       @identifier_rows ||= EditionIdentifier.for_display(@edition.edition_identifiers).map do |identifier|

@@ -1,6 +1,6 @@
 <% content_for :title, @series.name %>
 <% entries = @volumes.entries %>
-<% small = "rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600" %>
+<% small = card_button_class %>
 
 <div class="w-full max-w-3xl">
   <p class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Series</p>
@@ -28,19 +28,31 @@
     <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Showing the books in your catalogue. The full series appears once it's matched to ISFDB, which happens as its books' printings are looked up.</p>
   <% end %>
 
-  <ul class="mt-6 divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
+  <div class="mt-6 divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
     <% entries.each do |e| %>
-      <% excluded = @series_want && e.title_id && @series_want.excluded?(e.title_id) %>
-      <% extra = if @series_want && e.title_id && %i[missing catalogued].include?(e.status)
-                   button_to(excluded ? "Collect again" : "Not this one", (excluded ? include_series_path(@series) : exclude_series_path(@series)),
-                             params: { title_id: e.title_id }, class: "text-xs text-gray-500 hover:underline dark:text-gray-400")
-                 end %>
-      <%= render "shared/catalogue_entry", entry: e, number: ("##{format('%g', e.position)}" if e.position),
-                 detail: [ e.authors.join(", ").presence, e.year, ("not collecting" if excluded) ].compact.join(" · "),
-                 want_url: want_volume_series_path(@series), want_params: { title_id: e.title_id }, excluded:, extra:,
-                 add_query: [ e.title, e.authors.first ].compact.join(" ") %>
+      <% number = ("##{format('%g', e.position)}" if e.position) %>
+      <% if e.work&.editions&.any? %>
+        <% e.work.editions_in_order.each do |edition| %>
+          <%= render Ui::EditionCardComponent.new(edition:, size: :row, work: e.work, number:) %>
+        <% end %>
+      <% else %>
+        <% excluded = @series_want && e.title_id && @series_want.excluded?(e.title_id) %>
+        <% wanted = e.status == :wanted %>
+        <%= render Ui::BookCandidateCardComponent.new(
+              title: e.title, authors: e.authors, number:, detail: [ e.year, ("not collecting" if excluded) ].compact.join(" · "),
+              url: (work_path(e.work) if e.work), dim: !wanted, badges: (wanted ? [ ApplicationHelper::WORK_STATUS_BADGES[:wanted] ] : [])) do %>
+          <% if !wanted && e.title_id && !excluded %>
+            <%= button_to "Want it", want_volume_series_path(@series), params: { title_id: e.title_id }, class: small %>
+            <%= link_to "Add", add_book_path(q: [ e.title, e.authors.first ].compact.join(" ")), class: small %>
+          <% end %>
+          <% if @series_want && e.title_id && !wanted %>
+            <%= button_to excluded ? "Collect again" : "Not this one", (excluded ? include_series_path(@series) : exclude_series_path(@series)),
+                          params: { title_id: e.title_id }, class: "text-xs text-gray-500 hover:underline dark:text-gray-400" %>
+          <% end %>
+        <% end %>
+      <% end %>
     <% end %>
-  </ul>
+  </div>
 
   <%= link_to "Back to books", works_path, class: "mt-8 inline-block text-sm text-gray-500 hover:underline dark:text-gray-400" %>
 </div>

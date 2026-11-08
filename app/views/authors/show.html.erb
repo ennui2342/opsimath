@@ -16,25 +16,39 @@
     <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Showing the books in your catalogue — their full ISFDB bibliography is being fetched; reload in a minute.</p>
   <% end %>
 
-  <% row = ->(e) { render "shared/catalogue_entry", entry: e, number: e.year,
-                           detail: (e.series && [ e.series, ("##{format('%g', e.series_num)}" if e.series_num.to_f.positive?) ].compact.join(" ")),
-                           want_url: want_title_author_path(@author), want_params: { title_id: e.title_id },
-                           add_query: [ e.title, @author.name ].join(" ") } %>
   <% list = "divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700" %>
+  <% small = card_button_class %>
 
-  <% if @bibliography.owned.any? %>
+  <% if (editions = @bibliography.editions).any? %>
     <h2 class="mb-2 mt-6 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">Your books</h2>
-    <ul class="<%= list %>"><% @bibliography.owned.each { |e| %><%= row.(e) %><% } %></ul>
+    <div class="<%= list %>">
+      <% editions.each do |entry, edition| %>
+        <%= render Ui::EditionCardComponent.new(edition:, size: :row, work: entry.work, number: entry.year, context_author: @author.name) %>
+      <% end %>
+    </div>
   <% end %>
 
   <% @bibliography.by_kind.each do |type, group| %>
     <h2 class="mb-2 mt-6 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400"><%= AuthorBibliography::KINDS.fetch(type) %></h2>
-    <ul class="<%= list %>"><% group.each { |e| %><%= row.(e) %><% } %></ul>
+    <div class="<%= list %>">
+      <% group.each do |e| %>
+        <% wanted = e.status == :wanted %>
+        <%= render Ui::BookCandidateCardComponent.new(
+              title: e.title, authors: e.work&.authors&.map(&:name) || [ @author.name ], context_author: @author.name, number: e.year,
+              detail: (e.series && [ e.series, ("##{format('%g', e.series_num)}" if e.series_num.to_f.positive?) ].compact.join(" ")),
+              url: (work_path(e.work) if e.work), dim: !wanted, badges: (wanted ? [ ApplicationHelper::WORK_STATUS_BADGES[:wanted] ] : [])) do %>
+          <% if !wanted && e.title_id %>
+            <%= button_to "Want it", want_title_author_path(@author), params: { title_id: e.title_id }, class: small %>
+            <%= link_to "Add", add_book_path(q: [ e.title, @author.name ].join(" ")), class: small %>
+          <% end %>
+        <% end %>
+      <% end %>
+    </div>
   <% end %>
 
   <% @other_roles.each do |role, works| %>
     <h2 class="mb-2 mt-6 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">As <%= role.humanize(capitalize: false) %></h2>
-    <%= render "works/book_list", works:, note: ->(w) { w.original_publication_year } %>
+    <%= render "works/book_list", works:, note: ->(w) { w.original_publication_year }, context_author: @author.name %>
   <% end %>
 
   <%= link_to "Back to books", works_path, class: "mt-8 inline-block text-sm text-gray-500 hover:underline dark:text-gray-400" %>

@@ -48,7 +48,7 @@ class WorksControllerTest < ActionDispatch::IntegrationTest
     Work.create!(title: "Cat’s Cradle", literary_form: "novel")
 
     get works_url(q: "found asim")
-    assert_select "ul a span.font-medium", count: 2
+    assert_select "[data-card]", count: 2
     assert_select "a", text: /Foundation and Earth/
 
     get works_url(q: "cats cradle")

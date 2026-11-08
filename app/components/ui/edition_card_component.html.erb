@@ -1,3 +1,48 @@
+<% if row? %>
+<div class="flex gap-3 px-4 py-3" data-card="edition">
+  <%= link_to work_url || "#", class: "flex-none", tabindex: -1 do %>
+    <% if (variant = cover_variant) %>
+      <%= image_tag variant, class: "h-16 w-11 rounded object-cover", alt: "", loading: "lazy" %>
+    <% else %>
+      <span class="flex h-16 w-11 items-center justify-center rounded border border-dashed border-gray-300 text-center text-[9px] leading-tight text-gray-400 dark:border-gray-600 dark:text-gray-500">No cover</span>
+    <% end %>
+  <% end %>
+  <div class="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+    <div class="flex min-w-0 items-baseline gap-3">
+      <% if @number.present? %><span data-card-number class="w-10 flex-none text-right text-xs tabular-nums text-gray-400 dark:text-gray-500"><%= @number %></span><% end %>
+      <div class="min-w-0">
+        <%= link_to title, work_url || "#", class: "block font-medium text-gray-900 hover:underline dark:text-gray-100", data: { card_title: true } %>
+        <% if (by = author_line) %><p class="text-xs text-gray-600 dark:text-gray-300"><%= by %></p><% end %>
+        <p class="text-xs text-gray-500 dark:text-gray-400"><%= [ short_headline, detail_line ].uniq.join(" · ") %></p>
+      </div>
+    </div>
+    <% if status_badges.any? %>
+      <div class="flex flex-none flex-wrap gap-1 <%= "pl-[3.25rem] sm:pl-0" if @number.present? %>">
+        <% status_badges.each do |text, variant| %><%= render(Ui::BadgeComponent.new(text:, variant:)) %><% end %>
+      </div>
+    <% end %>
+  </div>
+</div>
+<% elsif !full? %>
+<div class="text-xs" data-card="edition">
+  <%= link_to work_url || "#", class: "group block" do %>
+    <div class="relative flex aspect-[2/3] items-center justify-center overflow-hidden rounded border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900">
+      <% if (variant = cover_variant) %>
+        <%= image_tag variant, alt: "", loading: "lazy", class: "h-full w-full object-cover" %>
+      <% else %>
+        <span class="px-1 text-center text-gray-400">No cover</span>
+      <% end %>
+      <% if @number.present? %><span data-card-number class="absolute left-1 top-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white"><%= @number %></span><% end %>
+    </div>
+    <span class="mt-1 block truncate font-medium text-gray-900 group-hover:underline dark:text-gray-100" data-card-title><%= title %></span>
+  <% end %>
+  <% if (by = author_line) %><span class="block truncate text-gray-600 dark:text-gray-300"><%= by %></span><% end %>
+  <span class="block truncate text-gray-500 dark:text-gray-400"><%= short_headline %></span>
+  <% if status_badges.any? %>
+    <span class="mt-0.5 flex flex-wrap gap-1"><% status_badges.each do |text, variant| %><%= render(Ui::BadgeComponent.new(text:, variant:)) %><% end %></span>
+  <% end %>
+</div>
+<% else %>
 <div class="relative flex gap-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
   <div class="relative flex-none" data-controller="cover-picker">
     <% cover_action = cover_choices.any? ? { action: "contextmenu->cover-picker#open" } : {} %>
@@ -76,3 +121,4 @@
     </svg>
   <% end %>
 </div>
+<% end %>

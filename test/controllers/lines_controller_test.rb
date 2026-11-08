@@ -35,8 +35,10 @@ class LinesControllerTest < ActionDispatch::IntegrationTest
 
     assert_select "h1", "The Women's Press Science Fiction"
     assert_match "1 of 2 printings yours", response.body
-    assert_select "span", text: "Missing"
-    assert_select "span", text: "Yours"
+    assert_select "[data-card=edition] [data-card-number]", text: "#2" # Mark's own edition of #2
+    assert_select "[data-card=candidate]", count: 1 do
+      assert_select "a", text: "Add"
+    end
   end
 
   test "before the mirror has line names: the printings already known, and a note" do

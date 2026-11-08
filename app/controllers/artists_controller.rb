@@ -15,7 +15,8 @@ class ArtistsController < ApplicationController
     credited = ->(credit) { credit.to_s.split(", ").any? { |a| a.strip.downcase == key } }
 
     @editions = Edition.where("cover_artist ILIKE ?", "%#{Edition.sanitize_sql_like(@name)}%")
-                       .includes(:copies, :readings, :edition_identifiers, { cover_image_attachment: :blob }, works: { work_contributors: :contributor })
+                       .includes(:copies, :readings, :edition_identifiers, { cover_image_attachment: { blob: :variant_records } },
+                                 works: [ :provider_editions, { work_contributors: :contributor } ])
                        .select { |e| credited.call(e.cover_artist) }
                        .sort_by { |e| [ e.publish_date.to_s.presence || "9999", e.works.first&.title.to_s.downcase ] }
     yours = @editions.flat_map { |e| e.edition_identifiers.select { |i| i.id_type == "isfdb" }.map(&:value) }.to_set

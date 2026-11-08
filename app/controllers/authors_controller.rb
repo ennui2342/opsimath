@@ -6,7 +6,7 @@
 class AuthorsController < ApplicationController
   def show
     @author = Contributor.find(params[:id])
-    roles = @author.work_contributors.includes(work: WorksController::LIST_INCLUDES).to_a
+    roles = @author.work_contributors.includes(work: WorksController::CARD_INCLUDES).to_a
     @other_roles = roles.reject { |wc| wc.role == "author" }.group_by(&:role).transform_values do |wcs|
       wcs.map(&:work).uniq.sort_by { |w| [ w.original_publication_year || 9999, w.title.to_s.downcase ] }
     end

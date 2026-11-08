@@ -1,0 +1,42 @@
+<% title_class = "font-medium text-gray-900 dark:text-gray-100#{" hover:underline" if @url}" %>
+<% if row? %>
+<div class="flex gap-3 px-4 py-3" data-card="candidate">
+  <div class="flex-none <%= "opacity-60" if @dim %>">
+    <% if @cover_url %>
+      <%= image_tag @cover_url, class: "h-16 w-11 rounded object-cover", alt: "", loading: "lazy" %>
+    <% else %>
+      <span class="flex h-16 w-11 items-center justify-center rounded border border-dashed border-gray-300 text-center text-[9px] leading-tight text-gray-400 dark:border-gray-600 dark:text-gray-500">No cover</span>
+    <% end %>
+  </div>
+  <div class="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+    <div class="flex min-w-0 items-baseline gap-3 <%= "opacity-60" if @dim %>">
+      <% if @number.present? %><span data-card-number class="w-10 flex-none text-right text-xs tabular-nums text-gray-400 dark:text-gray-500"><%= @number %></span><% end %>
+      <div class="min-w-0">
+        <% if @url %><%= link_to @title, @url, class: "block #{title_class}", data: { card_title: true } %><% else %><span class="block <%= title_class %>" data-card-title><%= @title %></span><% end %>
+        <% if (by = author_line) %><p class="text-xs text-gray-600 dark:text-gray-300"><%= by %></p><% end %>
+        <% if @detail.present? %><p class="text-xs text-gray-500 dark:text-gray-400"><%= @detail %></p><% end %>
+      </div>
+    </div>
+    <div class="flex flex-none flex-wrap items-center gap-1 <%= "pl-[3.25rem] sm:pl-0" if @number.present? %>">
+      <% @badges.each do |text, variant| %><%= render(Ui::BadgeComponent.new(text:, variant:)) %><% end %>
+      <%= content %>
+    </div>
+  </div>
+</div>
+<% else %>
+<div class="text-xs" data-card="candidate">
+  <div class="<%= "opacity-60" if @dim %>">
+    <%= link_to_if @url, tag.div(class: "relative flex aspect-[2/3] items-center justify-center overflow-hidden rounded border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900") {
+          safe_join([ (@cover_url ? image_tag(@cover_url, alt: "", loading: "lazy", class: "h-full w-full object-cover") : tag.span("No cover image", class: "px-1 text-center text-gray-400")),
+                      (tag.span(@number, data: { card_number: true }, class: "absolute left-1 top-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white") if @number.present?) ].compact)
+        }, @url, tabindex: -1 %>
+    <% if @url %><%= link_to @title, @url, class: "mt-1 block truncate #{title_class}", data: { card_title: true } %><% else %><span class="mt-1 block truncate <%= title_class %>" data-card-title><%= @title %></span><% end %>
+    <% if (by = author_line) %><span class="block truncate text-gray-600 dark:text-gray-300"><%= by %></span><% end %>
+    <% if @detail.present? %><span class="block truncate text-gray-500 dark:text-gray-400"><%= @detail %></span><% end %>
+  </div>
+  <div class="mt-1 flex flex-wrap items-center gap-1">
+    <% @badges.each do |text, variant| %><%= render(Ui::BadgeComponent.new(text:, variant:)) %><% end %>
+    <%= content %>
+  </div>
+</div>
+<% end %>

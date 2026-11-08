@@ -34,6 +34,9 @@ class PublicationLine
 
   def owned_count = entries.count { |e| e.status == :yours }
 
+  # Mark's own edition of a printing in the line (an entry that's :yours).
+  def edition_for(entry) = owned_editions[entry.pub_id.to_s]
+
   private
 
   def known = @known ||= ProviderEdition.where(provider: "isfdb", pub_series_id: @id).includes(:work).to_a
@@ -72,7 +75,12 @@ class PublicationLine
     :missing
   end
 
-  def owned_pub_ids
-    @owned_pub_ids ||= EditionIdentifier.where(id_type: "isfdb", edition_id: Copy.where(disposition: "owned").select(:edition_id)).pluck(:value).to_set
+  def owned_pub_ids = owned_editions.keys.to_set
+
+  def owned_editions
+    @owned_editions ||= EditionIdentifier.where(id_type: "isfdb", edition_id: Copy.where(disposition: "owned").select(:edition_id))
+                                         .includes(edition: [ :copies, :readings, :edition_identifiers, { cover_image_attachment: { blob: :variant_records } },
+                                                              { works: [ :provider_editions, { work_contributors: :contributor } ] } ])
+                                         .to_h { |i| [ i.value, i.edition ] }
   end
 end

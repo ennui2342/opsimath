@@ -8,6 +8,11 @@ class WorksController < ApplicationController
   # What a book list needs to show titles, authors and statuses
   # (works/_book_list) without a query per row.
   LIST_INCLUDES = [ :want, { work_contributors: :contributor }, :readings, { editions: :copies } ].freeze
+  # A list of books shown as edition cards (`size: :row` / `:tile`): each
+  # edition's cover, copies, readings and identifiers, and the book's
+  # printings for the edition's credited author.
+  CARD_INCLUDES = [ :want, { work_contributors: :contributor }, :readings, :provider_editions,
+                    { editions: [ :copies, :readings, :edition_identifiers, { cover_image_attachment: { blob: :variant_records } } ] } ].freeze
 
   # Every catalogued book with where it stands for Mark — owned, wanted,
   # reading, read, did not finish — filterable by that (since the wishlist
@@ -19,7 +24,8 @@ class WorksController < ApplicationController
   def index
     @filter = params[:filter].presence_in(FILTERS)
     @query = params[:q].to_s.strip
-    @works = Work.includes(:want, :series, { work_contributors: :contributor }, :readings, editions: [ :copies, :edition_identifiers ])
+    @works = Work.includes(:want, :series, { work_contributors: :contributor }, :readings,
+                           editions: [ :copies, :readings, :edition_identifiers, { cover_image_attachment: { blob: :variant_records } } ])
                  .order(:title).to_a
     @works = CatalogueSearch.filter(@works, @query) if @query.present?
     return redirect_to(work_path(@works.first)) if @query.present? && !@filter && @works.one?

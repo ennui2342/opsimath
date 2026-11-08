@@ -30,7 +30,7 @@ class CataloguePagesTest < ActionDispatch::IntegrationTest
 
     assert_select "h1", "William Gibson"
     assert_select "h2", text: "Your books"
-    assert_equal [ "Neuromancer", "Mona Lisa Overdrive", "Count Zero" ], css_select("ul li .block.font-medium").map(&:text)
+    assert_equal [ "Neuromancer", "Mona Lisa Overdrive", "Count Zero" ], css_select("[data-card-title]").map { |t| t.text.strip }
     assert_no_match "Not in your catalogue", response.body
     assert_match "3 books · 2 owned", response.body
   end
@@ -38,13 +38,13 @@ class CataloguePagesTest < ActionDispatch::IntegrationTest
   test "a series page lists its books in series order, numbered" do
     get series_url(@sprawl)
 
-    assert_equal %w[#1 #2 #3], css_select("ul li span.tabular-nums").map { |s| s.text.strip }
+    assert_equal %w[#1 #2 #3], css_select("[data-card-number]").map { |s| s.text.strip }
   end
 
   test "a publisher's page takes the imprint's spellings together" do
     get publisher_url(name: "Ace")
 
-    assert_equal [ "Neuromancer", "Count Zero" ], css_select("ul li span.block.font-medium").map(&:text)
+    assert_equal [ "Neuromancer", "Count Zero" ], css_select("[data-card-title]").map { |t| t.text.strip }
     assert_match "as Ace Books (1), Ace (1)", response.body.gsub(/\s+/, " ")
   end
 

@@ -36,4 +36,11 @@ module ApplicationHelper
   # Marks every find card on one cover of one book, so "Not this cover"
   # can remove them all at once.
   def find_cover_class(want, cover_id) = "find-cover-#{want.id}-#{cover_id}"
+
+  # The small action on a book card — Want it, Add, Want this cover — one
+  # box for a link and a button alike, so they line up
+  # (docs/DESIGN_SYSTEM.md, "Book cards").
+  def card_button_class
+    "inline-flex h-6 items-center rounded bg-gray-200 px-2 text-xs font-medium text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+  end
 end

@@ -10,7 +10,9 @@ class PublishersController < ApplicationController
     key = AddBook::EditionCards.publisher_core(@name)
     return redirect_to(works_path, alert: "No publisher given.") if key.blank?
 
-    @editions = Edition.where.not(publisher: [ nil, "" ]).includes(:copies, :readings, works: { work_contributors: :contributor })
+    @editions = Edition.where.not(publisher: [ nil, "" ])
+                       .includes(:copies, :readings, :edition_identifiers, { cover_image_attachment: { blob: :variant_records } },
+                                 works: [ :provider_editions, { work_contributors: :contributor } ])
                        .select { |e| AddBook::EditionCards.publisher_core(e.publisher) == key }
                        .sort_by { |e| [ e.publish_date.to_s.presence || "9999", e.works.first&.title.to_s.downcase ] }
     @spellings = @editions.map(&:publisher).tally.sort_by { |_, n| -n }

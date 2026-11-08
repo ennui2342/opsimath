@@ -20,7 +20,10 @@ class SeriesVolumes
     @isfdb_id = @series.isfdb_series_id || inferred_isfdb_id
     volumes = @isfdb_id ? fetch : nil
     @complete = !volumes.nil?
-    members = @series.work_series.includes(work: WorksController::LIST_INCLUDES).to_a
+    members = @series.work_series.includes(work: WorksController::CARD_INCLUDES).to_a
+    # A member not yet linked to its ISFDB title is matched by title.
+    @members_by_title = members.map(&:work).group_by { |w| WorkMatcher.key(WorkMatcher.short(w.title.to_s.sub(/\s*\([^()]*\)\s*\z/, ""))) }
+    @volume_title_ids = Array(volumes).map { |v| v["external_id"].to_s }
     from_isfdb = Array(volumes).filter_map { |v| from_volume(v) }
     known = from_isfdb.filter_map(&:work).to_set
     from_catalogue = members.reject { |ws| known.include?(ws.work) }.map do |ws|
@@ -57,14 +60,15 @@ class SeriesVolumes
     return if v["language"].present? && !AddBook::EditionCards::ENGLISH.include?(v["language"].downcase)
 
     title_id = v["external_id"].to_i
+    by_title = ->(t) { @members_by_title[WorkMatcher.key(WorkMatcher.short(t.to_s.sub(/\s*\([^()]*\)\s*\z/, "")))]&.then { it.one? ? it.first : nil } }
     Entry.new(title_id:, position: v["position"].to_d.nonzero?, title: v["title"], authors: Array(v["authors"]),
               year: v["release_date"].to_s[/\A\d{4}/]&.to_i, cover_url: v["cover_url"].to_s.split("|").first.presence,
-              work: works_by_title_id[title_id.to_s])
+              work: works_by_title_id[title_id.to_s] || by_title.(v["title"]))
   end
 
   def works_by_title_id
-    @works_by_title_id ||= WorkIdentifier.where(id_type: "isfdb_title").includes(work: WorksController::LIST_INCLUDES)
-                                         .where(work_id: Work.select(:id)).to_h { |i| [ i.value, i.work ] }
+    @works_by_title_id ||= WorkIdentifier.where(id_type: "isfdb_title", value: @volume_title_ids).includes(work: WorksController::CARD_INCLUDES)
+                                         .to_h { |i| [ i.value, i.work ] }
   end
 
   def status_of(entry)

@@ -24,9 +24,8 @@ class SeriesControllerTest < ActionDispatch::IntegrationTest
   test "every book in the series, in order, with a Want it for those Mark doesn't have; a translation's omnibus left out" do
     get series_url(@series)
 
-    assert_select "li", count: 3
-    assert_select "li:nth-child(1)", text: /The Snow Queen/
-    assert_select "li:nth-child(3) a[href=?]", work_path(@summer)
+    assert_equal [ "The Snow Queen", "World's End", "The Summer Queen" ], css_select("[data-card-title]").map { |t| t.text.strip }
+    assert_select "[data-card=edition] a[href=?]", work_path(@summer)
     assert_select "form[action=?]", want_volume_series_path(@series), count: 2
     assert_no_match "Tiamat", response.body
   end
@@ -60,7 +59,7 @@ class SeriesControllerTest < ActionDispatch::IntegrationTest
 
     get series_url(@series)
 
-    assert_select "li", count: 1
+    assert_select "[data-card]", count: 1
     assert_match "full series appears once it's matched to ISFDB", response.body
   end
 end

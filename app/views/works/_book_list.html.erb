@@ -1,22 +1,20 @@
-<%# A list of books, each linked to its page with its statuses — the Books
-    list, and the author / series pages. `note` (optional): a lambda giving
-    a short prefix per book ("#3", "1974"). %>
+<%# A list of books as cards (docs/DESIGN_SYSTEM.md): each edition in the
+    catalogue as the compressed edition card, a book with none (wanted) as
+    the not-in-catalogue card — the Books list, an author's other roles.
+    `note` (optional): a lambda giving a short prefix per book ("#3",
+    "1974"); `context_author` (optional): the page's own author. %>
 <% note = local_assigns[:note] %>
-<ul class="divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700 <%= "hidden" if works.empty? %>">
+<div class="divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700 <%= "hidden" if works.empty? %>">
   <% works.each do |work| %>
-    <li>
-      <%= link_to work_path(work), class: "flex items-center justify-between gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800" do %>
-        <span class="flex min-w-0 items-baseline gap-3">
-          <% if note && (n = note.call(work)).present? %><span class="w-10 flex-none text-right text-xs tabular-nums text-gray-400 dark:text-gray-500"><%= n %></span><% end %>
-          <span class="min-w-0">
-            <span class="block truncate font-medium text-gray-900 dark:text-gray-100"><%= work.title %></span>
-            <span class="block truncate text-xs text-gray-500 dark:text-gray-400"><%= work.authors.map(&:name).join(", ") %></span>
-          </span>
-        </span>
-        <span class="flex flex-none flex-wrap justify-end gap-1">
-          <% work.statuses.each do |s| %><%= render Ui::BadgeComponent.new(text: ApplicationHelper::WORK_STATUS_BADGES[s].first, variant: ApplicationHelper::WORK_STATUS_BADGES[s].last) %><% end %>
-        </span>
+    <% number = note&.call(work) %>
+    <% if work.editions.any? %>
+      <% work.editions_in_order.each do |edition| %>
+        <%= render Ui::EditionCardComponent.new(edition:, size: :row, work:, number:, context_author: local_assigns[:context_author]) %>
       <% end %>
-    </li>
+    <% else %>
+      <%= render Ui::BookCandidateCardComponent.new(title: work.title, authors: work.authors.map(&:name), number:, url: work_path(work), dim: false,
+                                                    context_author: local_assigns[:context_author],
+                                                    badges: work.statuses.map { |s| ApplicationHelper::WORK_STATUS_BADGES[s] }) %>
+    <% end %>
   <% end %>
-</ul>
+</div>

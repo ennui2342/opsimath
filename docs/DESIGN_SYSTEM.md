@@ -255,6 +255,44 @@ endpoint. This is the fast path for "relaxed about trusting an
 ISBN-matched ISFDB cover most of the time, but want an easy escape hatch
 per book" (docs/INTEGRATIONS.md's cover-conflict addendum).
 
+### Book cards: three cards, used everywhere a book is listed
+
+Mark, 2026-11-08: "keep consistent with the cards layout … so that we can
+change the card and it will update everywhere." Every page that lists
+books uses one of three cards; none draws its own row or tile.
+
+1. **Full edition card**: `Ui::EditionCardComponent` (`size: :full`, the
+   default), on the book page. Described above.
+2. **Compressed edition card**: the same component, `size: :row` for a
+   list or `size: :tile` for a cover grid. Same cover, lozenges,
+   `detail_line` and headline parts (so a change to them shows
+   everywhere), plus the book's title (linked) and an **author line**; no
+   identifier footer, no cog. `number:` gives a row's leading "#3" or
+   year, or a tile's corner badge.
+3. **Not-in-catalogue card**: `Ui::BookCandidateCardComponent`, also
+   `:row` / `:tile`, built to the same shape: ISFDB's cover where there is
+   one, title, author line, a detail line, lozenges, and the actions passed
+   as its block (Want it / Add / Want this cover / Not this one, styled
+   with `card_button_class` so a link and a button line up). Dimmed unless
+   `dim: false` (a wanted book, which is in the catalogue).
+
+**The rule: anything from the catalogue is listed as editions; anything
+Mark doesn't have is listed as a work.** A book owned twice appears twice
+(two covers); sold / replaced / read-from-the-library editions appear with
+their lozenge after the owned ones; a wanted book with no edition is a
+card 3 with the Wanted lozenge.
+
+**Author line.** The edition's credit: its ISFDB printing's authors
+(`provider_editions.author_names`, when the book's printings are loaded),
+else the book's authors; a different credit reads "Richard Bachman
+(Stephen King)"; more than three names read "A, B, C and 4 others". Left
+out when it only repeats the page's author (`context_author:`).
+
+Used by: the Books list and search (`works/_book_list`), and the author,
+series, publisher, artist and line pages. Load `WorksController::CARD_INCLUDES`
+for a list of books. Tests find cards by `[data-card=edition|candidate]`,
+`[data-card-title]` and `[data-card-number]`, not by layout markup.
+
 ### `Ui::CoverChoiceCardComponent`
 
 One cover in the wishlist cover picker (`wishlist_items/show`,
@@ -459,6 +497,8 @@ one (single-user app). The `conflict` token already carries both ends
 amber, and dark mode comes for free.
 
 ## Checklist
+
+- A page listing books uses the book cards (full / compressed edition, not-in-catalogue); it doesn't draw its own rows or tiles.
 
 Before a new screen merges:
 

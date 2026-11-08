@@ -26,6 +26,7 @@ class AuthorBibliography
 
   def load
     catalogue = @author.work_contributors.select { |wc| wc.role == "author" }.map(&:work).uniq
+    @catalogue_by_title = catalogue.group_by { |w| title_key(w.title) }
     from_isfdb = Array(@author.isfdb_works).filter_map { |w| from_isfdb(w) }.uniq(&:title_id)
     known = from_isfdb.filter_map(&:work).to_set
     rest = catalogue.reject { |w| known.include?(w) }.map do |w|
@@ -37,10 +38,16 @@ class AuthorBibliography
     self
   end
 
-  # The page: Mark's own books first, by date; then the rest by kind.
-  def owned = entries.select { |e| e.status == :owned }
+  # The page (Mark, 2026-11-08): what's in his catalogue is listed as
+  # editions — owned ones first, then sold / read-from-the-library / …,
+  # each by the book's date — then books he has no edition of (wanted, or
+  # not in the catalogue) by kind and date.
+  def editions
+    entries.select { |e| e.work&.editions&.any? }.flat_map { |e| e.work.editions_in_order.map { |ed| [ e, ed ] } }
+           .sort_by.with_index { |(e, ed), i| [ EditionHolding.status(ed) == "owned" ? 0 : 1, e.year || 9999, i ] }
+  end
 
-  def by_kind = entries.reject { |e| e.status == :owned }.group_by(&:type).sort_by { |type, _| KINDS.keys.index(type) || 99 }
+  def by_kind = entries.reject { |e| e.work&.editions&.any? }.group_by(&:type).sort_by { |type, _| KINDS.keys.index(type) || 99 }
 
   def missing = entries.select { |e| %i[missing catalogued].include?(e.status) }
 
@@ -52,12 +59,22 @@ class AuthorBibliography
 
     title_id = w["_isfdb_title_id"] or return
     Entry.new(title_id: title_id.to_i, title: w["title"], type: w["type"], year: w["publish_year"],
-              series: w["series"].presence, series_num: w["_isfdb_series_num"], work: works_by_title_id[title_id.to_s])
+              series: w["series"].presence, series_num: w["_isfdb_series_num"], work: works_by_title_id[title_id.to_s] || by_title(w["title"]))
   end
+
+  # A book of theirs in the catalogue not yet linked to its ISFDB title
+  # ("Phoenix in the Ashes (Orbit Books)"): the one by them with the same
+  # title, brackets and leading article aside.
+  def by_title(title)
+    matches = @catalogue_by_title[title_key(title)]
+    matches.first if matches&.one?
+  end
+
+  def title_key(title) = WorkMatcher.key(WorkMatcher.short(title.to_s.sub(/\s*\([^()]*\)\s*\z/, "")))
 
   def works_by_title_id
     @works_by_title_id ||= WorkIdentifier.where(id_type: "isfdb_title", value: Array(@author.isfdb_works).filter_map { |w| w["_isfdb_title_id"]&.to_s })
-                                         .includes(work: WorksController::LIST_INCLUDES).to_h { |i| [ i.value, i.work ] }
+                                         .includes(work: WorksController::CARD_INCLUDES).to_h { |i| [ i.value, i.work ] }
   end
 
   def status_of(entry)
