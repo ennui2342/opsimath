@@ -52,6 +52,17 @@ class CollectingProfile < ApplicationRecord
     b_formats.any? ? verdict.(:b_format, b_formats) : verdict.(:no_paperback, eligible)
   end
 
+  # The printings a book's covers are offered from — the bargain-hunting
+  # cover picker and the artist page show the same set: the rule's
+  # candidates by default, or with `all_formats:` every physical printing
+  # (hardbacks, trade paperbacks…). Book club editions are never offered.
+  # `want` may be unsaved (Want.new(work:)) for a book not on the wishlist.
+  def offered_printings(want, all_formats: false, printings: want.printings)
+    return printings.reject(&:book_club?) if all_formats
+
+    verdict(want, printings, ignore_override: true).wanted
+  end
+
   # Artists on at least favourite_artist_min_owned of Mark's owned
   # editions, plus the always list, minus the never list. Worked out from
   # the collection on every call, so it keeps up as books are catalogued

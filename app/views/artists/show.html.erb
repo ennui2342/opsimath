@@ -11,6 +11,15 @@
     <%= pluralize(@editions.size, "cover") %> in your catalogue · <%= owned %> owned<%= " · a favourite artist" if @favourite %>
     · <%= link_to "Collecting settings", settings_collecting_profile_path, class: "hover:underline" %>
   </p>
+  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+    <% if @all_formats %>
+      Showing every physical printing's cover (book club editions aside).
+      <%= link_to "Show just your collecting rule's covers", artist_path(name: @name), class: "text-green-700 hover:underline dark:text-green-400" %>
+    <% else %>
+      Showing the covers your collecting rule offers, as bargain hunting does.
+      <%= link_to "Show all formats", artist_path(name: @name, all: 1), class: "text-green-700 hover:underline dark:text-green-400" %>
+    <% end %>
+  </p>
 
   <h2 class="mb-3 mt-6 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">Your covers</h2>
   <% if @editions.empty? %>
@@ -73,7 +82,7 @@
             <span class="mt-1 block truncate font-medium text-gray-900 group-hover:underline dark:text-gray-100"><%= p.work.title %></span>
           <% end %>
           <span class="block truncate text-gray-500 dark:text-gray-400"><%= printings.map { |x| [ x.publisher.to_s.split(" / ").first, x.year ].compact.join(" ") }.uniq.first(2).join(", ") %></span>
-          <%= button_to "Want this cover", artist_want_cover_path, params: { work_id: p.work_id, name: @name, pub_ids: printings.map(&:provider_id) },
+          <%= button_to "Want this cover", artist_want_cover_path, params: { work_id: p.work_id, name: @name, pub_ids: printings.map(&:provider_id), all: (1 if @all_formats) },
                         class: "mt-1 rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600" %>
         </div>
       <% end %>

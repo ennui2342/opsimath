@@ -10,19 +10,19 @@ class WishlistItemsController < ApplicationController
   end
 
   def show
-    @view = WishlistItemView.new(find_want)
+    @view = WishlistItemView.new(find_want, all_formats: params[:all].present?)
   end
 
   def update
     want = find_want
-    view = WishlistItemView.new(want)
+    view = WishlistItemView.new(want, all_formats: params[:all].present?)
     chosen = Array(params[:covers]).map(&:to_i)
     want.update!(
       printing_override_ids: view.covers.any? ? WishlistItemView.override_for(view, chosen) : want.printing_override_ids,
       target_price: pence(params[:target_price]),
       buy_new_override: { "hunt" => false, "buy_new" => true }[params[:buy_new]]
     )
-    redirect_to wishlist_item_path(want), notice: "Saved."
+    redirect_to wishlist_item_path(want, all: params[:all].presence), notice: "Saved."
   end
 
   # "Not this cover", from a find card: the cover leaves the book's

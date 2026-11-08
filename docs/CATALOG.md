@@ -789,7 +789,12 @@ book), their covers on books he wants (linked to bargain hunting), and
 whether they're a favourite, and their covers on books he *has* but
 isn't hunting — other printings, one tile per distinct scan, each with
 **Want this cover**: the book onto the wishlist hunting just those
-printings (`printing_override_ids`), an upgrade hunt. Keyed by name — cover artists are names on
+printings (`printing_override_ids`), an upgrade hunt. Both the artist
+page and the bargain-hunting cover picker show the covers
+`CollectingProfile#offered_printings` gives — the collecting rule's by
+default, every physical printing (book clubs aside) behind a **Show all
+formats** switch on each (Mark: the two displays should match). Choices
+made in the all-formats view survive saving the rule's view. Keyed by name — cover artists are names on
 editions, shared credits ("A, B") split. Linked from edition cards,
 bargain-hunting cover cards and finds.
 

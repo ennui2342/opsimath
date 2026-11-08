@@ -46,4 +46,18 @@ class ArtistsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ 70, 71 ], @mine.reload.want.printing_override_ids
     assert_equal "Wanted the Peter Elson cover of Pacific Edge", CatalogueEvent.last.summary
   end
+
+  test "the same covers as bargain hunting by default; all formats on the switch" do
+    @mine.provider_editions.create!(provider: "isfdb", provider_id: "80", binding: "pb", publisher: "Panther", cover_artist: "Peter Elson",
+                                    cover_url: "https://covers.test/80.jpg")
+    @mine.provider_editions.create!(provider: "isfdb", provider_id: "81", binding: "hc", publisher: "Gollancz", cover_artist: "Peter Elson",
+                                    cover_url: "https://covers.test/81.jpg")
+
+    get artist_url(name: "Peter Elson")
+    assert_select "img[src=?]", "https://covers.test/80.jpg"
+    assert_select "img[src=?]", "https://covers.test/81.jpg", count: 0 # a hardback, and the book has A-formats
+
+    get artist_url(name: "Peter Elson", all: 1)
+    assert_select "img[src=?]", "https://covers.test/81.jpg"
+  end
 end

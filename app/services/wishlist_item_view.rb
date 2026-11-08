@@ -28,9 +28,14 @@ class WishlistItemView
 
   attr_reader :want, :verdict, :rule
 
-  def initialize(want, profile: CollectingProfile.current)
+  attr_reader :all_formats
+
+  # `all_formats:` offers every physical printing's cover, not just the
+  # rule's candidates (CollectingProfile#offered_printings).
+  def initialize(want, profile: CollectingProfile.current, all_formats: false)
     @want = want
     @profile = profile
+    @all_formats = all_formats
     printings = want.printings
     @rule = profile.verdict(want, printings, ignore_override: true)
     @verdict = profile.verdict(want, printings)
@@ -53,7 +58,8 @@ class WishlistItemView
   def overridden? = !want.printing_override_ids.nil?
 
   def covers
-    @covers ||= rule.wanted.group_by { |p| p.cover_group&.to_i || p.isfdb_pub_id }.map do |id, printings|
+    offered = @all_formats ? @profile.offered_printings(want, all_formats: true) : rule.wanted
+    @covers ||= offered.group_by { |p| p.cover_group&.to_i || p.isfdb_pub_id }.map do |id, printings|
       ids = printings.map(&:isfdb_pub_id)
       artists = printings.flat_map(&:artists).uniq
       Cover.new(id:, printings:, artists:, favourite: (artists & @favourites).any?,
@@ -76,13 +82,16 @@ class WishlistItemView
     end
   end
 
-  # Printing override for the chosen cover ids: every candidate printing
-  # on a chosen cover — or nil when every cover is chosen, so the rule's
-  # default stays in charge and new printings keep arriving.
+  # Printing override for the chosen cover ids: every printing on a chosen
+  # cover, plus any already chosen on a cover this view didn't show (one
+  # picked in "all formats", or from an artist page, survives saving the
+  # rule's view) — or nil when that's exactly the rule's own choice, so
+  # the default stays in charge and new printings keep arriving.
   def self.override_for(view, chosen_ids)
-    chosen = view.covers.select { |c| chosen_ids.include?(c.id) }
-    return nil if chosen.size == view.covers.size
-
-    chosen.flat_map { |c| c.printings.map(&:isfdb_pub_id) }
+    shown = view.covers.flat_map { |c| c.printings.map(&:isfdb_pub_id) }
+    chosen = view.covers.select { |c| chosen_ids.include?(c.id) }.flat_map { |c| c.printings.map(&:isfdb_pub_id) }
+    unseen = Array(view.want.printing_override_ids) - shown
+    ids = (chosen + unseen).uniq
+    ids.sort == view.rule.wanted.map(&:isfdb_pub_id).sort ? nil : ids
   end
 end

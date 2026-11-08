@@ -13,7 +13,19 @@
     <%= @view.want.author_name %><%= " (d. #{@view.want.author.died_date.first(4)})" if @view.want.author&.died_date %>
   </p>
 
+  <% toggle = "text-sm text-green-700 hover:underline dark:text-green-400" %>
+  <p class="mb-3 text-sm text-gray-500 dark:text-gray-400">
+    <% if @view.all_formats %>
+      Every physical printing's cover (book club editions aside).
+      <%= link_to "Show just your collecting rule's covers", wishlist_item_path(@view.want), class: toggle %>
+    <% else %>
+      The covers your collecting rule offers.
+      <%= link_to "Show all formats", wishlist_item_path(@view.want, all: 1), class: toggle %>
+    <% end %>
+  </p>
+
   <%= form_with url: wishlist_item_path(@view.want), method: :patch, class: "mb-8" do %>
+    <% if @view.all_formats %><input type="hidden" name="all" value="1"><% end %>
     <% if @view.covers.any? %>
       <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">Tick the covers you want.</p>
       <div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">

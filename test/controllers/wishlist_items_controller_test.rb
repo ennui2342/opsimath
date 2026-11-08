@@ -88,4 +88,19 @@ class WishlistItemsControllerTest < ActionDispatch::IntegrationTest
 
     assert_match %(target="none"), response.body
   end
+
+  test "all formats shows every physical cover; a cover chosen there survives saving the rule's view" do
+    add_printing(@item, 5, binding: "hc", publish_date: "1976", publisher: "DAW Books", cover_url: "https://covers.test/hc.jpg", cover_group: "5")
+
+    get wishlist_item_url(@item)
+    assert_select "img[src=?]", "https://covers.test/hc.jpg", count: 0
+    get wishlist_item_url(@item, all: 1)
+    assert_select "img[src=?]", "https://covers.test/hc.jpg"
+
+    patch wishlist_item_url(@item), params: { all: "1", covers: %w[1 2 5] }
+    assert_equal [ 1, 2, 3, 5 ], @item.reload.printing_override_ids.sort
+
+    patch wishlist_item_url(@item), params: { covers: %w[1 2] } # the rule's view, which doesn't show the hardback
+    assert_equal [ 1, 2, 3, 5 ], @item.reload.printing_override_ids.sort
+  end
 end
