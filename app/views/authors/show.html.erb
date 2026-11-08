@@ -1,20 +1,57 @@
 <% content_for :title, @author.name %>
 <% isfdb = @author.external_ids["isfdb"] %>
-<% all = @by_role.values.flatten.uniq %>
+<% entries = @bibliography.entries %>
+<% badges = ApplicationHelper::WORK_STATUS_BADGES %>
+<% small = "rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600" %>
 
 <div class="w-full max-w-3xl">
   <p class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Author</p>
   <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100"><%= @author.name %></h1>
   <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
     <%= [ ("died #{@author.died_date}" if @author.died_date.present?),
-          pluralize(all.size, "book") + " in your catalogue",
-          ("#{all.count { |w| w.statuses.include?(:owned) }} owned"),
-          ("#{all.count { |w| w.statuses.include?(:read) }} read") ].compact.join(" · ") %>
+          pluralize(entries.size, "book"),
+          "#{entries.count { |e| e.status == :owned }} owned",
+          "#{entries.count { |e| e.work&.statuses&.include?(:read) }} read" ].compact.join(" · ") %>
     <% if isfdb %>· <%= link_to "ISFDB", "https://www.isfdb.org/cgi-bin/ea.cgi?#{ERB::Util.url_encode(isfdb)}", target: "_blank", rel: "noopener", class: "hover:underline" %><% end %>
   </p>
+  <% unless @bibliography.fetched? %>
+    <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Showing the books in your catalogue — their full ISFDB bibliography is being fetched; reload in a minute.</p>
+  <% end %>
 
-  <% @by_role.sort_by { |role, _| role == "author" ? 0 : 1 }.each do |role, works| %>
-    <h2 class="mb-2 mt-6 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400"><%= role == "author" ? "Books" : "As #{role.humanize(capitalize: false)}" %></h2>
+  <% @bibliography.by_kind.each do |type, group| %>
+    <h2 class="mb-2 mt-6 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400"><%= AuthorBibliography::KINDS.fetch(type) %></h2>
+    <ul class="divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
+      <% group.each do |e| %>
+        <li class="flex items-center justify-between gap-4 px-4 py-3 <%= "opacity-60" if e.status == :missing %>">
+          <span class="flex min-w-0 items-baseline gap-3">
+            <span class="w-10 flex-none text-right text-xs tabular-nums text-gray-400 dark:text-gray-500"><%= e.year %></span>
+            <span class="min-w-0">
+              <% if e.work %>
+                <%= link_to e.title, work_path(e.work), class: "block truncate font-medium text-gray-900 hover:underline dark:text-gray-100" %>
+              <% else %>
+                <span class="block truncate font-medium text-gray-900 dark:text-gray-100"><%= e.title %></span>
+              <% end %>
+              <% if e.series %><span class="block truncate text-xs text-gray-500 dark:text-gray-400"><%= e.series %><%= " ##{format('%g', e.series_num)}" if e.series_num.to_f.positive? %></span><% end %>
+            </span>
+          </span>
+          <span class="flex flex-none flex-wrap items-center justify-end gap-1">
+            <% if e.work %>
+              <% e.work.statuses.each do |s| %><%= render Ui::BadgeComponent.new(text: badges[s].first, variant: badges[s].last) %><% end %>
+            <% else %>
+              <%= render Ui::BadgeComponent.new(text: "Not in your catalogue") %>
+            <% end %>
+            <% if %i[missing catalogued].include?(e.status) && e.title_id %>
+              <%= button_to "Want it", want_title_author_path(@author), params: { title_id: e.title_id }, class: small %>
+              <%= link_to "Add", add_book_path(q: [ e.title, @author.name ].join(" ")), class: small %>
+            <% end %>
+          </span>
+        </li>
+      <% end %>
+    </ul>
+  <% end %>
+
+  <% @other_roles.each do |role, works| %>
+    <h2 class="mb-2 mt-6 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">As <%= role.humanize(capitalize: false) %></h2>
     <%= render "works/book_list", works:, note: ->(w) { w.original_publication_year } %>
   <% end %>
 

@@ -1,6 +1,6 @@
 module Isfdb
-  # Records each wanted book's author as living or dead (from ISFDB's
-  # author record) on the Contributor — CollectingProfile's buy-new rule:
+  # Records each author as living or dead (from ISFDB's author record),
+  # and their ISFDB id, on the Contributor — wanted books' authors first — CollectingProfile's buy-new rule:
   # a book never published in A-format by a living author is bought new,
   # not hunted on eBay (docs/BARGAIN_HUNTING.md). Was WishlistAuthorRefresh,
   # which kept the answer on each wishlist item; life dates belong to the
@@ -37,8 +37,21 @@ module Isfdb
       @deadline = deadline
     end
 
+    # One contributor now (their author page): linked and dated if ISFDB
+    # has them. -> the contributor, reloaded.
+    def self.link(contributor, client: Client.new)
+      found = new(client:).send(:lookup, contributor.name) or return contributor
+      author_id, died = found
+      ids = author_id ? contributor.external_ids.merge("isfdb" => author_id.to_s) : contributor.external_ids
+      contributor.update_columns(died_date: died, life_checked_at: Time.current, external_ids: ids)
+      contributor
+    end
+
+    # Wanted books' authors first (the buy-new rule needs them), then every
+    # other author in the catalogue — linked to ISFDB for their page.
     def run
-      authors = Contributor.where(id: WorkContributor.where(role: "author", work_id: Want.select(:work_id)).select(:contributor_id)).to_a
+      wanted = Contributor.where(id: WorkContributor.where(role: "author", work_id: Want.select(:work_id)).select(:contributor_id)).to_a
+      authors = (wanted + Contributor.where(id: WorkContributor.where(role: "author").select(:contributor_id)).order(:id).to_a).uniq
       stale = authors.select { |c| c.life_checked_at.nil? || c.life_checked_at < @max_age.ago }
 
       found = Concurrent::Hash.new

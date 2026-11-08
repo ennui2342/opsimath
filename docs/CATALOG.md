@@ -828,6 +828,20 @@ Discworld) would mis-tie a Goodreads series. Runs for a book just added
 (BookAddedJob); the nightly run over the whole catalogue waits for a dry
 run (`WorkSeriesSync.plan`) Mark has seen.
 
+**Author pages list their whole bibliography** (2026-11-08): an
+author linked to ISFDB shows every English book-length title of theirs
+in its own right (no retitlings or translations), grouped Novels /
+Collections / Anthologies / Non-fiction / Omnibuses / Chapbooks, beside
+the catalogue's books — "Want it" and "Add" for those Mark doesn't have.
+The bibliography (isfdb-adapter `/authors/:id`, up to ~30s to build) is
+kept on the Contributor (`isfdb_works`), fetched in the background when
+the page is visited and missing or a week old. Authors were linked to
+ISFDB only as a side effect of the living-author check, which looked up
+wanted books' authors alone (247 of 1,224); it now covers every author,
+wanted books' first, and visiting an unlinked author's page links them.
+The artist page's ★ makes an artist a favourite or not, overriding the
+owned-covers rule either way (the always / never lists).
+
 **Removing a book** (2026-11-08, two Books of Blood): "Remove this book
 from the catalogue…" at the foot of the book page (WorkRemoval) deletes
 the work and its editions — for a duplicate or a mistake; getting rid of

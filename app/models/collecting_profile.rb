@@ -75,6 +75,17 @@ class CollectingProfile < ApplicationRecord
       favourite_artists_never
   end
 
+  # The star on an artist's page: a favourite or not, whatever the
+  # owned-covers rule says — onto the always list (off never) or the
+  # never list (off always).
+  def favourite!(artist, on:)
+    always = favourite_artists_always - [ artist ]
+    never = favourite_artists_never - [ artist ]
+    on ? always << artist : never << artist
+    update!(favourite_artists_always: always, favourite_artists_never: never)
+    @favourite_artists = nil
+  end
+
   # {artist => number of Mark's owned editions with their cover}, most first.
   def owned_artist_counts
     @owned_artist_counts ||= begin

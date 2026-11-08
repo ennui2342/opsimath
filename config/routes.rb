@@ -25,7 +25,9 @@ Rails.application.routes.draw do
   post "add", to: "add_books#create"
 
   # Who and what a book belongs to, linked from the book page.
-  resources :authors, only: [ :show ]
+  resources :authors, only: [ :show ] do
+    post :want_title, on: :member # "Want it" for a book of theirs not in the catalogue
+  end
   # A story series' page; wanting a book in it, or the whole series.
   resources :series, only: [ :show ] do
     member do
@@ -48,6 +50,7 @@ Rails.application.routes.draw do
     end
   end
   post "artist/want_cover", to: "artists#want_cover", as: :artist_want_cover
+  post "artist/favourite", to: "artists#favourite", as: :artist_favourite
 
   resources :wishlist_items, path: "wishlist", only: [ :index, :show, :update ] do
     # One cover in or out of the chosen set, from a find card.

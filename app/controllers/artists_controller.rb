@@ -45,6 +45,13 @@ class ArtistsController < ApplicationController
     @favourite = CollectingProfile.current.favourite_artists.include?(@name)
   end
 
+  # The star: this artist a favourite, or not (CollectingProfile#favourite!).
+  def favourite
+    name = params[:name].to_s.strip
+    CollectingProfile.current.favourite!(name, on: params[:on] == "1")
+    redirect_to artist_path(name:, all: params[:all].presence)
+  end
+
   # "Want this cover": the book onto the wishlist hunting just these
   # printings (one cover) — an upgrade hunt for a book Mark has.
   def want_cover

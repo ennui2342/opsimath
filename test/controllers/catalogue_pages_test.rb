@@ -29,8 +29,8 @@ class CataloguePagesTest < ActionDispatch::IntegrationTest
     get author_url(@gibson)
 
     assert_select "h1", "William Gibson"
-    assert_equal [ "Neuromancer", "Count Zero", "Mona Lisa Overdrive" ], css_select("ul li span.block.font-medium").map(&:text)
-    assert_match "3 books in your catalogue · 2 owned", response.body
+    assert_equal [ "Neuromancer", "Count Zero", "Mona Lisa Overdrive" ], css_select("ul li .block.font-medium").map(&:text)
+    assert_match "3 books · 2 owned", response.body
   end
 
   test "a series page lists its books in series order, numbered" do
@@ -55,5 +55,38 @@ class CataloguePagesTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to works_path
     assert_not Work.exists?(work.id)
+  end
+
+  test "an author's page adds their ISFDB bibliography: books Mark doesn't have, with Want it; translations and retitlings left out" do
+    @gibson.update!(isfdb_works_fetched_at: Time.current, isfdb_works: [
+      { "_isfdb_title_id" => 101, "title" => "Neuromancer", "type" => "NOVEL", "language" => "eng", "publish_year" => 1984 },
+      { "_isfdb_title_id" => 102, "title" => "Virtual Light", "type" => "NOVEL", "language" => "eng", "publish_year" => 1993, "series" => "Bridge", "_isfdb_series_num" => 1 },
+      { "_isfdb_title_id" => 103, "title" => "Burning Chrome", "type" => "COLLECTION", "language" => "eng", "publish_year" => 1986 },
+      { "_isfdb_title_id" => 104, "title" => "Neuromante", "type" => "NOVEL", "language" => "spa", "publish_year" => 1989 },
+      { "_isfdb_title_id" => 105, "title" => "Neuromancer (UK)", "type" => "NOVEL", "language" => "eng", "variant_of" => 101 }
+    ])
+    @books.first.work_identifiers.create!(id_type: "isfdb_title", value: "101")
+
+    get author_url(@gibson)
+
+    assert_select "h2", text: "Novels"
+    assert_select "h2", text: "Collections"
+    assert_no_match(/Neuromante|Neuromancer \(UK\)/, response.body)
+    assert_select "form[action=?]", want_title_author_path(@gibson), count: 2 # Virtual Light, Burning Chrome
+
+    post want_title_author_url(@gibson), params: { title_id: 102 }
+    work = WorkIdentifier.find_by!(id_type: "isfdb_title", value: "102").work
+    assert_equal [ "Virtual Light", [ "William Gibson" ] ], [ work.title, work.authors.map(&:name) ]
+    assert work.want
+  end
+
+  test "the artist page's star makes an artist a favourite, or not" do
+    post artist_favourite_url, params: { name: "Peter Elson", on: "1" }
+    assert_includes CollectingProfile.current.favourite_artists, "Peter Elson"
+
+    post artist_favourite_url, params: { name: "Peter Elson", on: "0" }
+    profile = CollectingProfile.current
+    assert_not_includes profile.favourite_artists, "Peter Elson"
+    assert_equal [ [], [ "Peter Elson" ] ], [ profile.favourite_artists_always, profile.favourite_artists_never ]
   end
 end

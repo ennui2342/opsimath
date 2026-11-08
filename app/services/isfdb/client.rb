@@ -114,6 +114,20 @@ module Isfdb
       JSON.parse(response.body)
     end
 
+    # One author's bibliography: their book-length titles, [{ "_isfdb_title_id",
+    # "title", "type", "language", "variant_of", "publish_year", "series",
+    # "_isfdb_series_num", "cover_url", … }]. Slow for a prolific author
+    # (~30s), so fetched in the background (AuthorBibliographyJob). nil if
+    # ISFDB has no such author.
+    def author_works(author_id)
+      response = get("/authors/#{author_id}", read_timeout: 120)
+      return nil if response.is_a?(Net::HTTPNotFound)
+
+      raise ServiceError, "isfdb-adapter returned #{response.code} for author #{author_id}" unless response.is_a?(Net::HTTPSuccess)
+
+      JSON.parse(response.body)["works"]
+    end
+
     private
 
     def get(path, read_timeout: 10)
