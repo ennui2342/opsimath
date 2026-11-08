@@ -22,10 +22,12 @@ class KnownEditionsRefresh
   # max_age — so one a provider adds later is picked up then.
   UNLINKED_RETRY = 7.days
   CROSS_ISBNS = 5
-  # Works a provider found nothing for before title + author matching
-  # (2026-11-03) are asked again on the next run rather than waiting out
-  # their retry. Self-expiring: every refresh after it is newer.
-  TITLE_FALLBACK_SINCE = Time.utc(2026, 11, 3, 22).freeze
+  # Works a provider found nothing for before the lookup last improved are
+  # asked again on the next run rather than waiting out their retry —
+  # bump it when lookups get better. Self-expiring: every refresh after it
+  # is newer. 2026-11-03 title + author matching; 2026-11-08 ISFDB's single
+  # publication for anthologies, nonfiction and magazines.
+  TITLE_FALLBACK_SINCE = Time.utc(2026, 11, 8, 12).freeze
   UPDATED_COLUMNS = %i[isbn13 isbn10 title publisher binding publish_date language page_count cover_url cover_artist updated_at].freeze
 
   Result = Struct.new(:provider, :works, :due, :refreshed, :truncated, keyword_init: true) do
@@ -139,6 +141,12 @@ class KnownEditionsRefresh
     Providers::KnownEditions.new(work_ids: matches.map(&:id), editions: editions.uniq(&:id))
   end
 
+  def newsworthy?(printing, wanted)
+    return false unless printing.physical? && !printing.book_club?
+
+    wanted || (printing.year.present? && printing.year >= Date.current.year - 1)
+  end
+
   def persist(work, known, isbns)
     now = Time.current
     rows = known.editions.map { |e| row(work, e, now) }.uniq { |r| r[:provider_id] }
@@ -162,7 +170,12 @@ class KnownEditionsRefresh
 
   # For #catalogue's morning digest: a book newly linked to this provider,
   # and new printings of a book it already knew — not a first fill, which
-  # the link already says.
+  # the link already says. Only printings worth hearing about: for a wanted
+  # book, any physical, non-book-club printing (a new cover to hunt); for
+  # the rest, one from this year or last (a new edition out). A provider's
+  # list growing with older printings — ISFDB cataloguing a 1972 Ace, or a
+  # fuller lookup — is stored silently (2026-11-08: the first digest
+  # announced "411 new printings across 96 books", nearly all old).
   PROVIDER_LABELS = { "isfdb" => "ISFDB", "openlibrary" => "Open Library" }.freeze
 
   def record_events(work, new_links, new_rows)
@@ -172,6 +185,7 @@ class KnownEditionsRefresh
       CatalogueEvent.record(kind: "linked", origin: "known_editions", work:, details: { provider: @provider.name, wanted: },
                             summary: "#{work.title} found in #{label}")
     end
+    new_rows = new_rows.select { |r| newsworthy?(ProviderEdition.new(r.except(:created_at, :updated_at)), wanted) }
     return if new_rows.empty?
 
     printings = new_rows.map { |r| [ r[:publisher], r[:publish_date].to_s[0, 4].presence ].compact.join(" ") }.uniq

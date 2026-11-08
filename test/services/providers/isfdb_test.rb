@@ -14,6 +14,16 @@ module Providers
         "cover_url" => "https://covers.test/#{pub_id}.jpg|https://mirror.test/#{pub_id}.jpg", "cover_artists" => [ "John Harris" ] }.merge(overrides)
     end
 
+    test "known editions: an anthology or nonfiction book has no printing list, so its own publication is taken" do
+      stub_request(:get, "#{BASE_URL}/isbn/9780586052112/editions").to_return(status: 404, body: { detail: "isbn found but not linked to a book-type title" }.to_json)
+      stub_request(:get, "#{BASE_URL}/isbn/9780586052112?all=true").to_return(json([ pub(118271, nil, "9780586052112", "title" => "The Way the Future Was", "publisher" => "Granada") ]))
+
+      known = @provider.known_editions(isbns: [ "9780586052112" ])
+
+      assert_empty known.work_ids
+      assert_equal [ [ "118271", "Granada" ] ], known.editions.map { |e| [ e.id, e.publisher ] }
+    end
+
     test "known editions: every edition, and the title id only from the work's own printings" do
       stub_request(:get, "#{BASE_URL}/isbn/9780765304674/editions").to_return(json([
         pub(1, 1911, "9780765304674"), pub(2, 5555, "9780000000002", "title" => "A Three-in-One Omnibus")

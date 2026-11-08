@@ -698,6 +698,17 @@ spot-check examples per field.
    Heavens' ISFDB cover scan), ~436 Open Library fills (153 page counts,
    150 languages, 125 covers for editions with none). Each edition
    changed is one line in the 04:30 #catalogue digest.
+   **First run (2026-11-08 03:30): 353 editions changed in 4 minutes.**
+   Two follow-ups the same day: (a) the digest's "new printings" announced
+   411 across 96 books — nearly all old printings newly *seen* by us after
+   the week's lookup changes, not new to ISFDB — so only newsworthy ones
+   are announced now: for a wanted book, any physical non-book-club
+   printing (a new cover to hunt); otherwise one from this year or last.
+   (b) the 128 "linked but no record" editions were 132 books isfdb-adapter
+   won't build a printing list for — anthologies, nonfiction, magazines
+   ("isbn found but not linked to a book-type title"); the provider now
+   falls back to the plain ISBN lookup and stores that one publication, so
+   the edition has its anchor record.
 4. **Authority preview from any provider.** (Author dates stay
    ISFDB-only — Mark, 2026-11-07: the living-author rule is now a switch
    he expects to turn off; see docs/BARGAIN_HUNTING.md.)

@@ -17,8 +17,17 @@ module Providers
     # resolves to the same title. The list also holds each omnibus or
     # collection containing the work, each reporting its own main title, so
     # the work's own title id is taken only from its own printings.
+    #
+    # An anthology, nonfiction book or magazine has no printing list:
+    # isfdb-adapter only builds those for book-type titles ("isbn found but
+    # not linked to a book-type title"). Its own publication still comes
+    # back from a plain ISBN lookup, so that one printing is taken — enough
+    # for the edition's anchor (AnchoredRefresh); its siblings stay unknown.
+    OWN_LOOKUPS = 2
+
     def known_editions(isbns:, work_ids: [])
       raw = isbns.any? ? ::Isfdb::WorkEditions.for(nil, client: @client, isbns:) : []
+      raw = isbns.first(OWN_LOOKUPS).lazy.map { |isbn| @client.lookup_isbn(isbn) }.find(&:any?) || [] if raw.empty? && isbns.any?
       own = isbns.map { |i| i.length == 10 ? Isbn.to_13(i) : i }.compact
 
       editions = raw.filter_map { |ed| edition(ed) }

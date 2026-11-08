@@ -127,4 +127,21 @@ class KnownEditionsRefreshTest < ActiveSupport::TestCase
     assert_equal 1, provider.calls.size # only Found Nothing
     assert_equal [], provider.calls.sole[:isbns]
   end
+
+  test "new printings are announced only when worth it: a new edition out, or a new cover for a wanted book" do
+    @work.provider_editions.create!(provider: "isfdb", provider_id: "1", binding: "hc", publish_date: "2003")
+    ProviderEditionRefresh.create!(work: @work, provider: "isfdb", refreshed_at: 1.year.ago, queried_isbns: [])
+    recent = (Date.current.year).to_s
+    provider = FakeProvider.new("9780765304674" => [ "1911", [ ed("1", binding: "hc", publish_date: "2003"),
+                                                              ed("2", binding: "pb", publish_date: "1972"),          # old: silent
+                                                              ed("3", binding: "pb", publish_date: recent),          # new edition out
+                                                              ed("4", binding: "audio", publish_date: recent),       # not physical
+                                                              ed("5", binding: "hc", publish_date: recent, publisher: "SFBC") ] ]) # book club
+
+    refresh(provider)
+
+    event = CatalogueEvent.find_by!(kind: "new_printings")
+    assert_equal 1, event.details["count"]
+    assert_match(/1 new printing in ISFDB \(Tor #{recent}\)/, event.summary)
+  end
 end
