@@ -15,6 +15,8 @@ module Ui
   # same parts cover-first for a grid (artist, line pages). Books not in the
   # catalogue use Ui::BookCandidateCardComponent, built to the same shape.
   class EditionCardComponent < ApplicationComponent
+    include CardNumber
+
     SIZES = %i[full row tile].freeze
 
     # `publisher_url:` (web book page): the publisher in the headline links

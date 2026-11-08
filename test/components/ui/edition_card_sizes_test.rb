@@ -42,5 +42,10 @@ module Ui
       assert_selector ".opacity-60"
       assert_text "Want it"
     end
+  test "two rows side by side stay siblings: each card closes all it opens" do
+      render_inline(EditionCardComponent.new(edition: @edition, size: :row, number: "#1"))
+      assert_selector "[data-card=edition] [data-card]", count: 0
+      assert_equal 1, page.native.css("body > [data-card]").size
+    end
   end
 end

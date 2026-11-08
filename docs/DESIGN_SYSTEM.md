@@ -267,8 +267,10 @@ books uses one of three cards; none draws its own row or tile.
    list or `size: :tile` for a cover grid. Same cover, lozenges,
    `detail_line` and headline parts (so a change to them shows
    everywhere), plus the book's title (linked) and an **author line**; no
-   identifier footer, no cog. `number:` gives a row's leading "#3" or
-   year, or a tile's corner badge.
+   identifier footer, no cog. `number:` goes on a row's title line, not a column of
+   its own (Mark: a column "seems excessive"): a series number before the
+   title ("#3 The Summer Queen"), a year after it ("The Snow Queen · 1980");
+   on a tile it's the corner badge.
 3. **Not-in-catalogue card**: `Ui::BookCandidateCardComponent`, also
    `:row` / `:tile`, built to the same shape: ISFDB's cover where there is
    one, title, author line, a detail line, lozenges, and the actions passed

@@ -7,6 +7,8 @@ module Ui
   # (Want it / Add / Want this cover / Not this one). Dimmed unless
   # `dim: false` (a wanted book: it's in the catalogue).
   class BookCandidateCardComponent < ApplicationComponent
+    include CardNumber
+
     def initialize(title:, authors: [], size: :row, number: nil, detail: nil, cover_url: nil, url: nil, badges: [],
                    context_author: nil, dim: true)
       raise ArgumentError, "size: #{size}" unless %i[row tile].include?(size)

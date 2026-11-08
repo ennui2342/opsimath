@@ -9,15 +9,14 @@
     <% end %>
   </div>
   <div class="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-    <div class="flex min-w-0 items-baseline gap-3 <%= "opacity-60" if @dim %>">
-      <% if @number.present? %><span data-card-number class="w-10 flex-none text-right text-xs tabular-nums text-gray-400 dark:text-gray-500"><%= @number %></span><% end %>
-      <div class="min-w-0">
-        <% if @url %><%= link_to @title, @url, class: "block #{title_class}", data: { card_title: true } %><% else %><span class="block <%= title_class %>" data-card-title><%= @title %></span><% end %>
-        <% if (by = author_line) %><p class="text-xs text-gray-600 dark:text-gray-300"><%= by %></p><% end %>
-        <% if @detail.present? %><p class="text-xs text-gray-500 dark:text-gray-400"><%= @detail %></p><% end %>
+    <div class="min-w-0 <%= "opacity-60" if @dim %>">
+      <div>
+        <%= number_prefix %><% if @url %><%= link_to @title, @url, class: title_class, data: { card_title: true } %><% else %><span class="<%= title_class %>" data-card-title><%= @title %></span><% end %><%= number_suffix %>
       </div>
+      <% if (by = author_line) %><p class="text-xs text-gray-600 dark:text-gray-300"><%= by %></p><% end %>
+      <% if @detail.present? %><p class="text-xs text-gray-500 dark:text-gray-400"><%= @detail %></p><% end %>
     </div>
-    <div class="flex flex-none flex-wrap items-center gap-1 <%= "pl-[3.25rem] sm:pl-0" if @number.present? %>">
+    <div class="flex flex-none flex-wrap items-center gap-1">
       <% @badges.each do |text, variant| %><%= render(Ui::BadgeComponent.new(text:, variant:)) %><% end %>
       <%= content %>
     </div>
