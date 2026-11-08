@@ -58,6 +58,15 @@ module Isfdb
       JSON.parse(response.body)
     end
 
+    # Printings whose ISBN has these five digits in the middle — a US
+    # mass-market UPC add-on (UpcLookup). isfdb-adapter raw printing hashes.
+    def isbns_with_middle(digits)
+      response = get("/isbn/middle/#{digits}", read_timeout: 30)
+      raise ServiceError, "isfdb-adapter returned #{response.code} for ISBN middle #{digits}" unless response.is_a?(Net::HTTPSuccess)
+
+      JSON.parse(response.body)
+    end
+
     # A publisher's line (ISFDB publication series) and every printing in
     # it, in number order: { "id", "name", "publications" => [...] }. nil
     # when there's no such line, or the mirror hasn't imported line names

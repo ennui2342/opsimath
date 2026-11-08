@@ -50,6 +50,10 @@ module AddBook
       query = query.to_s.strip
       return [] if query.length < 2
 
+      if (upc = UpcLookup.parse(query))
+        return group(upc_isbns(*upc).flat_map { |i| isbn_works(i) }.reject { |w| foreign_only?(w) })
+      end
+
       isbn = Isbn.normalize(query)
       works = isbn ? isbn_works(isbn) : Providers.search_works(title: query, providers: @providers)
       results = group(works.reject { |w| foreign_only?(w) })
@@ -57,6 +61,14 @@ module AddBook
     end
 
     private
+
+    # A US mass-market's UPC + add-on: its candidate ISBNs (UpcLookup).
+    def upc_isbns(upc, add_on)
+      UpcLookup.call(upc:, add_on:).isbns.first(MAX_RESULTS)
+    rescue StandardError => e
+      Rails.logger.warn("add book: UPC #{upc} #{add_on} — #{e.class}: #{e.message}")
+      []
+    end
 
     def isbn_works(isbn)
       @providers.flat_map do |provider|

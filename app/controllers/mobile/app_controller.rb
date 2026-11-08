@@ -23,6 +23,7 @@ module Mobile
         versionUrl: mobile_snapshot_version_path,
         snapshotUrl: mobile_snapshot_path,
         sqljsWasmUrl: helpers.asset_path("sqljs.wasm"),
+        zxingWasmUrl: helpers.asset_path("zxing_reader.wasm"),
         serviceWorkerUrl: mobile_service_worker_path,
         scope: SCOPE
       }

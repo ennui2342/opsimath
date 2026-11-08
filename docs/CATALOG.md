@@ -828,6 +828,24 @@ Discworld) would mis-tie a Goodreads series. Runs for a book just added
 (BookAddedJob); the nightly run over the whole catalogue waits for a dry
 run (`WorkSeriesSync.plan`) Mark has seen.
 
+**Scanning US mass-markets** (2026-11-08): many US mass-market
+paperbacks carry a retail UPC instead of an ISBN barcode. The UPC names
+only the publisher (digits 2–6) and cover price, shared by every book at
+that price; the 5-digit add-on beside it is digits 5–9 of the ISBN-10.
+Both scanners (web `barcode_scan_controller`, pocket `pocket.js`) read
+through `app/assets/mobile/scan.js` — zxing-cpp in WebAssembly (zxing-wasm
+3.1.6, served from our assets and cached for offline), because the
+browser's BarcodeDetector can't read add-ons (nor exists in Safari). A
+UPC + add-on is searched as "UPC add-on" (`UpcLookup`): isfdb-adapter's
+`/isbn/middle/:digits` gives the printings with that middle, English and
+physical ones kept; there's no published table of UPC publisher codes, so
+`UpcPrefix` learns each one — a scan's candidate ISBN prefixes narrow the
+publisher's until one is left (and the pocket snapshot carries the learnt
+ones). Until then every candidate is offered. If the camera gets the UPC
+but not its add-on in ~3s, the UPC goes in the search box for the five
+digits to be typed. Offline, pocket matches the add-on against the
+snapshot's own ISBNs.
+
 **Author pages list their whole bibliography** (2026-11-08): an
 author linked to ISFDB shows every English book-length title of theirs
 in its own right (no retitlings or translations), grouped Novels /

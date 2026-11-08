@@ -353,3 +353,13 @@ covers being hunted, with uncovered ones folded into one "No listings
 right now" line. Under 3 listings there's no "usual", just the prices.
 Buy-new books say so instead. Snapshots built before this simply lack the
 tables and the block doesn't show.
+
+## Scanning (2026-11-08)
+
+The scanner reads through `scan.js` (zxing-cpp in WebAssembly, shared with
+the web app's scanner), not BarcodeDetector — so it works in Safari too,
+and reads a US mass-market's UPC add-on. `zxing_reader.js` / `.wasm` and
+`scan.js` are in the service worker's shell cache. A UPC + add-on (scanned,
+or typed "UPC add-on") matches the snapshot's ISBNs by their middle digits,
+narrowed by the learnt `upc_prefixes` table (docs/CATALOG.md, "Scanning US
+mass-markets").

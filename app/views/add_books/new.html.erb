@@ -6,7 +6,9 @@
 <div class="w-full max-w-3xl">
   <h1 class="mb-4 text-2xl font-bold">Add a book</h1>
 
-  <%= form_with url: add_book_path, method: :get, class: "mb-6 flex gap-2", data: { controller: "barcode-scan", barcode_scan_secure_url_value: "#{Rails.application.config.x.public_url}#{add_book_path(scan: 1)}",
+  <%= form_with url: add_book_path, method: :get, class: "mb-6 flex gap-2", data: { controller: "barcode-scan",
+                 barcode_scan_scripts_value: [ asset_path("zxing_reader.js"), asset_path("scan.js") ].to_json,
+                 barcode_scan_wasm_url_value: asset_path("zxing_reader.wasm"), barcode_scan_secure_url_value: "#{Rails.application.config.x.public_url}#{add_book_path(scan: 1)}",
                 barcode_scan_autostart_value: params[:scan].present? } do %>
     <input type="search" name="q" value="<%= @query %>" placeholder="Title and author, or an ISBN" autofocus
            aria-label="Title and author, or an ISBN" data-barcode-scan-target="input"
@@ -24,7 +26,12 @@
     </div>
   <% end %>
 
-  <% if @query.present? && @results.empty? %>
+  <% if @query.match?(/\A\d{12}\z/) %>
+    <p class="mb-3 text-sm text-gray-700 dark:text-gray-300">
+      That's a US retail UPC — it names the publisher and price, not the book. Add the five digits printed
+      over the small barcode beside it (e.g. <span class="font-mono"><%= @query %> 30054</span>) and search again.
+    </p>
+  <% elsif @query.present? && @results.empty? %>
     <p class="text-sm text-gray-500 dark:text-gray-400">Nothing found in ISFDB or Open Library for “<%= @query %>”. Try fewer words, or the author's surname with a title word.</p>
   <% end %>
 

@@ -187,6 +187,30 @@
     return row;
   }
 
+  // A US mass-market's retail UPC + 5-digit add-on (docs/CATALOG.md,
+  // "Scanning US mass-markets"): the add-on is digits 5–9 of the ISBN-10,
+  // i.e. characters 8–12 of the 978 ISBN-13; the UPC's publisher code
+  // narrows to its ISBN prefix where opsimath has learnt it (upc_prefixes;
+  // absent from older snapshots). -> the matching ISBN-13s in the snapshot.
+  function isbnsForUpc(upc, addOn) {
+    let prefix = null;
+    try {
+      const p = db.prepare("SELECT prefix FROM upc_prefixes WHERE manufacturer = ?");
+      p.bind([upc.slice(1, 6)]);
+      if (p.step()) prefix = p.getAsObject().prefix;
+      p.free();
+    } catch (_) { /* a snapshot from before upc_prefixes */ }
+    const stmt = db.prepare(
+      "SELECT DISTINCT isbn13 FROM isbn_index WHERE substr(isbn13, 1, 3) = '978' AND substr(isbn13, 8, 5) = ?" +
+      (prefix ? " AND substr(isbn13, 4, 4) = ?" : "")
+    );
+    stmt.bind(prefix ? [addOn, prefix] : [addOn]);
+    const out = [];
+    while (stmt.step()) out.push(stmt.getAsObject().isbn13);
+    stmt.free();
+    return out;
+  }
+
   // A wanted book's prices (docs/MOBILE.md, "Prices"): its target and
   // rule, and each cover the rule offers with its eBay going rate. Absent
   // from snapshots built before 2026-11-03 — then there's nothing to show.
@@ -415,6 +439,21 @@
   }
 
   // A single-ISBN result (from a scan or a typed ISBN): one entry, or NEITHER.
+  // A scanned or typed UPC + add-on: each of Mark's books it could be.
+  function renderUpc(upc, addOn) {
+    const isbns = isbnsForUpc(upc, addOn);
+    const rows = isbns.map((isbn) => [isbn, byIsbn(isbn)]).filter(([, row]) => row);
+    const seen = new Set();
+    const unique = rows.filter(([, row]) => !seen.has(row.id) && seen.add(row.id));
+    if (unique.length === 0) return renderLookup(`UPC ${upc} ${addOn}`, null);
+    clearResults();
+    els.empty.hidden = true;
+    unique.forEach(([isbn, row]) => {
+      const note = row.kind === "work" && !row.matched ? "you own a different edition:" : null;
+      els.results.appendChild(el("entry", entryHtml(row, note, isbn)));
+    });
+  }
+
   function renderLookup(code, row) {
     clearResults();
     els.empty.hidden = true;
@@ -441,6 +480,8 @@
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => {
       const raw = els.q.value.trim();
+      const typedUpc = raw.match(/^(\d{12})\s*\+?\s*(\d{5})$/);
+      if (typedUpc) return renderUpc(typedUpc[1], typedUpc[2]);
       // Only treat the query as an ISBN when it's nothing but ISBN characters —
       // a title with a number in it still goes to text search.
       if (/^[\dXx\s-]+$/.test(raw)) {
@@ -452,15 +493,20 @@
   }
 
   // --- barcode scanner --------------------------------------------
-  let detector = null;
+  // Reads through scan.js (zxing-cpp in WebAssembly, cached for offline),
+  // shared with the web app's scanner: an ISBN, or a US mass-market's UPC
+  // with its 5-digit add-on (docs/CATALOG.md, "Scanning US mass-markets").
+  const ADD_ON_WAIT = 12; // polls (~3s) to wait for an add-on after a bare UPC
   let stream = null;
   let scanPoll = null;
   let scanBusy = false;
+  let bareUpc = null;
 
   async function openScanner() {
     if (!db) return setStatus("no snapshot yet — connect once first", "error");
     try {
-      detector = detector || new window.BarcodeDetector({ formats: ["ean_13", "upc_a"] });
+      window.OpsimathScan.prepare(cfg.zxingWasmUrl);
+      bareUpc = null;
       stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
       els.cam.srcObject = stream;
       await els.cam.play();
@@ -478,20 +524,25 @@
     if (scanBusy || els.scanner.hidden || !els.cam.videoWidth) return;
     scanBusy = true;
     try {
-      const values = (await detector.detect(els.cam)).map((c) => c.rawValue);
-      const ean = values.find((v) => /^\d{13}$/.test(v));
-      const upc = values.find((v) => /^\d{12}$/.test(v));
-      if (ean) {
+      const code = window.OpsimathScan.interpret(await window.OpsimathScan.readFrame(els.cam));
+      if (code && code.kind === "isbn") {
         closeScanner();
         els.q.value = "";
-        renderLookup(ean, byIsbn(ean));
-      } else if (upc) {
-        // A US mass market carrying a publisher retail UPC instead of a
-        // Bookland EAN — the UPC doesn't map to an ISBN, so send them to
-        // the search box.
+        renderLookup(code.isbn, byIsbn(code.isbn));
+      } else if (code && code.kind === "upc" && code.addOn) {
         closeScanner();
-        setStatus("that's a UPC, not an ISBN — type the ISBN from the cover", "error");
-        els.q.focus();
+        els.q.value = "";
+        renderUpc(code.upc, code.addOn);
+      } else {
+        if (code && code.kind === "upc") bareUpc = bareUpc || { upc: code.upc, polls: 0 };
+        if (bareUpc && ++bareUpc.polls > ADD_ON_WAIT) {
+          // The add-on wouldn't read: the UPC into the box, for its five
+          // digits to be typed after it.
+          closeScanner();
+          els.q.value = bareUpc.upc + " ";
+          els.q.focus();
+          setStatus("type the five digits over the small barcode beside the UPC", "error");
+        }
       }
     } catch (_) { /* transient decode errors are normal */ }
     finally { scanBusy = false; }
@@ -542,7 +593,7 @@
     els.status.addEventListener("click", () => sync({ force: true }));
     window.addEventListener("online", () => sync());
 
-    if ("BarcodeDetector" in window && navigator.mediaDevices) {
+    if (window.isSecureContext && navigator.mediaDevices && typeof WebAssembly === "object" && window.OpsimathScan) {
       els.scan.hidden = false;
       els.scan.addEventListener("click", openScanner);
       els.scanclose.addEventListener("click", closeScanner);

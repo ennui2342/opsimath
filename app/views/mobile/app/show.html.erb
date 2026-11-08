@@ -28,12 +28,14 @@
     <video id="cam" playsinline muted></video>
     <div class="reticle"></div>
     <p id="scanhint">point at the barcode</p>
-    <p id="scansub">older US paperbacks carry a UPC, not an ISBN — close and type the number instead</p>
+    <p id="scansub">a US paperback's UPC: hold steady so the small barcode beside it reads too</p>
     <button id="scanclose" type="button" aria-label="close scanner">✕</button>
   </div>
 
   <script>window.__pocket = <%= @config.to_json.html_safe %>;</script>
   <script src="<%= asset_path("sqljs.js") %>"></script>
+  <script src="<%= asset_path("zxing_reader.js") %>"></script>
+  <script src="<%= asset_path("scan.js") %>"></script>
   <script src="<%= asset_path("pocket.js") %>"></script>
 </body>
 </html>
