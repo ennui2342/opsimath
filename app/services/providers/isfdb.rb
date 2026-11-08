@@ -84,7 +84,9 @@ module Providers
         cover_url: ed["cover_url"].to_s.split("|").first.presence, # ISFDB sometimes holds "url|url"
         cover_artist: Array(ed["cover_artists"]).join(", ").presence,
         pub_series_id: ed["_isfdb_pub_series_id"].presence&.to_i, pub_series_name: ed["pub_series"].presence,
-        pub_series_num: ed["pub_series_num"].presence
+        pub_series_num: ed["pub_series_num"].presence,
+        series_id: ed["_isfdb_series_id"].presence&.to_i, series_name: ed["series"].presence,
+        series_num: ed["_isfdb_series_num"].presence&.then { |n| n.to_d.nonzero? } # 0: in the series, unnumbered
       )
     end
   end

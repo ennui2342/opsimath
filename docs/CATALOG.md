@@ -814,6 +814,20 @@ printings looked up and its editions refreshed at once (BookAddedJob), not
 overnight. isfdb-adapter@12e7172 counts ANTHOLOGY and NONFICTION titles as
 books, so anthologies appear in search and get printing lists.
 
+**Series from ISFDB** (2026-11-08, The Snow Queen Cycle): series came
+only from the Goodreads import and Add a book set none — The Snow Queen
+and World's End sat outside their cycle (538 of 2,376 books in a series).
+Each ISFDB printing now keeps its title's story series and number
+(`provider_editions.series_*`; isfdb-adapter@afa1388 adds the name).
+`WorkSeriesSync` files a book in it: the series tied to that ISFDB series
+(`series.isfdb_series_id`), else one of the same name (then tied), else a
+new one, with ISFDB's number (0 = unnumbered). It adds memberships and
+fills empty positions, never changes or removes either. Not matched by the
+series a book's siblings are in — ISFDB's sub-series (Rincewind within
+Discworld) would mis-tie a Goodreads series. Runs for a book just added
+(BookAddedJob); the nightly run over the whole catalogue waits for a dry
+run (`WorkSeriesSync.plan`) Mark has seen.
+
 **Publishers' lines** (built 2026-11-08): each stored ISFDB printing
 keeps its line (`provider_editions.pub_series_id/_name/_num`); the book
 page shows an edition's line ("The Women's Press Science Fiction #2"),

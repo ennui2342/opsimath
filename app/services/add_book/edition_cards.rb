@@ -91,7 +91,8 @@ module AddBook
         Providers::Edition.new(provider: r.provider, id: r.provider_id, title: r.title, isbn13: r.isbn13, isbn10: r.isbn10,
                                publisher: r.publisher, binding: r.binding, publish_date: r.publish_date, language: r.language,
                                page_count: r.page_count, cover_url: r.cover_url, cover_artist: r.cover_artist,
-                               pub_series_id: r.pub_series_id, pub_series_name: r.pub_series_name, pub_series_num: r.pub_series_num)
+                               pub_series_id: r.pub_series_id, pub_series_name: r.pub_series_name, pub_series_num: r.pub_series_num,
+                               series_id: r.series_id, series_name: r.series_name, series_num: r.series_num)
       end
     end
   end

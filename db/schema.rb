@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_08_160000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_08_170000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -325,6 +325,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_160000) do
     t.integer "pub_series_id"
     t.string "pub_series_name"
     t.string "pub_series_num"
+    t.integer "series_id"
+    t.string "series_name"
+    t.decimal "series_num"
     t.index ["isbn13"], name: "index_provider_editions_on_isbn13"
     t.index ["pub_series_id"], name: "index_provider_editions_on_pub_series_id"
     t.index ["work_id", "provider", "provider_id"], name: "idx_on_work_id_provider_provider_id_93ac77baa6", unique: true
@@ -370,6 +373,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_160000) do
     t.string "status", default: "ongoing", null: false
     t.integer "total_count"
     t.datetime "updated_at", null: false
+    t.integer "isfdb_series_id"
+    t.index ["isfdb_series_id"], name: "index_series_on_isfdb_series_id", unique: true
   end
 
   create_table "series_arcs", force: :cascade do |t|

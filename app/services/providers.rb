@@ -16,9 +16,11 @@
 module Providers
   # One edition as a provider knows it — the shape ProviderEdition stores.
   # pub_series_*: the publisher's line it's in (ISFDB publication series).
+  # series_*: its title's story series (The Snow Queen Cycle) and number.
   Edition = Struct.new(:provider, :id, :work_id, :title, :isbn13, :isbn10, :publisher, :binding,
                        :publish_date, :language, :page_count, :cover_url, :cover_artist,
-                       :pub_series_id, :pub_series_name, :pub_series_num, keyword_init: true) do
+                       :pub_series_id, :pub_series_name, :pub_series_num,
+                       :series_id, :series_name, :series_num, keyword_init: true) do
     def isbn = isbn13.presence || (isbn10.presence && Isbn.to_13(isbn10))
   end
 
