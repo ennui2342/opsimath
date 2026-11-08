@@ -15,8 +15,12 @@ class KnownEditionsRefresh
   # second apart, so one thread; a first pass over the catalogue takes a
   # few nights, after which only due works are fetched.
   SETTINGS = {
-    "isfdb" => { pool_size: 6, deadline: 15.minutes, max_age: 7.days },
-    "openlibrary" => { pool_size: 1, deadline: 30.minutes, max_age: 30.days }
+    # refetch_before: printings fetched before then are fetched again —
+    # every work due once more, over as many nights as it takes (ISFDB:
+    # isfdb-adapter began naming each printing's series and line, and
+    # counting anthologies as books, 2026-11-08). Self-expiring.
+    "isfdb" => { pool_size: 6, deadline: 15.minutes, max_age: 7.days, refetch_before: Time.utc(2026, 11, 8, 15) },
+    "openlibrary" => { pool_size: 1, deadline: 30.minutes, max_age: 30.days, refetch_before: nil }
   }.freeze
   # A book a provider hasn't found is asked again weekly whatever its
   # max_age — so one a provider adds later is picked up then.
@@ -28,6 +32,9 @@ class KnownEditionsRefresh
   # is newer. 2026-11-03 title + author matching; 2026-11-08 ISFDB's single
   # publication for anthologies, nonfiction and magazines.
   TITLE_FALLBACK_SINCE = Time.utc(2026, 11, 8, 12).freeze
+  # Printings fetched before isfdb-adapter named each printing's series
+  # (and its line, and counted anthologies as books) are fetched again:
+  # every ISFDB work is due once more, over as many nights as it takes.
   UPDATED_COLUMNS = %i[isbn13 isbn10 title publisher binding publish_date language page_count cover_url cover_artist
                        pub_series_id pub_series_name pub_series_num series_id series_name series_num updated_at].freeze
 
@@ -56,7 +63,7 @@ class KnownEditionsRefresh
   def initialize(provider:, **overrides)
     @provider = provider
     settings = SETTINGS.fetch(provider.name).merge(overrides)
-    @pool_size, @deadline, @max_age = settings.values_at(:pool_size, :deadline, :max_age)
+    @pool_size, @deadline, @max_age, @refetch_before = settings.values_at(:pool_size, :deadline, :max_age, :refetch_before)
     @id_type = provider.class::WORK_ID_TYPE
   end
 
@@ -69,7 +76,8 @@ class KnownEditionsRefresh
     due = works.select do |w|
       r = refreshes[w.id]
       r.nil? || r.refreshed_at < @max_age.ago || r.queried_isbns.sort != isbns_by_id[w.id].sort ||
-        (!found.include?(w.id) && (r.refreshed_at < UNLINKED_RETRY.ago || r.refreshed_at < TITLE_FALLBACK_SINCE))
+        (!found.include?(w.id) && (r.refreshed_at < UNLINKED_RETRY.ago || r.refreshed_at < TITLE_FALLBACK_SINCE)) ||
+        (@refetch_before && r.refreshed_at < @refetch_before)
     end
 
     fetched = Concurrent::Hash.new

@@ -32,7 +32,7 @@ class KnownEditionsRefreshTest < ActiveSupport::TestCase
                              cover_url: "https://covers.test/#{id}.jpg" }.merge(overrides))
   end
 
-  def refresh(provider) = KnownEditionsRefresh.new(provider:).run
+  def refresh(provider, **) = KnownEditionsRefresh.new(provider:, refetch_before: nil, **).run
 
   test "stores the provider's editions and its id for the work, and when it asked" do
     provider = FakeProvider.new("9780765304674" => [ "1911", [ ed("1"), ed("2", binding: "pb", isbn13: "9780765343895") ] ])
@@ -143,5 +143,15 @@ class KnownEditionsRefreshTest < ActiveSupport::TestCase
     event = CatalogueEvent.find_by!(kind: "new_printings")
     assert_equal 1, event.details["count"]
     assert_match(/1 new printing in ISFDB \(Tor #{recent}\)/, event.summary)
+  end
+
+  test "printings fetched before refetch_before are fetched again" do
+    work = Work.create!(title: "The Snow Queen", literary_form: "novel")
+    ProviderEditionRefresh.create!(work:, provider: "isfdb", refreshed_at: 1.hour.ago, queried_isbns: [])
+    ProviderEdition.create!(work:, provider: "isfdb", provider_id: "1")
+    provider = Providers::Isfdb.new
+
+    before = KnownEditionsRefresh.new(provider:, refetch_before: 2.hours.ago, deadline: 0.seconds).run.due
+    assert_equal before + 1, KnownEditionsRefresh.new(provider:, refetch_before: Time.current, deadline: 0.seconds).run.due
   end
 end

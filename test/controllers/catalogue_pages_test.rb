@@ -45,4 +45,15 @@ class CataloguePagesTest < ActionDispatch::IntegrationTest
     assert_equal [ "Neuromancer", "Count Zero" ], css_select("ul li span.block.font-medium").map(&:text)
     assert_match "as Ace Books (1), Ace (1)", response.body.gsub(/\s+/, " ")
   end
+
+  test "remove a book from its page" do
+    work = Work.create!(title: "Books of Blood Volume 1", literary_form: "collection")
+    get work_url(work)
+    assert_select "form[action=?] button", work_path(work), text: "Remove this book"
+
+    delete work_url(work)
+
+    assert_redirected_to works_path
+    assert_not Work.exists?(work.id)
+  end
 end

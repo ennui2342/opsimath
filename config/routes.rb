@@ -5,7 +5,7 @@ Rails.application.routes.draw do
 
   # The book page is catalogue management (docs/CATALOG.md, build step 5):
   # the reading log, copies, and whether it's wanted.
-  resources :works, only: [ :index, :show ] do
+  resources :works, only: [ :index, :show, :destroy ] do
     resources :readings, only: [ :create, :update, :destroy ]
     # An edition's status / purchase details, or deleting a mistaken one.
     resources :editions, only: [ :destroy ] do

@@ -111,5 +111,27 @@
     <% end %>
   <% end %>
 
+  <%# Removing the book entirely: a duplicate or a mistake (WorkRemoval). %>
+  <details class="mt-10 border-t border-gray-200 pt-3 text-sm dark:border-gray-800">
+    <summary class="cursor-pointer text-gray-500 hover:underline dark:text-gray-400">Remove this book from the catalogue…</summary>
+    <% candidates = WorkRemoval.candidates(@work) %>
+    <% has_history = @work.readings.any? || @work.reviews.any? %>
+    <%= form_with url: work_path(@work), method: :delete, class: "mt-3 flex flex-wrap items-end gap-2",
+                  data: { turbo_confirm: "Remove “#{@work.title}” and its #{pluralize(@work.editions.size, 'edition')} entirely? This is for a duplicate or a mistake — if you sold or gave it away, change its edition's status instead." } do %>
+      <p class="w-full text-gray-600 dark:text-gray-400">
+        For a duplicate or a book added by mistake: the book and its <%= pluralize(@work.editions.size, "edition") %> go entirely.
+        If you sold or gave it away, change its edition's status instead.
+      </p>
+      <% if has_history %>
+        <label><span class="mb-1 block text-xs text-gray-500 dark:text-gray-400">Its <%= [ (pluralize(@work.readings.size, "reading") if @work.readings.any?), (pluralize(@work.reviews.size, "review") if @work.reviews.any?) ].compact.join(" and ") %></span>
+          <select name="move_to" class="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-900">
+            <% candidates.each do |other| %><option value="<%= other.id %>">Move to “<%= other.title %>”</option><% end %>
+            <% unless @work.reviews.any? %><option value="delete">Delete them too</option><% end %>
+          </select></label>
+      <% end %>
+      <button type="submit" class="rounded-md border border-conflict-800 px-3 py-1.5 text-sm font-medium text-conflict-800 hover:bg-gray-50 dark:border-conflict-200 dark:text-conflict-200 dark:hover:bg-gray-800">Remove this book</button>
+    <% end %>
+  </details>
+
   <%= link_to "Back to books", works_path, class: "mt-8 inline-block text-sm text-gray-500 hover:underline dark:text-gray-400" %>
 </div>

@@ -42,4 +42,14 @@ class WorksController < ApplicationController
                                 .where("payload->>'entity_id' IN (?)", @work.editions.map { |e| e.id.to_s }.presence || [ "" ])
                                 .order(:created_at).group_by { |d| d.payload["entity_id"].to_i }
   end
+
+  # Removing a book entirely — a duplicate or a mistake (WorkRemoval).
+  def destroy
+    work = Work.find(params[:id])
+    move_to = Work.find(params[:move_to]) if params[:move_to].present? && params[:move_to] != "delete"
+    WorkRemoval.run(work, move_to:)
+    redirect_to(move_to ? work_path(move_to) : works_path, notice: "Removed “#{work.title}” from the catalogue.")
+  rescue WorkRemoval::Refused => e
+    redirect_to work_path(work), alert: e.message
+  end
 end

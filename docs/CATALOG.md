@@ -828,6 +828,14 @@ Discworld) would mis-tie a Goodreads series. Runs for a book just added
 (BookAddedJob); the nightly run over the whole catalogue waits for a dry
 run (`WorkSeriesSync.plan`) Mark has seen.
 
+**Removing a book** (2026-11-08, two Books of Blood): "Remove this book
+from the catalogue…" at the foot of the book page (WorkRemoval) deletes
+the work and its editions — for a duplicate or a mistake; getting rid of
+a copy stays a status change. An edition another book shares only loses
+its link. Readings and reviews move to another book by the same author,
+or readings are deleted; a book with reviews must move them — a review is
+never deleted with its book. Queued decisions close as moot.
+
 **Series pages** (2026-11-08): a series tied to ISFDB (or whose books'
 printings all name one ISFDB series) lists every book-length title ISFDB
 files there (isfdb-adapter `/series/:id/volumes`, cached a day; other
