@@ -28,4 +28,22 @@ class ArtistsControllerTest < ActionDispatch::IntegrationTest
 
     assert_select "a[href=?]", artist_path(name: "Peter Elson"), text: "Peter Elson"
   end
+
+  test "their other covers on books you have, and wanting just that cover" do
+    @mine.provider_editions.create!(provider: "isfdb", provider_id: "70", binding: "pb", publisher: "Panther", publish_date: "1976",
+                                    cover_artist: "Peter Elson", cover_url: "https://covers.test/70.jpg")
+    @mine.provider_editions.create!(provider: "isfdb", provider_id: "71", binding: "pb", publisher: "Panther", publish_date: "1978",
+                                    cover_artist: "Peter Elson", cover_url: "https://covers.test/70.jpg") # same scan: one tile
+    @mine.provider_editions.create!(provider: "isfdb", provider_id: "72", binding: "pb", publisher: "SFBC", cover_artist: "Peter Elson") # book club: no
+
+    get artist_url(name: "Peter Elson")
+    assert_select "h2", text: "Their covers on books you have"
+    assert_select "form[action=?]", artist_want_cover_path, count: 1
+
+    post artist_want_cover_url, params: { work_id: @mine.id, name: "Peter Elson", pub_ids: %w[70 71] }
+
+    assert_redirected_to artist_path(name: "Peter Elson")
+    assert_equal [ 70, 71 ], @mine.reload.want.printing_override_ids
+    assert_equal "Wanted the Peter Elson cover of Pacific Edge", CatalogueEvent.last.summary
+  end
 end

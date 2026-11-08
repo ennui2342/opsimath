@@ -29,6 +29,7 @@ Rails.application.routes.draw do
   resources :series, only: [ :show ]
   get "publisher", to: "publishers#show", as: :publisher
   get "artist", to: "artists#show", as: :artist
+  post "artist/want_cover", to: "artists#want_cover", as: :artist_want_cover
 
   resources :wishlist_items, path: "wishlist", only: [ :index, :show, :update ] do
     # One cover in or out of the chosen set, from a find card.

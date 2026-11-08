@@ -786,7 +786,10 @@ it's what Mark collects as a set and would want as a whole. isfdb-adapter
 **Cover artist pages** (`/artist?name=`), since Mark collects for the
 covers: a grid of his covers by the artist (owned or not, linked to the
 book), their covers on books he wants (linked to bargain hunting), and
-whether they're a favourite. Keyed by name — cover artists are names on
+whether they're a favourite, and their covers on books he *has* but
+isn't hunting — other printings, one tile per distinct scan, each with
+**Want this cover**: the book onto the wishlist hunting just those
+printings (`printing_override_ids`), an upgrade hunt. Keyed by name — cover artists are names on
 editions, shared credits ("A, B") split. Linked from edition cards,
 bargain-hunting cover cards and finds.
 
