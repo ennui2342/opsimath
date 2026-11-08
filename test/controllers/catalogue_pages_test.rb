@@ -25,11 +25,13 @@ class CataloguePagesTest < ActionDispatch::IntegrationTest
     assert_select "a[href=?]", publisher_path(name: "Ace Books"), text: "Ace Books"
   end
 
-  test "an author's page lists their books in publication order with statuses" do
+  test "an author's page lists the books Mark owns first, then the rest, each by date" do
     get author_url(@gibson)
 
     assert_select "h1", "William Gibson"
-    assert_equal [ "Neuromancer", "Count Zero", "Mona Lisa Overdrive" ], css_select("ul li .block.font-medium").map(&:text)
+    assert_select "h2", text: "Your books"
+    assert_equal [ "Neuromancer", "Mona Lisa Overdrive", "Count Zero" ], css_select("ul li .block.font-medium").map(&:text)
+    assert_no_match "Not in your catalogue", response.body
     assert_match "3 books · 2 owned", response.body
   end
 

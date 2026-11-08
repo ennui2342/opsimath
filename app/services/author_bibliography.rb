@@ -37,7 +37,10 @@ class AuthorBibliography
     self
   end
 
-  def by_kind = entries.group_by(&:type).sort_by { |type, _| KINDS.keys.index(type) || 99 }
+  # The page: Mark's own books first, by date; then the rest by kind.
+  def owned = entries.select { |e| e.status == :owned }
+
+  def by_kind = entries.reject { |e| e.status == :owned }.group_by(&:type).sort_by { |type, _| KINDS.keys.index(type) || 99 }
 
   def missing = entries.select { |e| %i[missing catalogued].include?(e.status) }
 

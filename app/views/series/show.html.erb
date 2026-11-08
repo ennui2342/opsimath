@@ -1,6 +1,5 @@
 <% content_for :title, @series.name %>
 <% entries = @volumes.entries %>
-<% badges = ApplicationHelper::WORK_STATUS_BADGES %>
 <% small = "rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600" %>
 
 <div class="w-full max-w-3xl">
@@ -32,36 +31,14 @@
   <ul class="mt-6 divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
     <% entries.each do |e| %>
       <% excluded = @series_want && e.title_id && @series_want.excluded?(e.title_id) %>
-      <li class="flex items-center justify-between gap-4 px-4 py-3 <%= "opacity-60" if e.status == :missing %>">
-        <span class="flex min-w-0 items-baseline gap-3">
-          <span class="w-10 flex-none text-right text-xs tabular-nums text-gray-400 dark:text-gray-500"><%= "##{format('%g', e.position)}" if e.position %></span>
-          <span class="min-w-0">
-            <% if e.work %>
-              <%= link_to e.title, work_path(e.work), class: "block truncate font-medium text-gray-900 hover:underline dark:text-gray-100" %>
-            <% else %>
-              <span class="block truncate font-medium text-gray-900 dark:text-gray-100"><%= e.title %></span>
-            <% end %>
-            <span class="block truncate text-xs text-gray-500 dark:text-gray-400"><%= [ e.authors.join(", ").presence, e.year ].compact.join(" · ") %></span>
-          </span>
-        </span>
-        <span class="flex flex-none flex-wrap items-center justify-end gap-1">
-          <% if e.work %>
-            <% e.work.statuses.each do |s| %><%= render Ui::BadgeComponent.new(text: badges[s].first, variant: badges[s].last) %><% end %>
-          <% else %>
-            <%= render Ui::BadgeComponent.new(text: excluded ? "Not collecting" : "Not in your catalogue") %>
-          <% end %>
-          <% if %i[missing catalogued].include?(e.status) && e.title_id %>
-            <% unless excluded %>
-              <%= button_to "Want it", want_volume_series_path(@series), params: { title_id: e.title_id }, class: small %>
-              <%= link_to "Add", add_book_path(q: [ e.title, e.authors.first ].compact.join(" ")), class: small %>
-            <% end %>
-            <% if @series_want %>
-              <%= button_to excluded ? "Collect again" : "Not this one", (excluded ? include_series_path(@series) : exclude_series_path(@series)),
-                            params: { title_id: e.title_id }, class: "text-xs text-gray-500 hover:underline dark:text-gray-400" %>
-            <% end %>
-          <% end %>
-        </span>
-      </li>
+      <% extra = if @series_want && e.title_id && %i[missing catalogued].include?(e.status)
+                   button_to(excluded ? "Collect again" : "Not this one", (excluded ? include_series_path(@series) : exclude_series_path(@series)),
+                             params: { title_id: e.title_id }, class: "text-xs text-gray-500 hover:underline dark:text-gray-400")
+                 end %>
+      <%= render "shared/catalogue_entry", entry: e, number: ("##{format('%g', e.position)}" if e.position),
+                 detail: [ e.authors.join(", ").presence, e.year, ("not collecting" if excluded) ].compact.join(" · "),
+                 want_url: want_volume_series_path(@series), want_params: { title_id: e.title_id }, excluded:, extra:,
+                 add_query: [ e.title, e.authors.first ].compact.join(" ") %>
     <% end %>
   </ul>
 
