@@ -64,7 +64,7 @@ module Mobile
         { work_contributors: :contributor },
         { work_series: :series },
         { want: { work: [ :provider_editions, :ebay_listings, { work_contributors: :contributor } ] } },
-        { editions: [ :edition_identifiers, :copies, :readings, { cover_image_attachment: :blob } ] }
+        :readings, { editions: [ :edition_identifiers, :copies, :readings, { cover_image_attachment: :blob } ] }
       )
     end
 
@@ -120,7 +120,7 @@ module Mobile
       work.editions
           .select { |e| e.copies.any? }
           .sort_by { |e| [ owned?(e) ? 0 : 1, e.id ] }
-          .map { |edition| build_edition(edition) }
+          .map { |edition| build_edition(edition, work) }
     end
 
     def owned?(edition) = edition.copies.any? { |c| c.disposition == "owned" }
@@ -139,16 +139,19 @@ module Mobile
     # Reading yet, since every edition reaching here already has a copy
     # (editions_of filters to that), unlike the web component's bare
     # catalogue-only nil case.
-    def reading_status_of(edition)
-      statuses = edition.readings.map(&:status)
+    # The book's reading status, not the edition's (EditionCardComponent
+    # #reading_badge — the web card's twin): TBR only on an owned edition
+    # of a book never read; nil otherwise.
+    def reading_status_of(edition, work)
+      statuses = work.readings.map(&:status)
       return "reading" if statuses.intersect?(%w[reading paused])
       return "read" if statuses.include?("completed")
       return "dnf" if statuses.include?("dnf")
 
-      "tbr"
+      "tbr" if owned?(edition)
     end
 
-    def build_edition(edition)
+    def build_edition(edition, work)
       ids = edition.edition_identifiers.each_with_object({}) { |i, h| h[i.id_type] = i.value }
 
       Edition.new(
@@ -160,7 +163,7 @@ module Mobile
         page_count: edition.page_count,
         disposition: disposition_of(edition),
         cover_artist: edition.cover_artist.presence,
-        reading_status: reading_status_of(edition),
+        reading_status: reading_status_of(edition, work),
         isbn10: ids["isbn10"],
         isbn13: ids["isbn13"],
         isfdb: ids["isfdb"],

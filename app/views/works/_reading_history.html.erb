@@ -1,7 +1,10 @@
-<%# Every read, newest first — each correctable, or deletable with a confirmation. %>
+<%# Every read, newest first — each correctable, or deletable with a
+    confirmation. A reading is of the book; each shows the cover of the
+    edition it was read in (where cards show Read for the book — Mark,
+    2026-11-08), its dates and rating, and its review's opening. The
+    status is spelt out only when it isn't a finished read. %>
 <% field = "rounded-md border border-gray-300 px-2 py-1 text-sm focus:ring-2 focus:ring-green-600 dark:border-gray-700 dark:bg-gray-900" %>
 <% label = "mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" %>
-<% variant = ->(r) { r.completed? ? :info : (r.open? ? :accent : :default) } %>
 <% statuses = { "reading" => "Reading", "paused" => "Paused", "completed" => "Read", "dnf" => "Did not finish" } %>
 <% readings = work.readings.sort_by { |r| [ r.date_started || r.date_finished || Date.new(1), r.id ] }.reverse %>
 
@@ -11,12 +14,24 @@
     <% readings.each do |reading| %>
       <li class="px-4 py-3 text-sm">
         <details>
-          <summary class="flex cursor-pointer items-center justify-between gap-3">
-            <span>
-              <%= render(Ui::BadgeComponent.new(text: statuses.fetch(reading.status, reading.status), variant: variant.(reading))) %>
-              <%= reading.date_started %> &ndash; <%= reading.date_finished %>
+          <summary class="flex cursor-pointer gap-3">
+            <% edition = reading.edition %>
+            <% if edition&.cover_image&.attached? %>
+              <%= image_tag edition.cover_image.variant(:thumb), alt: "", class: "h-16 w-11 flex-none rounded object-cover" %>
+            <% else %>
+              <span class="flex h-16 w-11 flex-none items-center justify-center rounded border border-dashed border-gray-300 text-center text-[9px] leading-tight text-gray-400 dark:border-gray-600 dark:text-gray-500">No cover</span>
+            <% end %>
+            <span class="min-w-0 flex-1">
+              <span class="block text-gray-900 dark:text-gray-100">
+                <%= [ reading.date_started, reading.date_finished ].compact.uniq.join(" – ").presence || "No dates" %>
+                <% unless reading.completed? %><span class="text-gray-500 dark:text-gray-400">· <%= reading.open? ? "Reading now" : statuses.fetch(reading.status, reading.status) %></span><% end %>
+                <% if reading.rating %><span class="text-gray-500 dark:text-gray-400">· <%= "#{reading.rating.to_i}★" %></span><% end %>
+              </span>
+              <% if edition %><span class="block text-xs text-gray-500 dark:text-gray-400"><%= CatalogueEvent.edition_label(edition) %></span><% end %>
+              <% if (review = reading.reviews.first) %>
+                <span class="mt-1 block text-xs text-gray-600 dark:text-gray-300"><%= truncate(strip_tags(Kramdown::Document.new(review.text.to_s).to_html).squish, length: 160) %></span>
+              <% end %>
             </span>
-            <span class="text-gray-500 dark:text-gray-400"><%= reading.rating ? "#{reading.rating.to_i}★" : nil %></span>
           </summary>
           <%= form_with model: [ work, reading ], method: :patch, class: "mt-3 flex flex-wrap items-end gap-2" do |f| %>
             <label><span class="<%= label %>">Status</span><%= f.select :status, statuses.invert, {}, class: field %></label>

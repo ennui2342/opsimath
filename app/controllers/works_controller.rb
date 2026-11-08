@@ -37,7 +37,7 @@ class WorksController < ApplicationController
 
   def show
     @work = Work.includes(
-      :want, { work_contributors: :contributor }, { readings: :edition }, :reviews,
+      :want, { work_contributors: :contributor }, { readings: [ :reviews, { edition: { cover_image_attachment: :blob } } ] }, :reviews,
       :provider_editions,
       editions: [ :edition_identifiers, :copies, { cover_image_attachment: :blob }, { enrichment_records: { cover_image_attachment: :blob } } ]
     ).find(params[:id])

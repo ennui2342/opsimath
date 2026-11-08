@@ -77,13 +77,12 @@ module Ui
       assert_equal [ "Owned", :success ], card(edition).ownership_badge
     end
 
-    test "reading_badge: open (or paused) beats completed beats dnf, and TBR when there's a copy/reading but no completed status" do
-      work = Work.create!(title: "T", literary_form: "novel")
-
+    test "reading_badge, the book's: open (or paused) beats completed beats dnf, and TBR on an owned edition of an unread book" do
       owned_unread = Edition.create!
       Copy.create!(edition: owned_unread, disposition: "owned")
       assert_equal [ "TBR", :default ], card(owned_unread).reading_badge
 
+      work = Work.create!(title: "T", literary_form: "novel")
       mid_reread = Edition.create!
       EditionContent.create!(work:, edition: mid_reread)
       Copy.create!(edition: mid_reread, disposition: "owned")
@@ -91,12 +90,14 @@ module Ui
       Reading.create!(work:, edition: mid_reread, status: "reading", source: "owned_copy")
       assert_equal [ "Reading", :accent ], card(mid_reread).reading_badge
 
+      work = Work.create!(title: "U", literary_form: "novel")
       finished = Edition.create!
       EditionContent.create!(work:, edition: finished)
       Copy.create!(edition: finished, disposition: "owned")
       Reading.create!(work:, edition: finished, status: "completed", source: "owned_copy")
       assert_equal [ "Read", :info ], card(finished).reading_badge
 
+      work = Work.create!(title: "V", literary_form: "novel")
       abandoned = Edition.create!
       EditionContent.create!(work:, edition: abandoned)
       Copy.create!(edition: abandoned, disposition: "owned")

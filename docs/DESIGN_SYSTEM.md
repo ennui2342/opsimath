@@ -146,11 +146,17 @@ shape:
   other: `ownership_badge` (`Owned` `:success` for an edition with an
   owned `Copy`, else the retired disposition `:default` from
   `Copy::DISPOSITION_LABELS`, nil for a catalogue-only edition) and
-  `reading_badge` (`Reading` `:accent` for an open or paused `Reading`,
-  else `Read` `:info` for any completed one, else `DNF` `:default`, else
-  `TBR` `:default` — nil only when the edition has *neither* a copy nor a
-  reading, so a bare
-  never-owned alternate doesn't claim a false "TBR" intent).
+  `reading_badge` — **the book's reading, not the edition's** (Mark,
+  2026-11-08: "have I read the work, not have I read that particular
+  edition"; every edition card of a read book says Read, whichever
+  edition it was read in): `Reading` `:accent` for an open or paused
+  `Reading` of the book, else `Read` `:info` for any completed one, else
+  `DNF` `:default`, else `TBR` `:default` only on an edition Mark owns —
+  not a sold one or a catalogue-only alternate. The pocket app's
+  `Mobile::ShopView#reading_status_of` follows the same rule. Which
+  edition a reading was in shows in the book page's **reading history**:
+  that edition's cover, the dates, rating and the review's opening, with
+  the status spelt out only when it isn't a finished read.
 - **`detail_line`** (muted, was the old top line) — `format_line` (as
   before: `format_detail` → `format` → `"Edition"`) plus the ISFDB cover
   artist when known (`Edition#cover_artist`, joined `"First, Second"` for

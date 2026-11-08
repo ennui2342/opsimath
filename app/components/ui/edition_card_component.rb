@@ -114,12 +114,14 @@ module Ui
       [ Copy::DISPOSITION_LABELS.fetch(dispositions.first, dispositions.first.humanize), :default ]
     end
 
-    # [label, variant] for where this edition stands in your reading —
-    # nil when there's genuinely nothing to say (a catalogue-only
-    # alternate you've never owned or read; showing "TBR" there would
-    # claim an intent you don't have). An open (or paused) reading wins
-    # over a past completed one, which wins over a DNF; with a copy or a
-    # reading on file but none of those, it's TBR.
+    # [label, variant] for where the *book* stands in Mark's reading — not
+    # this edition (Mark, 2026-11-08: "have I read the work, not have I
+    # read that particular edition"): every edition card of a book he's
+    # read says Read, whichever edition he read it in; the reading
+    # history shows which. An open (or paused) reading wins over a
+    # completed one, which wins over a DNF; a book never read is TBR only
+    # on an edition he owns (not on a sold one, nor a catalogue-only
+    # alternate — that would claim an intent he doesn't have).
     #
     # :accent (Reading) / :info (Read) — deliberately not :default/:success:
     # this is a reading fact, not an ownership one, and :success is
@@ -127,14 +129,12 @@ module Ui
     # visually right next to each other on the same card. DNF/TBR stay
     # :default (nothing currently happening).
     def reading_badge
-      return nil if @edition.copies.empty? && @edition.readings.empty?
-
-      statuses = @edition.readings.map(&:status)
+      statuses = (@work ? @work.readings : @edition.readings).map(&:status)
       return [ "Reading", :accent ] if statuses.intersect?(%w[reading paused])
       return [ "Read", :info ] if statuses.include?("completed")
       return [ "DNF", :default ] if statuses.include?("dnf")
 
-      [ "TBR", :default ]
+      [ "TBR", :default ] if @edition.copies.any?(&:owned?)
     end
 
     # The mono footer, split into two rows so it wraps cleanly:

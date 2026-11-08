@@ -47,5 +47,21 @@ module Ui
       assert_selector "[data-card=edition] [data-card]", count: 0
       assert_equal 1, page.native.css("body > [data-card]").size
     end
+  test "reading status is the book's: Read on every edition, whichever was read; TBR only on an owned edition of an unread book" do
+      other = Edition.create!(publisher: "Signet", publish_date: "1985")
+      EditionContent.create!(work: @work, edition: other)
+      Copy.create!(edition: other, disposition: "sold")
+      work = Work.includes(:readings, editions: :copies).find(@work.id)
+
+      render_inline(EditionCardComponent.new(edition: @edition, size: :row, work:))
+      assert_selector "span", text: "TBR"
+      render_inline(EditionCardComponent.new(edition: other, size: :row, work:))
+      assert_no_selector "span", text: "TBR" # sold: no intent to read it
+
+      Reading.create!(work: @work, edition: other, status: "completed")
+      work = Work.includes(:readings, editions: :copies).find(@work.id)
+      render_inline(EditionCardComponent.new(edition: @edition, size: :row, work:))
+      assert_selector "span", text: "Read" # read in the other edition
+    end
   end
 end

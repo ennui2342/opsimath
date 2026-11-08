@@ -71,25 +71,26 @@ module Mobile
       assert_equal %w[owned replaced], eds.map(&:disposition)
     end
 
-    test "reading_status: an open reading beats a past completed read, which beats dnf, which beats the tbr default" do
-      work = Work.create!(title: "Statuses", literary_form: "novel")
-      reading_ed = Edition.create!(publisher: "A")
-      read_ed = Edition.create!(publisher: "B")
-      dnf_ed = Edition.create!(publisher: "C")
-      tbr_ed = Edition.create!(publisher: "D")
-      [ reading_ed, read_ed, dnf_ed, tbr_ed ].each do |e|
-        EditionContent.create!(work:, edition: e)
-        Copy.create!(edition: e, disposition: "owned")
+    test "reading_status is the book's, on every edition: open beats completed beats dnf; tbr only on an owned edition of an unread book" do
+      book = lambda do |title, *statuses|
+        work = Work.create!(title:, literary_form: "novel")
+        [ "#{title} A", "#{title} B" ].each do |publisher|
+          e = Edition.create!(publisher:)
+          EditionContent.create!(work:, edition: e)
+          Copy.create!(edition: e, disposition: "owned")
+        end
+        statuses.each { |s| Reading.create!(work:, edition: work.editions.first, status: s) }
       end
-      Reading.create!(work:, edition: reading_ed, status: "reading")
-      Reading.create!(work:, edition: read_ed, status: "completed")
-      Reading.create!(work:, edition: dnf_ed, status: "dnf")
+      book.("Reading", "completed", "reading")
+      book.("Read", "completed", "dnf")
+      book.("Dnf", "dnf")
+      book.("Tbr")
 
-      by_publisher = entries.sole.editions.index_by(&:publisher)
-      assert_equal "reading", by_publisher["A"].reading_status
-      assert_equal "read", by_publisher["B"].reading_status
-      assert_equal "dnf", by_publisher["C"].reading_status
-      assert_equal "tbr", by_publisher["D"].reading_status
+      by_publisher = entries.flat_map(&:editions).index_by(&:publisher)
+      assert_equal %w[reading reading], [ by_publisher["Reading A"].reading_status, by_publisher["Reading B"].reading_status ]
+      assert_equal %w[read read], [ by_publisher["Read A"].reading_status, by_publisher["Read B"].reading_status ]
+      assert_equal "dnf", by_publisher["Dnf B"].reading_status
+      assert_equal "tbr", by_publisher["Tbr A"].reading_status
     end
 
     test "an edition read but not owned (a Copy-less unowned read) does not surface" do
