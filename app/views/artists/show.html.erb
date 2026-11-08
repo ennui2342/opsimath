@@ -1,0 +1,59 @@
+<% content_for :title, @name %>
+<% owned = @editions.count { |e| EditionHolding.status(e) == "owned" } %>
+
+<div class="w-full max-w-5xl">
+  <p class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Cover artist</p>
+  <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">
+    <% if @favourite %><span title="One of your favourite artists" class="text-amber-500 dark:text-amber-400">★</span><% end %>
+    <%= @name %>
+  </h1>
+  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+    <%= pluralize(@editions.size, "cover") %> in your catalogue · <%= owned %> owned<%= " · a favourite artist" if @favourite %>
+    · <%= link_to "Collecting settings", settings_collecting_profile_path, class: "hover:underline" %>
+  </p>
+
+  <h2 class="mb-3 mt-6 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">Your covers</h2>
+  <% if @editions.empty? %>
+    <p class="text-sm text-gray-500 dark:text-gray-400">None in your catalogue yet.</p>
+  <% else %>
+    <div class="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+      <% @editions.each do |edition| %>
+        <% work = edition.works.first %>
+        <% status = EditionHolding.status(edition) %>
+        <%= link_to (work ? work_path(work) : "#"), class: "group block text-xs" do %>
+          <div class="flex aspect-[2/3] items-center justify-center overflow-hidden rounded border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900">
+            <% if edition.cover_image.attached? %>
+              <%= image_tag edition.cover_image.variant(:thumb), alt: "", loading: "lazy", class: "h-full w-full object-cover" %>
+            <% else %>
+              <span class="px-1 text-center text-gray-400">No cover</span>
+            <% end %>
+          </div>
+          <span class="mt-1 block truncate font-medium text-gray-900 group-hover:underline dark:text-gray-100"><%= work&.title %></span>
+          <span class="block truncate text-gray-500 dark:text-gray-400"><%= [ edition.publisher, edition.publish_date.to_s[0, 4].presence ].compact.join(" ") %><%= " · #{EditionHolding::STATUSES.fetch(status).downcase}" unless status == "owned" %></span>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <% if @wishlist.any? %>
+    <h2 class="mb-3 mt-8 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">Their covers on your wishlist</h2>
+    <div class="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+      <% @wishlist.each do |want, printings| %>
+        <% printing = printings.find { |p| p.cover_url.present? } || printings.first %>
+        <%= link_to wishlist_item_path(want), class: "group block text-xs" do %>
+          <div class="flex aspect-[2/3] items-center justify-center overflow-hidden rounded border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900">
+            <% if printing.cover_url.present? %>
+              <%= image_tag printing.cover_url, alt: "", loading: "lazy", class: "h-full w-full object-cover" %>
+            <% else %>
+              <span class="px-1 text-center text-gray-400">No cover image</span>
+            <% end %>
+          </div>
+          <span class="mt-1 block truncate font-medium text-gray-900 group-hover:underline dark:text-gray-100"><%= want.title %></span>
+          <span class="block truncate text-gray-500 dark:text-gray-400"><%= printings.map { |p| [ p.publisher.to_s.split(" / ").first, p.year ].compact.join(" ") }.uniq.first(2).join(", ") %></span>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%= link_to "Back to books", works_path, class: "mt-8 inline-block text-sm text-gray-500 hover:underline dark:text-gray-400" %>
+</div>

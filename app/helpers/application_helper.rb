@@ -23,6 +23,12 @@ module ApplicationHelper
     end
   end
 
+  # Cover artists' names, each linked to their page ("A, B" credits split).
+  def artist_links(names, **link_options)
+    names = Array(names).flat_map { |n| n.to_s.split(", ") }.map(&:strip).compact_blank
+    safe_join(names.map { |n| link_to(n, artist_path(name: n), class: "hover:underline", **link_options) }, ", ")
+  end
+
   # Where the review screen's actions go: the queue (optionally one kind),
   # or back to the book page it was opened from.
   def decision_params(kind_filter) = { kind: kind_filter, work_id: params[:work_id] }.compact

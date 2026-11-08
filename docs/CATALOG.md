@@ -783,8 +783,23 @@ it's what Mark collects as a set and would want as a whole. isfdb-adapter
 39814fc returns each printing's line and number and `GET /pubseries/{id}`
 (deploy task ed9d4f02); line pages, and wanting a line, follow.
 
-Data note: the Goodreads import recorded some cover artists as authors
-(*Slan* — van Vogt, Chris Foss), so they get author pages too.
+**Cover artist pages** (`/artist?name=`), since Mark collects for the
+covers: a grid of his covers by the artist (owned or not, linked to the
+book), their covers on books he wants (linked to bargain hunting), and
+whether they're a favourite. Keyed by name — cover artists are names on
+editions, shared credits ("A, B") split. Linked from edition cards,
+bargain-hunting cover cards and finds.
+
+Data note, fixed 2026-11-08: the Goodreads import recorded cover artists
+as co-authors (*Slan* — van Vogt, Chris Foss). `MisfiledArtistCleanup`
+moved 103 such credits off books: 85 ISFDB credits with that book's
+cover, 18 known cover artists who are never a lead author (Keith
+Roberts, who also wrote, left alone); the name moved to the edition's
+cover artist where that was empty; artists left with no books removed.
+
+The publication-series adapter deploy (39814fc) was reverted: the mirror
+lacked the `pub_series` table (refresh.py's import allowlist); 6f7182f
+adds it and lets the adapter cope until the re-import.
 
 ## #catalogue: what changed, on Discord (2026-11-07)
 

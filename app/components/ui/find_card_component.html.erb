@@ -12,7 +12,7 @@
       <%= link_to find.want.title, helpers.wishlist_item_path(find.want), class: "block truncate font-medium hover:underline" %>
       <p class="truncate text-xs text-gray-500 dark:text-gray-400">
         <% if find.favourite? %><span title="Favourite artist" class="text-amber-500 dark:text-amber-400">★</span><% end %>
-        <%= artist_line %> · <%= find.cover.summary %>
+        <%= find.cover.artists.any? ? helpers.artist_links(find.cover.artists) : artist_line %> · <%= find.cover.summary %>
       </p>
       <p class="mt-1 font-medium"><%= price_line %></p>
       <p class="text-xs <%= find.reason == :target ? "text-green-700 dark:text-green-400" : "text-gray-600 dark:text-gray-400" %>"><%= reason_line %></p>

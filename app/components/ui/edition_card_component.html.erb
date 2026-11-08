@@ -44,7 +44,7 @@
     <% end %>
 
     <% if detail_line.present? %>
-      <p class="text-sm text-gray-500 dark:text-gray-400"><%= detail_line %></p>
+      <p class="text-sm text-gray-500 dark:text-gray-400"><%= @publisher_url && artist ? helpers.safe_join([ format_line, " · ", helpers.artist_links(artist) ]) : detail_line %></p>
     <% end %>
 
     <% if isbn_identifiers.any? || link_identifiers.any? %>
