@@ -533,12 +533,11 @@
         els.q.value = "";
         renderLookup(confirmed.isbn, byIsbn(confirmed.isbn));
       } else if (confirmed && confirmed.kind === "upc") {
-        // The add-on can read wrong (55010 as 25011, 2026-11-08): into the
-        // box to be checked against the printed digits, then searched.
+        // Searched at once (HD video, two matching reads); what was read stays
+        // in the box, so a wrong add-on can be corrected and searched again.
         closeScanner();
         els.q.value = confirmed.upc + " " + confirmed.addOn;
-        els.q.focus();
-        setStatus("check the five digits against those over the small barcode, then search", "error");
+        renderUpc(confirmed.upc, confirmed.addOn);
       } else {
         if (code && code.kind === "upc") bareUpc = bareUpc || { upc: code.upc, polls: 0 };
         if (bareUpc && ++bareUpc.polls > ADD_ON_WAIT) {
