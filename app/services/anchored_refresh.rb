@@ -1,8 +1,10 @@
 # Keeps each edition up to date from the printing it's anchored to
 # (docs/CATALOG.md, "Anchored editions", build step 3). An edition's anchor
-# is its ISFDB publication, else its Open Library edition — an `isfdb` /
-# `openlibrary` EditionIdentifier — or, for one with neither, the single
-# known printing its ISBN identifies. The anchor's record is read from
+# is its ISFDB publication — an `isfdb` EditionIdentifier, else the single
+# ISFDB printing its ISBN identifies, even for an edition already on Open
+# Library (ISFDB is the trusted source: a book added from Open Library
+# moves to ISFDB once ISFDB's printing is known — Continuum 4, 2026-11-08)
+# — else its Open Library edition, by identifier or a unique ISBN. The anchor's record is read from
 # ProviderEdition (KnownEditionsRefresh keeps it current), so this makes no
 # network calls.
 #
@@ -132,20 +134,25 @@ class AnchoredRefresh
     EditionPlan.new(**base, anchor_status: status, anchor:, fields:, secondary: secondary_fills(edition, anchor, known, fields))
   end
 
+  # Per provider, most trusted first: its identifier, else a unique ISBN
+  # match. Two ISFDB printings on one ISBN is a question for Mark (the
+  # printing choice), so it's :ambiguous — unless the edition is already
+  # on Open Library, which then stays its anchor meanwhile.
   def find_anchor(edition, known)
     ids = edition.edition_identifiers.select { |i| ANCHOR_TYPES.include?(i.id_type) }
+    isbn = isbn_of(edition)
+    on_open_library = ids.any? { |i| i.id_type == "openlibrary" }
     ANCHOR_TYPES.each do |provider|
-      id = ids.find { |i| i.id_type == provider }&.value or next
-      row = known.find { |r| r.provider == provider && r.provider_id == id }
-      return [ :anchored, row ] if row
-      return [ :missing_record, nil ] if provider == "isfdb" # linked, but its record isn't on file yet
-    end
+      if (id = ids.find { |i| i.id_type == provider }&.value)
+        row = known.find { |r| r.provider == provider && r.provider_id == id }
+        return [ :anchored, row ] if row
+        return [ :missing_record, nil ] if provider == "isfdb" # linked, but its record isn't on file yet
+      end
+      next unless isbn
 
-    isbn = isbn_of(edition) or return [ :unanchored, nil ]
-    ANCHOR_TYPES.each do |provider|
       matches = known.select { |r| r.provider == provider && r.isbn == isbn }
       return [ :by_isbn, matches.first ] if matches.one?
-      return [ :ambiguous, nil ] if matches.size > 1 && provider == "isfdb"
+      return [ :ambiguous, nil ] if matches.size > 1 && provider == "isfdb" && !on_open_library
     end
     [ :unanchored, nil ]
   end

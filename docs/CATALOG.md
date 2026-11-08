@@ -805,6 +805,15 @@ cover, 18 known cover artists who are never a lead author (Keith
 Roberts, who also wrote, left alone); the name moved to the edition's
 cover artist where that was empty; artists left with no books removed.
 
+**ISFDB outranks an Open Library link** (2026-11-08, Continuum 4): an
+edition's anchor is its ISFDB identifier, else the single ISFDB printing
+its ISBN identifies — even when it's already on Open Library, since ISFDB
+is the trusted source — else Open Library. Two ISFDB printings on one ISBN
+leave an Open Library edition where it is. A book just added has its
+printings looked up and its editions refreshed at once (BookAddedJob), not
+overnight. isfdb-adapter@12e7172 counts ANTHOLOGY and NONFICTION titles as
+books, so anthologies appear in search and get printing lists.
+
 **Publishers' lines** (built 2026-11-08): each stored ISFDB printing
 keeps its line (`provider_editions.pub_series_id/_name/_num`); the book
 page shows an edition's line ("The Women's Press Science Fiction #2"),

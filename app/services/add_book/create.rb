@@ -49,6 +49,7 @@ module AddBook
         end
         work.want&.retire!(keep: work) if own
         CatalogueEvent.record(kind: "added", work:, summary: added_summary(work, edition, own:, replaces:, reading:))
+        ActiveRecord.after_all_transactions_commit { BookAddedJob.perform_later(work.id) }
         [ work, edition ]
       end
     end

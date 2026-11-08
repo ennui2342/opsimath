@@ -37,6 +37,20 @@ class AnchoredRefreshTest < ActiveSupport::TestCase
     assert_equal :ambiguous, AnchoredRefresh.plan(Edition.where(id: @edition.id).includes(:edition_identifiers, works: :provider_editions)).sole.anchor_status
   end
 
+  test "on Open Library, but ISFDB has its printing: ISFDB becomes the anchor and its values win" do
+    ol = @work.provider_editions.create!(provider: "openlibrary", provider_id: "OL9M", isbn13: "9780340228654", publisher: "Hodder")
+    @edition.edition_identifiers.create!(id_type: "openlibrary", value: ol.provider_id)
+    @edition.update!(cover_artist: nil, field_sources: { "publisher" => "openlibrary" })
+
+    p = plan
+    assert_equal [ :by_isbn, "isfdb" ], [ p.anchor_status, p.anchor.provider ]
+    assert_equal :fill, action(p, :cover_artist)
+    assert_equal :replace, action(p, :publisher)
+
+    @work.provider_editions.create!(provider: "isfdb", provider_id: "43", isbn13: "9780340228654", publisher: "Coronet Books")
+    assert_equal [ :anchored, "openlibrary" ], [ plan.anchor_status, plan.anchor.provider ] # two ISFDB printings: stays on Open Library
+  end
+
   test "an edition whose printing is in question is held" do
     PendingDecision.create!(kind: "enrichment_printing_choice", payload: { entity_type: "Edition", entity_id: @edition.id, source: "isfdb", candidates: [] })
 
