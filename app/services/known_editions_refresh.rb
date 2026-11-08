@@ -141,8 +141,11 @@ class KnownEditionsRefresh
     Providers::KnownEditions.new(work_ids: matches.map(&:id), editions: editions.uniq(&:id))
   end
 
+  def collecting = @collecting ||= CollectingProfile.current
+
   def newsworthy?(printing, wanted)
-    return false unless printing.physical? && !printing.book_club?
+    return false unless printing.physical?
+    return false if printing.book_club? && collecting.exclude_book_clubs
 
     wanted || (printing.year.present? && printing.year >= Date.current.year - 1)
   end

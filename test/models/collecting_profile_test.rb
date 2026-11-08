@@ -51,6 +51,15 @@ class CollectingProfileTest < ActiveSupport::TestCase
     assert_equal :buy_new, CollectingProfile.new(recent_years: 50, buy_new_for_living_authors: false).verdict(@item.reload).rule
   end
 
+  test "book club editions are left out while the setting says so" do
+    dead!
+    club = printing(1, "pb", "1980", "SFBC")
+    assert_not @profile.verdict(@item).wanted?(club)
+
+    @profile.exclude_book_clubs = false
+    assert @profile.verdict(@item).wanted?(club)
+  end
+
   test "no A-format and a recent book: buy new, even if the author has died" do
     dead!
     printing(1, "hc", (Date.current.year - 2).to_s)

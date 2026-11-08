@@ -16,7 +16,7 @@
 # - A book ISFDB has no printings for is hunted unless its author is
 #   alive or unknown — then it's buy new — with every listing's printing
 #   unknown.
-# - Book club editions are never wanted.
+# - Book club editions are never wanted, while exclude_book_clubs is on.
 #
 # An author ISFDB can't identify counts as living: the default leans
 # towards paying the author.
@@ -42,7 +42,7 @@ class CollectingProfile < ApplicationRecord
       return verdict.(:override, printings.select { |p| want.printing_override_ids.include?(p.isfdb_pub_id) })
     end
 
-    eligible = printings.reject(&:book_club?)
+    eligible = exclude_book_clubs ? printings.reject(&:book_club?) : printings
     a_formats = eligible.select(&:a_format?)
     return verdict.(:a_format, a_formats) if a_formats.any?
     return verdict.(:buy_new) if buy_new?(want, first_year)
@@ -54,11 +54,11 @@ class CollectingProfile < ApplicationRecord
 
   # The printings a book's covers are offered from — the bargain-hunting
   # cover picker and the artist page show the same set: the rule's
-  # candidates by default, or with `all_formats:` every physical printing
-  # (hardbacks, trade paperbacks…). Book club editions are never offered.
+  # candidates by default (every setting applied), or with `all_formats:`
+  # every physical printing, settings aside — book clubs included.
   # `want` may be unsaved (Want.new(work:)) for a book not on the wishlist.
   def offered_printings(want, all_formats: false, printings: want.printings)
-    return printings.reject(&:book_club?) if all_formats
+    return printings if all_formats
 
     verdict(want, printings, ignore_override: true).wanted
   end

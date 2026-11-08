@@ -691,3 +691,7 @@ dates beyond ISFDB. `collecting_profiles.buy_new_for_living_authors`
 (default on, `/settings/collecting`): off, a book with no A-format is buy
 new only when first published within `recent_years`; everything older is
 hunted, whatever the author's status.
+
+Book club editions likewise (2026-11-08): `exclude_book_clubs` (default
+on) instead of a hard-coded rule. "Show all formats" on the bargain and
+artist pages is the view with no settings applied — book clubs included.

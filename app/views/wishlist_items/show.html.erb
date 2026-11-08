@@ -16,7 +16,7 @@
   <% toggle = "text-sm text-green-700 hover:underline dark:text-green-400" %>
   <p class="mb-3 text-sm text-gray-500 dark:text-gray-400">
     <% if @view.all_formats %>
-      Every physical printing's cover (book club editions aside).
+      Every physical printing's cover, your settings aside.
       <%= link_to "Show just your collecting rule's covers", wishlist_item_path(@view.want), class: toggle %>
     <% else %>
       The covers your collecting rule offers.

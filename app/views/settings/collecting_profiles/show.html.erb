@@ -21,6 +21,12 @@
                class="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-2 focus:ring-green-600 dark:border-gray-600 dark:bg-gray-800">
         …or whenever the author is alive (ISFDB's dates)
       </label>
+      <label class="flex items-center gap-2 self-center text-sm">
+        <input type="hidden" name="exclude_book_clubs" value="0">
+        <input type="checkbox" name="exclude_book_clubs" value="1" <%= "checked" if @profile.exclude_book_clubs %>
+               class="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-2 focus:ring-green-600 dark:border-gray-600 dark:bg-gray-800">
+        Never want book club editions
+      </label>
       <label class="text-sm">
         <span class="<%= label %>">Favourite artist from (owned covers)</span>
         <input type="number" name="favourite_artist_min_owned" min="1" value="<%= @profile.favourite_artist_min_owned %>" class="w-24 <%= input %>">
