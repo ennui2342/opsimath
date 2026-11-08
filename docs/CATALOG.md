@@ -805,6 +805,23 @@ cover, 18 known cover artists who are never a lead author (Keith
 Roberts, who also wrote, left alone); the name moved to the edition's
 cover artist where that was empty; artists left with no books removed.
 
+**Publishers' lines** (built 2026-11-08): each stored ISFDB printing
+keeps its line (`provider_editions.pub_series_id/_name/_num`); the book
+page shows an edition's line ("The Women's Press Science Fiction #2"),
+linking to `/lines/:id` — every number in the line (isfdb-adapter
+`/pubseries`, cached a day), each marked Yours / Another edition /
+Wanted / Missing, missing ones linking to Add a book. **Collecting a
+line** is a `LineWant` record, synced on creation and nightly at 02:30
+(`LineWants::Sync`): every number that isn't Mark's printing — including
+a book he has in another edition — and isn't excluded becomes a want
+hunting that printing (`printing_override_ids`), a book not yet
+catalogued being added from its ISFDB title. A want of Mark's own keeps
+its covers and gains the printing; wants the line made remember it
+(`wants.line_want_id`), so "Stop collecting" removes only those. "Not
+this one" sticks (`excluded_pub_ids`). Sync waits for the full line —
+never a partial list — so it starts after the mirror re-import that
+brings line names.
+
 The publication-series adapter deploy (39814fc) was reverted: the mirror
 lacked the `pub_series` table (refresh.py's import allowlist); 6f7182f
 adds it and lets the adapter cope until the re-import.

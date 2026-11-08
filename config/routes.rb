@@ -29,6 +29,15 @@ Rails.application.routes.draw do
   resources :series, only: [ :show ]
   get "publisher", to: "publishers#show", as: :publisher
   get "artist", to: "artists#show", as: :artist
+  # Publishers' lines (ISFDB publication series), and collecting one.
+  resources :lines, only: [ :show ] do
+    member do
+      post :collect
+      delete :collect, action: :stop
+      post :exclude
+      post :include
+    end
+  end
   post "artist/want_cover", to: "artists#want_cover", as: :artist_want_cover
 
   resources :wishlist_items, path: "wishlist", only: [ :index, :show, :update ] do

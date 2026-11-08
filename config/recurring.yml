@@ -20,6 +20,10 @@ production:
   #   class: GoodreadsSyncJob
   #   queue: default
   #   schedule: every hour at minute 42
+  line_wants:
+    class: LineWantsJob
+    queue: default
+    schedule: every day at 2:30am
   work_known_editions_refresh:
     class: WorkKnownEditionsRefreshJob
     queue: default

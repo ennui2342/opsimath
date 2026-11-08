@@ -28,7 +28,8 @@ class KnownEditionsRefresh
   # is newer. 2026-11-03 title + author matching; 2026-11-08 ISFDB's single
   # publication for anthologies, nonfiction and magazines.
   TITLE_FALLBACK_SINCE = Time.utc(2026, 11, 8, 12).freeze
-  UPDATED_COLUMNS = %i[isbn13 isbn10 title publisher binding publish_date language page_count cover_url cover_artist updated_at].freeze
+  UPDATED_COLUMNS = %i[isbn13 isbn10 title publisher binding publish_date language page_count cover_url cover_artist
+                       pub_series_id pub_series_name pub_series_num updated_at].freeze
 
   Result = Struct.new(:provider, :works, :due, :refreshed, :truncated, keyword_init: true) do
     def to_s = "#{provider}: works=#{works} due=#{due} refreshed=#{refreshed}#{' TRUNCATED' if truncated}"
@@ -204,6 +205,7 @@ class KnownEditionsRefresh
       isbn13: edition.isbn13, isbn10: edition.isbn10, title: edition.title, publisher: edition.publisher,
       binding: edition.binding, publish_date: edition.publish_date, language: edition.language,
       page_count: edition.page_count, cover_url: edition.cover_url, cover_artist: edition.cover_artist,
+      pub_series_id: edition.pub_series_id, pub_series_name: edition.pub_series_name, pub_series_num: edition.pub_series_num,
       created_at: now, updated_at: now
     }
   end

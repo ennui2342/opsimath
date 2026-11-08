@@ -11,6 +11,8 @@ class Want < ApplicationRecord
   include HasCoverThumbnail
 
   belongs_to :work
+  # The line want that created this want, if one did (LineWants::Sync).
+  belongs_to :line_want, optional: true
 
   validates :work_id, uniqueness: true
 

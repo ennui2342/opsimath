@@ -1,0 +1,56 @@
+<% content_for :title, @line.name %>
+<% labels = { yours: [ "Yours", :success ], other_edition: [ "Another edition", :info ], wanted: [ "Wanted", :default ], missing: [ "Missing", :default ] } %>
+
+<div class="w-full max-w-5xl">
+  <p class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Publisher's line</p>
+  <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100"><%= @line.name %></h1>
+  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+    <%= @line.owned_count %> of <%= pluralize(@line.entries.size, "printing") %> yours
+    · <%= link_to "ISFDB", "https://www.isfdb.org/cgi-bin/pubseries.cgi?#{@line.id}", target: "_blank", rel: "noopener", class: "hover:underline" %>
+  </p>
+  <div class="mt-3 flex flex-wrap items-center gap-3 text-sm">
+    <% if @line_want %>
+      <span class="text-gray-700 dark:text-gray-300">Collecting this line<%= " · last checked #{time_ago_in_words(@line_want.synced_at)} ago" if @line_want.synced_at %></span>
+      <%= button_to "Stop collecting", collect_line_path(@line.id), method: :delete,
+                    form: { data: { turbo_confirm: "Stop collecting #{@line.name}? The wants it added go; books you wanted anyway stay." } },
+                    class: "rounded-md bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600" %>
+    <% else %>
+      <%= button_to "Collect this line", collect_line_path(@line.id), method: :post,
+                    class: "rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600" %>
+      <span class="text-xs text-gray-500 dark:text-gray-400">Wants every number you don't have, in this line's printing — and any added to the line later.</span>
+    <% end %>
+  </div>
+  <% unless @line.complete %>
+    <p class="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+      Showing only the printings already known for your books — the full line arrives with the next ISFDB mirror refresh.
+    </p>
+  <% end %>
+
+  <div class="mt-6 grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+    <% @line.entries.each do |e| %>
+      <% text, variant = labels.fetch(e.status) %>
+      <div class="text-xs <%= "opacity-60" if e.status == :missing %>">
+        <%= link_to (e.work ? work_path(e.work) : add_book_path(q: [ e.title, e.authors.first ].compact.join(" "))), class: "group block" do %>
+          <div class="relative flex aspect-[2/3] items-center justify-center overflow-hidden rounded border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900">
+            <% if e.cover_url %>
+              <%= image_tag e.cover_url, alt: "", loading: "lazy", class: "h-full w-full object-cover" %>
+            <% else %>
+              <span class="px-1 text-center text-gray-400">No cover image</span>
+            <% end %>
+            <% if e.number %><span class="absolute left-1 top-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">#<%= e.number %></span><% end %>
+          </div>
+          <span class="mt-1 block truncate font-medium text-gray-900 group-hover:underline dark:text-gray-100"><%= e.title %></span>
+        <% end %>
+        <span class="block truncate text-gray-500 dark:text-gray-400"><%= [ e.authors.first, e.year ].compact.join(" · ") %></span>
+        <% excluded = @line_want&.excluded?(e.pub_id) %>
+        <span class="mt-0.5 inline-block"><%= render Ui::BadgeComponent.new(text: excluded ? "Not collecting" : text, variant:) %></span>
+        <% if @line_want && e.status != :yours %>
+          <%= button_to excluded ? "Collect again" : "Not this one", (excluded ? include_line_path(@line.id) : exclude_line_path(@line.id)),
+                        params: { pub_id: e.pub_id }, class: "mt-0.5 block text-[11px] text-gray-500 hover:underline dark:text-gray-400" %>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+
+  <%= link_to "Back to books", works_path, class: "mt-8 inline-block text-sm text-gray-500 hover:underline dark:text-gray-400" %>
+</div>
