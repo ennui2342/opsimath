@@ -62,4 +62,15 @@ class SeriesControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-card]", count: 1
     assert_match "full series appears once it's matched to ISFDB", response.body
   end
+
+  test "two ISFDB titles of the same book in a series list it once" do
+    stub_request(:get, "#{@isfdb}/series/448/volumes").to_return(status: 200, body: [
+      volume(1086, 3, "The Summer Queen"), volume(9999, 0, "The Summer Queen"), volume(1180, 1, "The Snow Queen")
+    ].to_json)
+    Rails.cache.clear
+
+    get series_url(@series)
+
+    assert_equal [ "The Snow Queen", "The Summer Queen" ], css_select("[data-card-title]").map { |t| t.text.strip }
+  end
 end

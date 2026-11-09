@@ -24,7 +24,13 @@ class SeriesVolumes
     # A member not yet linked to its ISFDB title is matched by title.
     @members_by_title = members.map(&:work).group_by { |w| WorkMatcher.key(WorkMatcher.short(w.title.to_s.sub(/\s*\([^()]*\)\s*\z/, ""))) }
     @volume_title_ids = Array(volumes).map { |v| v["external_id"].to_s }
+    # One entry per book: ISFDB can file two titles of the same book in a
+    # series (Succession's two "The Risen Empire", 23644 and 1337737), and
+    # the second would claim Mark's book again by title.
     from_isfdb = Array(volumes).filter_map { |v| from_volume(v) }
+    from_isfdb = from_isfdb.sort_by.with_index { |e, i| [ works_by_title_id.key?(e.title_id.to_s) ? 0 : 1, i ] }
+                           .uniq { |e| e.work ? "work:#{e.work.id}" : "title:#{e.title_id}" }
+                           .sort_by { |e| Array(volumes).index { |v| v["external_id"].to_i == e.title_id } || 0 }
     known = from_isfdb.filter_map(&:work).to_set
     from_catalogue = members.reject { |ws| known.include?(ws.work) }.map do |ws|
       Entry.new(position: ws.position, title: ws.work.title, authors: ws.work.authors.map(&:name), work: ws.work,

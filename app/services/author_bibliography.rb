@@ -27,7 +27,11 @@ class AuthorBibliography
   def load
     catalogue = @author.work_contributors.select { |wc| wc.role == "author" }.map(&:work).uniq
     @catalogue_by_title = catalogue.group_by { |w| title_key(w.title) }
+    # One entry per book: a second ISFDB title of the same book would claim
+    # it again by title — the title-id match wins.
     from_isfdb = Array(@author.isfdb_works).filter_map { |w| from_isfdb(w) }.uniq(&:title_id)
+    from_isfdb = from_isfdb.sort_by.with_index { |e, i| [ works_by_title_id.key?(e.title_id.to_s) ? 0 : 1, i ] }
+                           .uniq { |e| e.work ? "work:#{e.work.id}" : "title:#{e.title_id}" }
     known = from_isfdb.filter_map(&:work).to_set
     rest = catalogue.reject { |w| known.include?(w) }.map do |w|
       Entry.new(title: w.title, type: (w.literary_form.to_s.upcase if KINDS.key?(w.literary_form.to_s.upcase)) || "NOVEL",
