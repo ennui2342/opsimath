@@ -28,6 +28,19 @@
     <div class="col-span-2"><button type="submit" class="<%= secondary %>">Save</button></div>
   <% end %>
 
+  <% if status == "owned" %>
+    <div class="mt-3">
+      <% if BetterCopy.wanted?(work, edition) %>
+        <span class="text-gray-600 dark:text-gray-300">Hunting this edition in better condition —</span>
+        <%= link_to "bargain hunting", wishlist_item_path(work.want), class: "text-green-700 hover:underline dark:text-green-400" %>
+      <% elsif edition.edition_identifiers.any? { |i| i.id_type == "isfdb" } %>
+        <%= button_to "Want this edition in better condition", better_copy_work_edition_path(work, edition), class: secondary %>
+      <% else %>
+        <span class="text-gray-500 dark:text-gray-400">To hunt for this edition in better condition, first link it to its ISFDB printing (below).</span>
+      <% end %>
+    </div>
+  <% end %>
+
   <p class="mt-3"><%= link_to "Not this printing? Choose the right one", edit_work_edition_change_path(work, edition), class: "text-gray-500 hover:underline dark:text-gray-400" %></p>
 
   <% if others.any? %>

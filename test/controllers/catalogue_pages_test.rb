@@ -91,4 +91,18 @@ class CataloguePagesTest < ActionDispatch::IntegrationTest
     assert_not_includes profile.favourite_artists, "Peter Elson"
     assert_equal [ [], [ "Peter Elson" ] ], [ profile.favourite_artists_always, profile.favourite_artists_never ]
   end
+
+  test "an owned edition's panel offers wanting it in better condition, and asking puts that printing on the wishlist" do
+    work = @books.first
+    edition = work.editions.first
+    edition.edition_identifiers.create!(id_type: "isfdb", value: "4242")
+
+    get work_url(work)
+    assert_select "form[action=?] button", better_copy_work_edition_path(work, edition), text: "Want this edition in better condition"
+
+    post better_copy_work_edition_url(work, edition)
+
+    assert_redirected_to work_path(work)
+    assert_equal [ 4242 ], work.reload.want.printing_override_ids
+  end
 end

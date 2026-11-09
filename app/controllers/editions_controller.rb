@@ -10,6 +10,14 @@ class EditionsController < ApplicationController
     redirect_to work_path(@work), notice: "Saved: #{EditionHolding::STATUSES.fetch(EditionHolding.status(@edition.reload)).downcase}."
   end
 
+  # "Want this edition in better condition": this exact printing onto the wishlist (BetterCopy).
+  def better_copy
+    BetterCopy.want(@work, @edition)
+    redirect_to work_path(@work), notice: "On your wishlist: this #{CatalogueEvent.edition_label(@edition)} edition, in better condition."
+  rescue BetterCopy::Refused => e
+    redirect_to work_path(@work), alert: e.message
+  end
+
   def destroy
     move_to = @work.editions.find(params[:move_to]) unless params[:move_to].blank? || params[:move_to] == "delete"
     EditionRemoval.run(@edition, work: @work, move_to:)

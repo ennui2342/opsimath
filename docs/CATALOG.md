@@ -828,6 +828,14 @@ Discworld) would mis-tie a Goodreads series. Runs for a book just added
 (BookAddedJob); the nightly run over the whole catalogue waits for a dry
 run (`WorkSeriesSync.plan`) Mark has seen.
 
+**Wanting an edition in better condition** (2026-11-09): an owned
+edition's panel on the book page has "Want this edition in better
+condition" (BetterCopy): the book onto the wishlist hunting exactly that
+printing (its ISFDB pub id in `printing_override_ids`); a book already
+wanted keeps what it hunts and gains the printing. Needs the edition
+linked to its ISFDB printing. Worded without "copy" — the interface talks
+in editions.
+
 **Scanning US mass-markets** (2026-11-08): many US mass-market
 paperbacks carry a retail UPC instead of an ISBN barcode. The UPC names
 only the publisher (digits 2–6) and cover price, shared by every book at

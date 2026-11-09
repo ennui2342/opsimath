@@ -10,6 +10,7 @@ Rails.application.routes.draw do
     # An edition's status / purchase details, or deleting a mistaken one.
     resources :editions, only: [ :destroy ] do
       patch :holding, on: :member
+      post :better_copy, on: :member # want a nicer copy of exactly this printing
     end
     resource :want, only: [ :create, :destroy ]
     # "Not this edition" (docs/CATALOG.md, build step 7)
