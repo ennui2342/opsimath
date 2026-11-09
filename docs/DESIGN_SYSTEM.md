@@ -301,6 +301,21 @@ series, publisher, artist and line pages. Load `WorksController::CARD_INCLUDES`
 for a list of books. Tests find cards by `[data-card=edition|candidate]`,
 `[data-card-title]` and `[data-card-number]`, not by layout markup.
 
+### Book masthead: `Ui::BookMastheadComponent`
+
+The heading of any page about one book (Mark, 2026-11-09: "whenever we
+want a book masthead, it's from a common component … we can update
+centrally"): the book page, bargain hunting, the pending-decision
+screens, choosing a printing, an eBay listing's printing. Lozenges above
+(`badges:`, [text, variant] pairs: statuses, the hunting rule, a
+decision's kind, or the page's question, "Which edition is this?"); the
+title, linked to the book's page except on that page (`link_title:
+false`); the subtitle; authors then other contributors ("(editor)"),
+each linked to their page, with an author's death year under `died:`;
+the series with numbers, linked. `size: :page` (the book page) or
+`:compact`. The block adds page-specific lines beneath. A book's title
+shown anywhere else links to its page through `work_link`.
+
 ### `Ui::CoverChoiceCardComponent`
 
 One cover in the wishlist cover picker (`wishlist_items/show`,
@@ -506,6 +521,7 @@ amber, and dark mode comes for free.
 
 ## Checklist
 
+- A page about one book heads itself with the book masthead; a book's title anywhere links to its page (`work_link`).
 - A page listing books uses the book cards (full / compressed edition, not-in-catalogue); it doesn't draw its own rows or tiles.
 
 Before a new screen merges:

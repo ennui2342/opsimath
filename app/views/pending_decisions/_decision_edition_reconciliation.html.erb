@@ -1,13 +1,7 @@
 <% work = pending_decision.entity %>
 <% cards = pending_decision.edition_reconciliation_cards %>
-<% authors = work.work_contributors.select { |wc| wc.role == "author" }.map { |wc| wc.contributor.name }.join(", ") %>
 
-<div class="mb-4 flex flex-wrap items-center gap-2">
-  <%= render(Ui::BadgeComponent.new(text: "edition reconciliation", variant: :conflict)) %>
-  <%= render(Ui::BadgeComponent.new(text: pending_decision.shelf, variant: :default)) %>
-</div>
-<h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100"><%= work_link(work) %></h1>
-<p class="mb-4 text-sm text-gray-500 dark:text-gray-400"><%= authors.presence || "Unknown author" %></p>
+<%= render Ui::BookMastheadComponent.new(work:, size: :compact, badges: [ [ "edition reconciliation", :conflict ], [ pending_decision.shelf, :default ] ]) %>
 
 <%= form_with url: resolve_pending_decision_path(pending_decision, **decision_params(kind_filter)), method: :post,
       data: { turbo_stream: true, decision_shortcuts_target: "accept" } do |f| %>

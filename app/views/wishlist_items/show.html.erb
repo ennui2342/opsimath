@@ -3,15 +3,9 @@
 <% rule_labels = { a_format: "A-format", b_format: "B-format", no_paperback: "Any physical copy", unknown_printings: "Any copy (no ISFDB printings)", buy_new: "Buy new", override: "Your choice" } %>
 
 <div class="w-full max-w-5xl">
-  <div class="mb-4 flex flex-wrap gap-2">
-    <%= render Ui::BadgeComponent.new(text: rule_labels.fetch(@view.rule.rule, @view.rule.rule.to_s.humanize),
-                                      variant: @view.hunted? ? :info : :default) %>
-    <% if @view.overridden? %><%= render Ui::BadgeComponent.new(text: "Covers chosen", variant: :accent) %><% end %>
-  </div>
-  <h1 class="text-2xl font-bold"><%= work_link(@view.want.work) %></h1>
-  <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
-    <%= @view.want.author_name %><%= " (d. #{@view.want.author.died_date.first(4)})" if @view.want.author&.died_date %>
-  </p>
+  <%= render Ui::BookMastheadComponent.new(work: @view.want.work, died: true, size: :compact,
+                                           badges: [ [ rule_labels.fetch(@view.rule.rule, @view.rule.rule.to_s.humanize), (@view.hunted? ? :info : :default) ],
+                                                     ([ "Covers chosen", :accent ] if @view.overridden?) ].compact) %>
 
   <% toggle = "text-sm text-green-700 hover:underline dark:text-green-400" %>
   <p class="mb-3 text-sm text-gray-500 dark:text-gray-400">

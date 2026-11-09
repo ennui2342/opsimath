@@ -5,29 +5,8 @@
 <% open_reading = @work.readings.find(&:open?) %>
 
 <div class="w-full max-w-3xl">
-  <div class="mb-1 flex flex-wrap items-center gap-2">
-    <%= render(Ui::BadgeComponent.new(text: @work.literary_form)) %>
-    <% @work.statuses.each do |s| %><%= render(Ui::BadgeComponent.new(text: badge[s].first, variant: badge[s].last)) %><% end %>
-  </div>
-  <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100"><%= @work.title %></h1>
-  <% if @work.subtitle.present? %>
-    <p class="text-lg text-gray-600 dark:text-gray-400"><%= @work.subtitle %></p>
-  <% end %>
-
-  <p class="mt-1 text-gray-700 dark:text-gray-300">
-    <%= safe_join(@work.work_contributors.sort_by { |wc| wc.display_order || Float::INFINITY }.map do |wc|
-          link = link_to(wc.contributor.name, author_path(wc.contributor), class: "hover:underline")
-          wc.role == "author" ? link : safe_join([ link, " (#{wc.role})" ])
-        end, ", ") %>
-  </p>
-
-  <% if @work.work_series.any? %>
-    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-      <% @work.work_series.each do |ws| %>
-        <%= link_to ws.series.name, series_path(ws.series), class: "hover:underline" %><%= " ##{format('%g', ws.position)}" if ws.position %><%= ", " unless ws == @work.work_series.last %>
-      <% end %>
-    </p>
-  <% end %>
+  <%= render Ui::BookMastheadComponent.new(work: @work, link_title: false,
+                                           badges: [ [ @work.literary_form, :default ] ] + @work.statuses.map { |s| badge[s] }) %>
 
   <div class="mt-3 flex flex-wrap gap-2">
     <% @work.genres.each { |g| %><%= render(Ui::BadgeComponent.new(text: g.name)) %><% } %>

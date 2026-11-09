@@ -1,16 +1,10 @@
 <% entity = pending_decision.entity %>
 
-<div class="mb-4">
-  <%= render(Ui::BadgeComponent.new(text: pending_decision.kind, variant: :conflict)) %>
-</div>
-
-<% if entity.is_a?(Edition) %>
-  <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
-    <%= work_links(entity.works, fallback: "Edition ##{entity.id}") %>
-  </h1>
-  <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
-    <%= entity.works.flat_map { |w| w.work_contributors.where(role: "author").map { |wc| wc.contributor.name } }.uniq.join(", ").presence || "Unknown author" %>
-  </p>
+<% if entity.is_a?(Edition) && entity.works.one? %>
+  <%= render Ui::BookMastheadComponent.new(work: entity.works.first, size: :compact, badges: [ [ pending_decision.kind, :conflict ] ]) %>
+<% elsif entity.is_a?(Edition) %>
+  <div class="mb-4"><%= render(Ui::BadgeComponent.new(text: pending_decision.kind, variant: :conflict)) %></div>
+  <h1 class="mb-4 text-2xl font-bold text-gray-900 dark:text-gray-100"><%= work_links(entity.works, fallback: "Edition ##{entity.id}") %></h1>
 <% else %>
   <h1 class="mb-4 text-2xl font-bold text-gray-900 dark:text-gray-100">Unknown entity</h1>
 <% end %>

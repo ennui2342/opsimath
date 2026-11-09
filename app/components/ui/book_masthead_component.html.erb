@@ -1,0 +1,12 @@
+<header class="mb-4" data-masthead>
+  <% if @badges.any? %>
+    <div class="mb-1 flex flex-wrap items-center gap-2">
+      <% @badges.each do |text, variant| %><%= render(Ui::BadgeComponent.new(text:, variant: variant || :default)) %><% end %>
+    </div>
+  <% end %>
+  <h1 class="<%= title_class %>"><%= title_html %></h1>
+  <% if @work.subtitle.present? %><p class="text-lg text-gray-600 dark:text-gray-400"><%= @work.subtitle %></p><% end %>
+  <% if @work.work_contributors.any? %><p class="mt-1 text-gray-700 dark:text-gray-300"><%= contributors_html %></p><% end %>
+  <% if (series = series_html) %><p class="mt-1 text-sm text-gray-500 dark:text-gray-400"><%= series %></p><% end %>
+  <%= content %>
+</header>

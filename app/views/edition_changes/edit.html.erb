@@ -1,9 +1,9 @@
 <% content_for :title, "Which edition is this?" %>
 
 <div class="w-full max-w-5xl">
-  <h1 class="text-2xl font-bold">Which edition is this?</h1>
+  <%= render Ui::BookMastheadComponent.new(work: @work, size: :compact, badges: [ [ "Which edition is this?", :accent ] ]) %>
   <p class="text-sm text-gray-500 dark:text-gray-400">
-    <%= work_link(@work) %> — on file as <%= [ @edition.publisher, @edition.publish_date&.slice(0, 4) ].compact.join(" ").presence || "an unidentified edition" %><%= ", ISBN #{@isbn}" if @isbn %>
+    On file as <%= [ @edition.publisher, @edition.publish_date&.slice(0, 4) ].compact.join(" ").presence || "an unidentified edition" %><%= ", ISBN #{@isbn}" if @isbn %>
     <% if @hidden.positive? %>
       · <%= link_to "#{@hidden} other-language #{'edition'.pluralize(@hidden)} hidden", edit_work_edition_change_path(@work, @edition, all_languages: 1), class: "hover:underline" %>
     <% end %>

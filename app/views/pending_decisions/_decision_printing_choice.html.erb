@@ -1,16 +1,14 @@
 <% entity = pending_decision.entity %>
 <% cards = pending_decision.printing_choice_cards %>
 
-<div class="mb-4 flex flex-wrap items-center gap-2">
-  <%= render(Ui::BadgeComponent.new(text: pending_decision.kind, variant: :conflict)) %>
-</div>
-
-<h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
-  <%= work_links(entity.works, fallback: "Edition ##{entity.id}") %>
-</h1>
-<p class="text-sm text-gray-500 dark:text-gray-400">
-  <%= entity.works.flat_map { |w| w.work_contributors.where(role: "author").map { |wc| wc.contributor.name } }.uniq.join(", ").presence || "Unknown author" %>
-</p>
+<% if entity.works.one? %>
+  <%= render Ui::BookMastheadComponent.new(work: entity.works.first, size: :compact, badges: [ [ pending_decision.kind, :conflict ] ]) %>
+<% else %>
+  <div class="mb-4 flex flex-wrap items-center gap-2">
+    <%= render(Ui::BadgeComponent.new(text: pending_decision.kind, variant: :conflict)) %>
+  </div>
+  <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100"><%= work_links(entity.works, fallback: "Edition ##{entity.id}") %></h1>
+<% end %>
 <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
   ISBN <span class="font-mono"><%= pending_decision.payload["isbn"] %></span>
   <% if cards[:candidates].one? %>

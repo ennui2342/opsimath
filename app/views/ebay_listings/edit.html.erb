@@ -1,8 +1,7 @@
 <% content_for :title, "Which printing?" %>
 
 <div class="w-full max-w-3xl">
-  <h1 class="mb-1 text-2xl font-bold">Which printing is this?</h1>
-  <p class="mb-4 text-sm text-gray-500 dark:text-gray-400"><%= work_link(@listing.work) %> — <%= @listing.work.authors.map(&:name).join(", ") %></p>
+  <%= render Ui::BookMastheadComponent.new(work: @listing.work, size: :compact, badges: [ [ "Which printing is this listing?", :accent ] ]) %>
 
   <div class="mb-4 flex gap-3">
     <% if @listing.image_url %><%= image_tag @listing.image_url, alt: "eBay photo", class: "h-40 w-28 flex-none rounded object-cover" %><% end %>
