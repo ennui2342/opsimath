@@ -55,4 +55,21 @@ class WorkSeriesSyncTest < ActiveSupport::TestCase
 
     assert_equal 0, WorkSeriesSync.run
   end
+
+  test "a series under a shorter name is the same one when all its books are in that ISFDB series; a parent series isn't" do
+    confluence = Series.create!(name: "Confluence")
+    ancients = book("Ancients of Days", series_num: 2, series_name: "The Book of Confluence", series_id: 900)
+    WorkSeries.create!(work: ancients, series: confluence, position: 2)
+    shrine = book("Shrine of Stars", series_num: 3, series_name: "The Book of Confluence", series_id: 900)
+
+    discworld = Series.create!(name: "Discworld")
+    WorkSeries.create!(work: book("Mort", series_num: 1, series_name: "Death", series_id: 50), series: discworld, position: 4)
+    reaper = book("Reaper Man", series_num: 2, series_name: "Death", series_id: 50)
+
+    WorkSeriesSync.run
+
+    assert_equal [ [ confluence.id, 3 ] ], shrine.work_series.reload.map { |ws| [ ws.series_id, ws.position.to_i ] }
+    assert_equal 900, confluence.reload.isfdb_series_id
+    assert_equal [ "Death" ], reaper.work_series.reload.map { |ws| ws.series.name } # its own series, not Discworld
+  end
 end

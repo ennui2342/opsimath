@@ -8,9 +8,11 @@
 # series keeps its position (only an empty one is filled); a series of its
 # own is never removed. The series is the one already tied to that ISFDB
 # series, else one with the same name (a Goodreads-made one, which then
-# gets tied to it), else a new one. Never matched by the series a book's
-# siblings are in: ISFDB files books in sub-series (Rincewind, within
-# Discworld), and its numbers there aren't the parent's.
+# gets tied to it), else one whose name is contained in ISFDB's or the
+# other way round ("Confluence" / "The Book of Confluence") *and* whose
+# books are all in that ISFDB series, else a new one. Never matched by the
+# series a book's siblings are in alone: ISFDB files books in sub-series
+# (Rincewind, within Discworld), and its numbers there aren't the parent's.
 class WorkSeriesSync
   Change = Struct.new(:work, :series_name, :position, :action, keyword_init: true) # action: :add | :position
 
@@ -31,7 +33,7 @@ class WorkSeriesSync
   private
 
   def change_for(work)
-    printing = own_printings(work).find(&:series_id) or return
+    printing = series_printing(work) or return
     series = existing_series(printing)
     return if series.nil? && printing.series_name.blank?
 
@@ -44,7 +46,7 @@ class WorkSeriesSync
 
   def sync(work)
     change = change_for(work) or return false
-    printing = own_printings(work).find(&:series_id)
+    printing = series_printing(work)
     series = existing_series(printing, adopt: true) || Series.create!(name: printing.series_name, isfdb_series_id: printing.series_id)
 
     if change.action == :position
@@ -55,6 +57,11 @@ class WorkSeriesSync
     CatalogueEvent.record(kind: "series", origin: "work_series_sync", work:,
                           summary: "#{CatalogueEvent.title(work)}: in #{series.name}#{" ##{format('%g', printing.series_num)}" if printing.series_num} (from ISFDB)")
     true
+  end
+
+  # The series and number most of the book's own printings give.
+  def series_printing(work)
+    own_printings(work).select(&:series_id).group_by { |p| [ p.series_id, p.series_num ] }.max_by { |_, ps| ps.size }&.last&.first
   end
 
   # The book's own ISFDB printings — not an omnibus's that contains it,
@@ -68,14 +75,35 @@ class WorkSeriesSync
   # tied to it when `adopt:`.
   def existing_series(printing, adopt: false)
     Series.find_by(isfdb_series_id: printing.series_id) ||
-      named(printing.series_name)&.tap { it.update!(isfdb_series_id: printing.series_id) if adopt }
+      (named(printing.series_name) || near_named(printing))&.tap { it.update!(isfdb_series_id: printing.series_id) if adopt }
   end
+
+  # A series whose name is within ISFDB's or holds it, word for word
+  # ("Confluence" / "The Book of Confluence"), every book of which is in
+  # that ISFDB series by its own printings — the same series under a
+  # shorter or longer name, not a parent or a sub-series.
+  def near_named(printing)
+    name = fold(printing.series_name)
+    return if name.blank?
+
+    @unlinked_series ||= Series.where(isfdb_series_id: nil).includes(work_series: { work: :provider_editions }).to_a
+    @unlinked_series.find do |s|
+      next false if s.isfdb_series_id # tied earlier in this run
+      other = fold(s.name)
+      next false if other.blank? || other == name
+      next false unless " #{name} ".include?(" #{other} ") || " #{other} ".include?(" #{name} ")
+
+      works = s.work_series.map(&:work)
+      works.any? && works.all? { |w| series_printing(w)&.series_id == printing.series_id }
+    end
+  end
+
+  def fold(text) = I18n.transliterate(text.to_s).downcase.sub(/\Athe /, "").gsub(/[^a-z0-9]+/, " ").strip
 
   def named(name)
     return if name.blank?
 
-    fold = ->(s) { I18n.transliterate(s.to_s).downcase.sub(/\Athe /, "").gsub(/[^a-z0-9]+/, " ").strip }
     Series.where(isfdb_series_id: nil).where("name ILIKE ?", "%#{Series.sanitize_sql_like(name.sub(/\AThe /i, ''))}%")
-          .find { |s| fold.(s.name) == fold.(name) }
+          .find { |s| fold(s.name) == fold(name) }
   end
 end
