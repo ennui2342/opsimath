@@ -15,9 +15,9 @@ class BetterCopy
     Want.transaction do
       want = work.want
       base = if want.nil? then []
-             elsif want.printing_override_ids.nil? then CollectingProfile.current.verdict(want).wanted.map(&:isfdb_pub_id)
-             else want.printing_override_ids
-             end
+      elsif want.printing_override_ids.nil? then CollectingProfile.current.verdict(want).wanted.map(&:isfdb_pub_id)
+      else want.printing_override_ids
+      end
       want ||= work.create_want!.tap { |w| WantPrintingsJob.perform_later(w.id) }
       return want if base.include?(pub) && !want.printing_override_ids.nil?
 
