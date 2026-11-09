@@ -200,14 +200,24 @@ class AnchoredRefresh
     FieldPlan.new(field: :cover_image, action:, current: taken, proposed: url, source: edition.field_sources["cover_image"])
   end
 
+  # Fields still empty — the cover too, when neither the edition nor its
+  # anchor has one — from other providers' records of the same printing
+  # (same ISBN). Several such records (Open Library often has two for one
+  # ISBN, only one with a cover: Contact, 2026-11-09) fill a field when
+  # every one that has it agrees.
   def secondary_fills(edition, anchor, known, plans)
     still_empty = FIELDS.select { |f| edition.public_send(f).blank? && plans.find { |p| p.field == f }&.proposed.blank? }
+    still_empty << :cover_image if !edition.cover_image.attached? && anchor.cover_url.blank? &&
+                                   plans.find { |p| p.field == :cover_image }&.proposed.blank?
     return [] if still_empty.empty? || anchor.isbn.blank?
 
-    others = known.select { |r| r.provider != anchor.provider && r.isbn == anchor.isbn }
-    return [] unless others.one?
+    others = known.select { |r| r.provider != anchor.provider && r.isbn == anchor.isbn }.map { |r| [ r, proposals(r) ] }
+    still_empty.filter_map do |f|
+      having = others.select { |_, values| values[f].present? }
+      next unless having.map { |_, values| values[f] }.uniq.one?
 
-    values = proposals(others.first)
-    still_empty.filter_map { |f| FieldPlan.new(field: f, action: :secondary_fill, proposed: values[f], source: others.first.provider) if values[f].present? }
+      record, values = having.first
+      FieldPlan.new(field: f, action: :secondary_fill, proposed: values[f], source: record.provider)
+    end
   end
 end

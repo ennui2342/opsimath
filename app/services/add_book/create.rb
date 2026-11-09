@@ -93,8 +93,12 @@ module AddBook
       Enrichment::SourceRecorder.record(entity: edition, provider: primary.provider, external_id: primary.id,
                                         raw_payload: primary.to_h, fields: fields(primary))
       # One record per provider: other printings on the card from the
-      # primary's own provider aren't another source.
-      editions.reject { |e| e.provider == primary.provider }.uniq(&:provider).each do |other|
+      # primary's own provider aren't another source. Of a provider's
+      # several records of the printing, its fullest — the one with a cover
+      # first (Open Library's two records of Contact's Orbit printing: the
+      # card showed one's cover and saved the other, coverless, 2026-11-09).
+      editions.reject { |e| e.provider == primary.provider }.group_by(&:provider).values
+              .map { |records| records.max_by { |e| [ e.cover_url.present? ? 1 : 0, e.to_h.compact.size ] } }.each do |other|
         all = fields(other)
         EnrichmentRecord.find_or_initialize_by(entity: edition, provider: other.provider)
                         .update!(external_id: other.id, fetched_at: Time.current, raw_payload: other.to_h,

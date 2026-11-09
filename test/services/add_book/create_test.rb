@@ -63,6 +63,17 @@ module AddBook
       assert_equal "Added Crossfire: Tor 2003, owned", CatalogueEvent.last.summary
     end
 
+    test "of a provider's several records of the printing, its one with a cover fills the gap (Contact's two Open Library records)" do
+      @card.first.delete("cover_url")
+      @card << { "provider" => "openlibrary", "id" => "OL8998826M", "publisher" => "Tor", "isbn13" => "9780765304674",
+                 "cover_url" => "https://covers.test/ol2.png" }
+
+      _, edition = Create.edition(work: nil, found: @found, card: @card)
+
+      assert edition.cover_image.attached?
+      assert_equal "OL8998826M", edition.enrichment_records.find_by(provider: "openlibrary").external_id
+    end
+
     test "edition with a reading: open, or finished with a date and rating" do
       work, edition = Create.edition(work: nil, found: @found, card: @card,
                                      reading: { status: "completed", date_finished: Date.new(2026, 11, 1), rating: "4" })

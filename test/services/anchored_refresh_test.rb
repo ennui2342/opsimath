@@ -65,6 +65,21 @@ class AnchoredRefreshTest < ActiveSupport::TestCase
     assert_equal [ [ :language, "eng", "openlibrary" ] ], plan.secondary.map { |f| [ f.field, f.proposed, f.source ] }
   end
 
+  test "several records of the printing from another provider fill a field when they agree — the cover included" do
+    @edition.edition_identifiers.create!(id_type: "isfdb", value: "42")
+    @row.update!(language: nil)
+    @work.provider_editions.create!(provider: "openlibrary", provider_id: "OL1M", isbn13: "9780340228654")
+    @work.provider_editions.create!(provider: "openlibrary", provider_id: "OL2M", isbn13: "9780340228654", language: "eng",
+                                    cover_url: "https://covers.openlibrary.org/b/id/908955-L.jpg")
+
+    fills = plan.secondary.to_h { |f| [ f.field, f.proposed ] }
+    assert_equal "eng", fills[:language]
+    assert_equal "https://covers.openlibrary.org/b/id/908955-L.jpg", fills[:cover_image]
+
+    @work.provider_editions.create!(provider: "openlibrary", provider_id: "OL3M", isbn13: "9780340228654", language: "fre")
+    assert_nil plan.secondary.find { |f| f.field == :language } # they disagree: left
+  end
+
   test "Open Library as the anchor fills gaps but doesn't overrule what's there" do
     @row.destroy
     ol = @work.provider_editions.create!(provider: "openlibrary", provider_id: "OL9M", isbn13: "9780340228654",
