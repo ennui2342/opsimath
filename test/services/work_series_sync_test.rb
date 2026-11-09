@@ -60,6 +60,8 @@ class WorkSeriesSyncTest < ActiveSupport::TestCase
     confluence = Series.create!(name: "Confluence")
     ancients = book("Ancients of Days", series_num: 2, series_name: "The Book of Confluence", series_id: 900)
     WorkSeries.create!(work: ancients, series: confluence, position: 2)
+    omnibus = Work.create!(title: "Confluence", literary_form: "omnibus") # in Goodreads' series, in none on ISFDB
+    WorkSeries.create!(work: omnibus, series: confluence)
     shrine = book("Shrine of Stars", series_num: 3, series_name: "The Book of Confluence", series_id: 900)
 
     discworld = Series.create!(name: "Discworld")

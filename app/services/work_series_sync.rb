@@ -79,9 +79,10 @@ class WorkSeriesSync
   end
 
   # A series whose name is within ISFDB's or holds it, word for word
-  # ("Confluence" / "The Book of Confluence"), every book of which is in
-  # that ISFDB series by its own printings — the same series under a
-  # shorter or longer name, not a parent or a sub-series.
+  # ("Confluence" / "The Book of Confluence"), whose books ISFDB files in a
+  # series are all in that one — the same series under a shorter or longer
+  # name, not a parent or a sub-series. A book ISFDB files in none (the
+  # Confluence omnibus) neither counts for nor against.
   def near_named(printing)
     name = fold(printing.series_name)
     return if name.blank?
@@ -93,8 +94,8 @@ class WorkSeriesSync
       next false if other.blank? || other == name
       next false unless " #{name} ".include?(" #{other} ") || " #{other} ".include?(" #{name} ")
 
-      works = s.work_series.map(&:work)
-      works.any? && works.all? { |w| series_printing(w)&.series_id == printing.series_id }
+      ids = s.work_series.filter_map { |ws| series_printing(ws.work)&.series_id }
+      ids.any? && ids.all?(printing.series_id) # books ISFDB files in no series (an omnibus) don't count
     end
   end
 
