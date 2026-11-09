@@ -105,4 +105,12 @@ class CataloguePagesTest < ActionDispatch::IntegrationTest
     assert_redirected_to work_path(work)
     assert_equal [ 4242 ], work.reload.want.printing_override_ids
   end
+
+  test "web pages load the web app's stylesheets, never the pocket app's (its bare header rule broke the masthead)" do
+    get work_url(@books.first)
+
+    hrefs = css_select("link[rel=stylesheet]").map { |l| l["href"] }
+    assert hrefs.any? { |h| h.include?("tailwind") }
+    assert hrefs.none? { |h| h.include?("pocket") }, hrefs.inspect
+  end
 end
