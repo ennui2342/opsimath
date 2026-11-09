@@ -6,7 +6,7 @@
 
 <% if entity.is_a?(Edition) %>
   <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
-    <%= entity.works.map(&:title).join(", ").presence || "Edition ##{entity.id}" %>
+    <%= work_links(entity.works, fallback: "Edition ##{entity.id}") %>
   </h1>
   <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
     <%= entity.works.flat_map { |w| w.work_contributors.where(role: "author").map { |wc| wc.contributor.name } }.uniq.join(", ").presence || "Unknown author" %>

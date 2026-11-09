@@ -41,7 +41,7 @@
       <% @wishlist.each do |want, printings| %>
         <% printing = printings.find { |p| p.cover_url.present? } || printings.first %>
         <%= render Ui::BookCandidateCardComponent.new(size: :tile, title: want.title, authors: want.work.authors.map(&:name), dim: false,
-                                                      cover_url: printing.cover_url.presence, url: wishlist_item_path(want),
+                                                      cover_url: printing.cover_url.presence, url: work_path(want.work),
                                                       detail: printings.map { |p| [ p.publisher.to_s.split(" / ").first, p.year ].compact.join(" ") }.uniq.first(2).join(", ")) %>
       <% end %>
     </div>

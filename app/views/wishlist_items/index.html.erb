@@ -9,21 +9,20 @@
   <ul class="divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
     <% @views.sort_by { |v| [ v.hunted? ? 0 : 1, v.want.title ] }.each do |view| %>
       <% cheapest = view.covers.select(&:chosen).filter_map(&:cheapest).min_by { |l| l.total || Float::INFINITY } %>
-      <li>
-        <%= link_to wishlist_item_path(view.want), class: "flex items-center justify-between gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800" do %>
+      <li class="flex items-center justify-between gap-4 px-4 py-3">
           <span class="min-w-0">
-            <span class="block truncate font-medium"><%= view.want.title %></span>
+            <%= work_link(view.want.work, classes: "block truncate font-medium") %>
             <span class="block truncate text-xs text-gray-500 dark:text-gray-400"><%= view.want.author_name %></span>
           </span>
-          <span class="flex flex-none items-center gap-2">
+          <%= link_to wishlist_item_path(view.want), class: "flex flex-none items-center gap-2 rounded px-2 py-1 hover:bg-gray-50 dark:hover:bg-gray-800", title: "Bargain hunting" do %>
             <% if cheapest&.total %><span class="text-sm font-medium"><%= gbp.(cheapest.total) %></span><% end %>
             <% badge = if !view.hunted? then "Buy new"
                        elsif view.covers.empty? then "Any copy"
                        else "#{view.covers.count(&:chosen)}/#{view.covers.size} covers"
                        end %>
             <%= render Ui::BadgeComponent.new(text: badge, variant: view.hunted? ? :info : :default) %>
-          </span>
-        <% end %>
+            <span aria-hidden="true" class="text-gray-400">›</span>
+          <% end %>
       </li>
     <% end %>
   </ul>

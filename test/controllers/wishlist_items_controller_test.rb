@@ -25,7 +25,8 @@ class WishlistItemsControllerTest < ActionDispatch::IntegrationTest
     get wishlist_items_url
 
     assert_response :success
-    assert_select "a[href=?]", wishlist_item_path(@item), text: /The Birthgrave/
+    assert_select "a[href=?]", work_path(@item.work), text: "The Birthgrave"
+    assert_select "a[href=?]", wishlist_item_path(@item) # price and covers: to bargain hunting
     assert_select "span", text: "2/2 covers"
   end
 
@@ -102,5 +103,13 @@ class WishlistItemsControllerTest < ActionDispatch::IntegrationTest
 
     patch wishlist_item_url(@item), params: { covers: %w[1 2] } # the rule's view, which doesn't show the hardback
     assert_equal [ 1, 2, 3, 5 ], @item.reload.printing_override_ids.sort
+  end
+
+  test "the wishlist and bargain-hunting pages link the book's title to its page" do
+    get wishlist_items_url
+    assert_select "a[href=?]", work_path(@item.work), text: @item.work.title
+
+    get wishlist_item_url(@item)
+    assert_select "h1 a[href=?]", work_path(@item.work)
   end
 end

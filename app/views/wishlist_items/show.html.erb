@@ -8,7 +8,7 @@
                                       variant: @view.hunted? ? :info : :default) %>
     <% if @view.overridden? %><%= render Ui::BadgeComponent.new(text: "Covers chosen", variant: :accent) %><% end %>
   </div>
-  <h1 class="text-2xl font-bold"><%= @view.want.title %></h1>
+  <h1 class="text-2xl font-bold"><%= work_link(@view.want.work) %></h1>
   <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
     <%= @view.want.author_name %><%= " (d. #{@view.want.author.died_date.first(4)})" if @view.want.author&.died_date %>
   </p>

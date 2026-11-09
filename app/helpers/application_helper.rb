@@ -43,4 +43,13 @@ module ApplicationHelper
   def card_button_class
     "inline-flex h-6 items-center rounded bg-gray-200 px-2 text-xs font-medium text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
   end
+
+  # A book's title, linked to its page — wherever a title is shown (Mark,
+  # 2026-11-09). `classes` add to the hover underline.
+  def work_link(work, text = work.title, classes: nil)
+    link_to text, work_path(work), class: [ "hover:underline", classes ].compact.join(" ")
+  end
+
+  # Several books' titles (an omnibus edition's), each linked.
+  def work_links(works, fallback:) = works.any? ? safe_join(works.map { |w| work_link(w) }, ", ") : fallback
 end

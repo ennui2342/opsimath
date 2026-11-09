@@ -9,7 +9,10 @@
       <% end %>
     </div>
     <div class="min-w-0 flex-1 text-sm">
-      <%= link_to find.want.title, helpers.wishlist_item_path(find.want), class: "block truncate font-medium hover:underline" %>
+      <p class="truncate">
+        <%= helpers.work_link(find.want.work, classes: "font-medium") %>
+        · <%= link_to "bargain hunting", helpers.wishlist_item_path(find.want), class: "text-xs text-gray-500 hover:underline dark:text-gray-400" %>
+      </p>
       <p class="truncate text-xs text-gray-500 dark:text-gray-400">
         <% if find.favourite? %><span title="Favourite artist" class="text-amber-500 dark:text-amber-400">★</span><% end %>
         <%= find.cover.artists.any? ? helpers.artist_links(find.cover.artists) : artist_line %> · <%= find.cover.summary %>

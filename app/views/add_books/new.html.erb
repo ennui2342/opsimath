@@ -51,7 +51,7 @@
           <% if result.cover_url %><%= image_tag result.cover_url, alt: "", loading: "lazy", class: "h-full w-full object-contain" %><% end %>
         </div>
         <div class="min-w-0 flex-1 text-sm">
-          <p class="font-medium"><%= result.title %></p>
+          <p class="font-medium"><%= result.work ? work_link(result.work, result.title) : result.title %></p>
           <p class="text-gray-600 dark:text-gray-400"><%= result.authors.join(", ") %><%= " · #{result.first_year}" if result.first_year %></p>
           <p class="text-xs text-gray-400 dark:text-gray-500">
             <%= result.providers.map { |p| provider_labels.fetch(p, p) }.join(" + ") %><%= " · #{pluralize(result.edition_count, 'edition')}" if result.edition_count.positive? %>

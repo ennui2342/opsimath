@@ -20,7 +20,7 @@ class ArtistsControllerTest < ActionDispatch::IntegrationTest
     assert_select "h1", /Peter Elson/
     assert_select "a[href=?]", work_path(@mine), text: /Pacific Edge/
     assert_select "span", text: "Joint Cover"
-    assert_select "a[href=?]", wishlist_item_path(@want), text: /Jizzle/
+    assert_select "a[href=?]", work_path(@want.work), text: /Jizzle/ # a wishlist tile's title goes to the book
   end
 
   test "the book page links an edition's cover artist" do

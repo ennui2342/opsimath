@@ -6,7 +6,7 @@
   <%= render(Ui::BadgeComponent.new(text: "edition reconciliation", variant: :conflict)) %>
   <%= render(Ui::BadgeComponent.new(text: pending_decision.shelf, variant: :default)) %>
 </div>
-<h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100"><%= work.title %></h1>
+<h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100"><%= work_link(work) %></h1>
 <p class="mb-4 text-sm text-gray-500 dark:text-gray-400"><%= authors.presence || "Unknown author" %></p>
 
 <%= form_with url: resolve_pending_decision_path(pending_decision, **decision_params(kind_filter)), method: :post,
