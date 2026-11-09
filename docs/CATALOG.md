@@ -825,8 +825,13 @@ new one, with ISFDB's number (0 = unnumbered). It adds memberships and
 fills empty positions, never changes or removes either. Not matched by the
 series a book's siblings are in — ISFDB's sub-series (Rincewind within
 Discworld) would mis-tie a Goodreads series. Runs for a book just added
-(BookAddedJob); the nightly run over the whole catalogue waits for a dry
-run (`WorkSeriesSync.plan`) Mark has seen.
+(BookAddedJob), and nightly over the whole catalogue after the 02:40
+printing refresh (Mark approved the dry run, 2026-11-09: 443 books, 96
+into existing series, 347 into 242 new ones). A series also matches by a
+near name — one holding the other word for word ("Confluence" / "The
+Book of Confluence") with its books in that ISFDB series (books ISFDB
+files in none don't count). The digest reports filings as a count and a
+sample.
 
 **Wanting an edition in better condition** (2026-11-09): an owned
 edition's panel on the book page has "Want this edition in better

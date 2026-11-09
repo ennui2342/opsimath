@@ -54,4 +54,15 @@ class CatalogueReportTest < ActiveSupport::TestCase
 
     assert_nil notifier.notify(Notifications::Event.new(kind: :catalogue, level: :info, title: "x", channel: :catalogue))
   end
+
+  test "books filed in their series: a count and the first ten, not a line each" do
+    events = 12.times.map { |n| CatalogueEvent.new(kind: "series", origin: "work_series_sync", summary: "Book #{n}: in Saga ##{n} (from ISFDB)") }
+
+    lines = CatalogueReport.digest_lines(events)
+
+    assert_equal "**Filed in their series from ISFDB:** 12 books", lines.first
+    assert_includes lines, "• Book 0: in Saga #0"
+    assert_includes lines, "• …and 2 more"
+    assert_equal 12, lines.size
+  end
 end

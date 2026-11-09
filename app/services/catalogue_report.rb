@@ -49,7 +49,16 @@ module CatalogueReport
       lines << "**Editions refreshed from their printing:** #{refreshed.size} (#{fields.join(', ')})"
       lines.concat(refreshed.first(8).map { |e| "• #{e.summary}" })
     end
-    (events - linked - printings - refreshed).group_by(&:origin).each do |origin, es|
+    # Books filed in their ISFDB series (WorkSeriesSync) — hundreds the
+    # first night, so a count and a sample, not a line each.
+    series = events.select { |e| e.kind == "series" }
+    if series.any?
+      lines << "**Filed in their series from ISFDB:** #{series.size} #{series.one? ? 'book' : 'books'}"
+      lines.concat(series.first(10).map { |e| "• #{e.summary.delete_suffix(' (from ISFDB)')}" })
+      lines << "• …and #{series.size - 10} more" if series.size > 10
+    end
+
+    (events - linked - printings - refreshed - series).group_by(&:origin).each do |origin, es|
       lines << "**#{JOB_LABELS.fetch(origin, origin.humanize)}:** #{es.map(&:summary).uniq.join('; ')}"
     end
     lines
