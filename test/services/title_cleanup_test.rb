@@ -42,10 +42,12 @@ class TitleCleanupTest < ActiveSupport::TestCase
                   variants: [ "The Astounding-Analog Reader, Book Two" ])
     nebula = book("Nebula Award Stories 2", main: "Nebula Award Stories Two")
     slant = book("Slant", main: "/")
+    split = book("Dangerous Visions 1", main: "Dangerous Visions")
 
     kinds = TitleCleanup.plan.to_h { |f| [ f.work.id, f.kind ] }
     assert_equal :suspect, kinds[reader.id]
     assert_equal :reworded, kinds[nebula.id] # 2 and Two are the same number
     assert_not kinds.key?(slant.id)
+    assert_equal :suspect, kinds[split.id] # a split volume linked to the whole
   end
 end

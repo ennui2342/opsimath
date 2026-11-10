@@ -92,10 +92,12 @@ class TitleCleanup
   NUMBER_WORDS = %w[zero one two three four five six seven eight nine ten eleven twelve].each_with_index.to_h
                                                                                        .merge("first" => 1, "second" => 2, "third" => 3, "fourth" => 4, "fifth" => 5).freeze
 
-  # Both titles carry numbers ("2", "Two", "Second") and they aren't the same.
-  def numbers_differ?(a, b)
-    na, nb = numbers(a), numbers(b)
-    na.any? && nb.any? && na != nb
+  # The titles' numbers ("2", "Two", "Second") aren't the same — including
+  # Mark's title numbering a volume ISFDB's doesn't: a UK split
+  # ("Dangerous Visions 1", "A Storm of Swords 2") linked to the whole.
+  def numbers_differ?(mine, isfdb)
+    na, nb = numbers(mine), numbers(isfdb)
+    na.any? && na != nb
   end
 
   def numbers(text) = fold(text).split.filter_map { |w| w.match?(/\A\d+\z/) ? w.to_i : NUMBER_WORDS[w] }.to_set
