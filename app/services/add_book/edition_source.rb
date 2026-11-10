@@ -7,7 +7,24 @@ module AddBook
     def self.for_work(work)
       return EditionCards.from_provider_editions(work.provider_editions) if work.provider_editions.any?
 
-      fetch(provider_works(work))
+      fetch(provider_works(work)).presence || by_title(work)
+    end
+
+    # A book with no links yet (a Goodreads-imported edition with no ISBN:
+    # The Syndic, 2026-11-10): its printings found live by title and author,
+    # the matching rule the nightly lookup uses (WorkMatcher), so "Add
+    # another edition" / "Choose the right printing" have something to offer.
+    def self.by_title(work)
+      author = work.authors.first&.name
+      Providers.with(:search_works).flat_map do |provider|
+        matches = WorkMatcher.match(provider.search_works(title: WorkMatcher.plain(work.title), author:, complete: true), title: work.title, author:)
+        editions = matches.flat_map { |m| Array(m.editions) }
+        editions = matches.flat_map { |m| provider.known_editions(isbns: [], work_ids: [ m.id ]).editions } if editions.empty?
+        editions
+      rescue StandardError => e
+        Rails.logger.warn("edition picker: #{provider.name} title search — #{e.class}: #{e.message}")
+        []
+      end
     end
 
     def self.for_found(found) = fetch(found["provider_works"])

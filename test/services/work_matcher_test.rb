@@ -30,4 +30,12 @@ class WorkMatcherTest < ActiveSupport::TestCase
     assert_equal [ 2 ], WorkMatcher.match([ w(2, "Cat’s Cradle", "Kurt Vonnegut") ], title: "Cat's Cradle", author: "Kurt Vonnegut, Jr.").map(&:id)
     assert_equal [ 3 ], WorkMatcher.match([ w(3, "The Futurological Congress", "Stanisław Lem") ], title: "Futurological Congress", author: "Stanislaw Lem").map(&:id)
   end
+
+  test "a title with a bracketed note matches records of the plain title, taken together" do
+    syndic = ->(id, author) { Providers::Work.new(provider: "isfdb", id:, title: "The Syndic", authors: [ author ], editions: []) }
+    works = [ syndic.("1060", "C. M. Kornbluth"), syndic.("731977", "Cyril M. Kornbluth") ]
+
+    assert_equal %w[1060 731977], WorkMatcher.match(works, title: "The Syndic (Sphere science fiction)", author: "C.M. Kornbluth").map(&:id)
+    assert_equal "The Syndic", WorkMatcher.plain("The Syndic (Sphere science fiction)")
+  end
 end

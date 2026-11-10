@@ -22,7 +22,7 @@ module WorkMatcher
         (surname.nil? || Array(w.authors).any? { |a| surname(a) == surname }) &&
         english?(w)
     end
-    exact = candidates.select { |w| key(w.title) == key(title) }
+    exact = candidates.select { |w| [ key(title), key(plain(title)) ].include?(key(w.title)) }
     candidates = exact if exact.any?
     return candidates if candidates.size == 1 || (candidates.size > 1 && exact.size == candidates.size)
 
@@ -47,6 +47,12 @@ module WorkMatcher
   def self.key(title) = fold(title).sub(/\A(the|a|an) /, "")
 
   def self.short(text) = text.to_s.split(/[:(]/).first.to_s
+
+  # The title without a bracketed note on the end — Goodreads' series or
+  # imprint ("The Syndic (Sphere science fiction)"): what to search a
+  # provider for, and what an exact match means. Searching with the note
+  # timed ISFDB out on its common words (2026-11-10).
+  def self.plain(text) = text.to_s.sub(/\s*\([^()]*\)\s*\z/, "").presence || text.to_s
 
   def self.fold(text) = I18n.transliterate(text.to_s.tr("’‘", "''")).downcase.delete("'").gsub(/[^a-z0-9]+/, " ").strip
 end

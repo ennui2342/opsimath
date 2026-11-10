@@ -141,7 +141,7 @@ class KnownEditionsRefresh
     return unless @provider.capabilities.include?(:search_works)
 
     author = work.authors.first&.name
-    matches = WorkMatcher.match(@provider.search_works(title: work.title, author:, complete: true), title: work.title, author:)
+    matches = WorkMatcher.match(@provider.search_works(title: WorkMatcher.plain(work.title), author:, complete: true), title: work.title, author:)
     return if matches.empty?
 
     # ISFDB's search carries each title's printings; Open Library's lists
