@@ -35,14 +35,38 @@ module Isfdb
       pool.kill unless pool.wait_for_termination(DEADLINE + 1.minute)
 
       now = Time.current
+      titles = Work.where(id: found.keys).pluck(:id, :title).to_h
       found.each do |work_id, records|
         next if records.empty?
 
-        main = records.first["main"]["title"]
-        variants = records.flat_map { |r| [ r["main"]["title"], r["title"], *r["variants"].map { |v| v["title"] } ] }.uniq - [ main ]
+        main, variants = self.class.english_titles(records, current: titles[work_id])
         Work.where(id: work_id).update_all(isfdb_main_title: main, isfdb_variant_titles: variants, isfdb_titles_checked_at: now)
       end
       found.size
+    end
+
+    ENGLISH = %w[eng en].freeze
+
+    # [main title, its other English titles] from /titles/:id records. The
+    # main title in English: ISFDB's own when it's English (or says no
+    # language); for a translation, ISFDB's main title is the original
+    # (Пикник на обочине), so the English variant matching the book's
+    # current title (Roadside Picnic), else the English variant sharing
+    # most words with it, else the first. HTML entities decoded (ISFDB
+    # stores non-Latin titles as &#…;).
+    def self.english_titles(records, current:)
+      decode = ->(t) { CGI.unescapeHTML(t.to_s) }
+      english = ->(lang) { lang.blank? || ENGLISH.include?(lang.to_s.downcase) }
+      first = records.first
+      variants = records.flat_map { |r| r["variants"] }.uniq { |v| v["id"] }
+      english_variants = variants.select { |v| english.(v["language"]) }.map { |v| decode.(v["title"]) }
+      main = if english.(first["main"]["language"]) then decode.(first["main"]["title"])
+      else
+               words = ->(t) { I18n.transliterate(t.to_s).downcase.scan(/[a-z0-9]+/) }
+               english_variants.find { |v| words.(v) == words.(current) } ||
+                 english_variants.max_by { |v| (words.(v) & words.(current)).size } || decode.(first["main"]["title"])
+      end
+      [ main, ((english.(first["main"]["language"]) ? [] : [ decode.(first["main"]["title"]) ]) + english_variants).uniq - [ main ] ]
     end
   end
 end

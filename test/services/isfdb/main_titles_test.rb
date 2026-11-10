@@ -17,5 +17,15 @@ module Isfdb
       assert_equal [ "Voyage to Venus", "Perelandra (Voyage to Venus)" ], work.isfdb_variant_titles
       assert_equal 0, MainTitles.run # fresh: not fetched again
     end
+  test "a translation's main title is the original's: the book keeps its English title, entities decoded" do
+      records = [ { "main" => { "id" => 1, "title" => "&#1055;&#1080;&#1082;&#1085;&#1080;&#1082;", "language" => "rus" },
+                    "variants" => [ { "id" => 2, "title" => "Roadside Picnic", "language" => "eng" },
+                                    { "id" => 3, "title" => "Picnic au bord du chemin", "language" => "fre" } ] } ]
+
+      main, variants = MainTitles.english_titles(records, current: "Roadside Picnic")
+
+      assert_equal "Roadside Picnic", main
+      assert_equal [ "Пикник" ], variants
+    end
   end
 end

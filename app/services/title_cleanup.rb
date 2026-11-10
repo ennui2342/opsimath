@@ -73,7 +73,7 @@ class TitleCleanup
     title = work.title
     plain = title.sub(BRACKETED, "")
     return :brackets if plain != title && (fold(plain) == fold(main) || longer_form?(fold(plain), fold(main)))
-    return :cosmetic if fold(title) == fold(main)
+    return :cosmetic if fold(title).delete(" ") == fold(main).delete(" ") # "Brainrose" / "Brain Rose"
     return :variant if work.isfdb_variant_titles.any? { |v| [ fold(title), fold(plain) ].include?(fold(v)) }
     return :reworded if (words(plain) & words(main)).any?
 
