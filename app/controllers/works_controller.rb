@@ -24,7 +24,7 @@ class WorksController < ApplicationController
   def index
     @filter = params[:filter].presence_in(FILTERS)
     @query = params[:q].to_s.strip
-    @works = Work.includes(:want, :series, { work_contributors: :contributor }, :readings,
+    @works = Work.includes(:want, :series, :work_alternate_titles, { work_contributors: :contributor }, :readings,
                            editions: [ :copies, :readings, :edition_identifiers, { cover_image_attachment: { blob: :variant_records } } ])
                  .order(:title).to_a
     @works = CatalogueSearch.filter(@works, @query) if @query.present?

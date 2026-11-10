@@ -17,7 +17,7 @@
   </ul>
 
   <h2 class="mb-2 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Catalogue</h2>
-  <% to_review = TitleCleanup.plan.count { |f| f.kind == :different } %>
+  <% to_review = TitleCleanup.plan.count { |f| !TitleCleanup::AUTOMATIC.include?(f.kind) } %>
   <ul class="mb-8 rounded-lg border border-gray-200 dark:border-gray-700">
     <li>
       <%= link_to settings_titles_path,

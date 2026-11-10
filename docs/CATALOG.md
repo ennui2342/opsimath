@@ -833,6 +833,18 @@ Book of Confluence") with its books in that ISFDB series (books ISFDB
 files in none don't count). The digest reports filings as a count and a
 sample.
 
+**A book's title is ISFDB's main title** (Mark, 2026-11-10): the title
+of first publication, as a book added from ISFDB gets — library practice's
+preferred title of the work; an edition printed under another title says
+so on its card ("as Voyage to Venus"), and a replaced title stays as an
+alternate title, which search covers. Each linked book's main title and
+variants come from isfdb-adapter `/titles/:id` (Isfdb::MainTitles,
+nightly, monthly per book). TitleCleanup sorts differences into brackets,
+cosmetic, variant (one of its variant titles), reworded (shares words)
+and suspect (shares nothing — likely a wrong ISFDB link, never retitled);
+`AUTOMATIC` kinds apply nightly, the rest are in Settings → Titles to
+review. Earlier the same day, before main titles:
+
 **Titles from ISFDB** (2026-11-10): a book's title is the book's, so
 choosing an edition never changed it. For books linked to ISFDB, the
 title follows ISFDB's (the one most of its printings carry) nightly when

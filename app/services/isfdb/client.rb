@@ -67,6 +67,18 @@ module Isfdb
       JSON.parse(response.body)
     end
 
+    # A title's main (parent) title and its variants: { "main" => { "id",
+    # "title" }, "variants" => [{ "id", "title", "language" }] } — nil if
+    # there's no such title.
+    def title(title_id)
+      response = get("/titles/#{Integer(title_id)}", read_timeout: 30)
+      return nil if response.is_a?(Net::HTTPNotFound)
+
+      raise ServiceError, "isfdb-adapter returned #{response.code} for title #{title_id}" unless response.is_a?(Net::HTTPSuccess)
+
+      JSON.parse(response.body)
+    end
+
     # A publisher's line (ISFDB publication series) and every printing in
     # it, in number order: { "id", "name", "publications" => [...] }. nil
     # when there's no such line, or the mirror hasn't imported line names

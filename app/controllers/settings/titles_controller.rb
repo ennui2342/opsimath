@@ -5,7 +5,7 @@ module Settings
   # the book to fix its printing.
   class TitlesController < ApplicationController
     def index
-      @fixes = TitleCleanup.plan.select { |f| f.kind == :different }.sort_by { |f| f.from.downcase }
+      @fixes = TitleCleanup.plan.reject { |f| TitleCleanup::AUTOMATIC.include?(f.kind) }.sort_by { |f| [ f.kind == :suspect ? 1 : 0, f.from.downcase ] }
     end
 
     def update

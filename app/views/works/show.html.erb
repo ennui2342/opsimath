@@ -37,7 +37,7 @@
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <% @work.editions_in_order.each do |edition| %>
         <div>
-          <%= render(Ui::EditionCardComponent.new(edition:, publisher_url: (publisher_path(name: edition.publisher) if edition.publisher.present?))) %>
+          <%= render(Ui::EditionCardComponent.new(edition:, work: @work, publisher_url: (publisher_path(name: edition.publisher) if edition.publisher.present?))) %>
           <% pub_id = edition.edition_identifiers.find { |i| i.id_type == "isfdb" }&.value %>
           <% line = pub_id && @work.provider_editions.find { |p| p.provider == "isfdb" && p.provider_id == pub_id && p.pub_series_id } %>
           <% if line %>

@@ -61,6 +61,14 @@ module Ui
       list.size > 3 ? "#{list.first(3).join(', ')} and #{list.size - 3} others" : list.join(", ")
     end
 
+    # The title this edition was printed under, when it isn't the book's
+    # (Pan's "Voyage to Venus" of Perelandra) — its ISFDB printing's title.
+    def printed_as
+      printed = printing&.title.presence or return
+      fold = ->(t) { I18n.transliterate(t.to_s).downcase.gsub(/[^a-z0-9]+/, " ").strip.sub(/\A(the|a|an) /, "") }
+      printed unless @work.nil? || fold.(printed) == fold.(@work.title)
+    end
+
     # Compact headline for a row or tile: publisher · year.
     def short_headline = [ @edition.publisher.presence, @edition.publish_date&.slice(0, 4) ].compact.join(" · ").presence || format_line
 

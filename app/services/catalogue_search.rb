@@ -22,7 +22,7 @@ module CatalogueSearch
   end
 
   def self.haystack(work)
-    " " + fold([ work.title, work.subtitle, *work.authors.map(&:name), *work.series.map(&:name) ].compact.join(" ")) + " "
+    " " + fold([ work.title, work.subtitle, *work.work_alternate_titles.map(&:title), *work.authors.map(&:name), *work.series.map(&:name) ].compact.join(" ")) + " "
   end
 
   def self.fold(text) = I18n.transliterate(text.to_s.tr("’‘", "''")).downcase.delete("'").gsub(/[^a-z0-9]+/, " ").strip

@@ -12,6 +12,7 @@
       <div>
         <%= number_prefix %><%= link_to title, work_url || "#", class: "font-medium text-gray-900 hover:underline dark:text-gray-100", data: { card_title: true } %><%= number_suffix %>
       </div>
+      <% if (as = printed_as) %><p class="text-xs italic text-gray-600 dark:text-gray-300">as <%= as %></p><% end %>
       <% if (by = author_line) %><p class="text-xs text-gray-600 dark:text-gray-300"><%= by %></p><% end %>
       <p class="text-xs text-gray-500 dark:text-gray-400"><%= [ short_headline, detail_line ].uniq.join(" · ") %></p>
     </div>
@@ -78,6 +79,7 @@
 
   <div class="flex min-w-0 flex-1 flex-col gap-1">
     <p class="font-medium text-gray-900 dark:text-gray-100"><%= headline_html %></p>
+    <% if (as = printed_as) %><p class="text-sm italic text-gray-600 dark:text-gray-300">as <%= as %></p><% end %>
 
     <% if status_badges.any? %>
       <div class="flex flex-wrap items-center gap-1.5">

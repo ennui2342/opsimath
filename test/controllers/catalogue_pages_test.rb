@@ -116,7 +116,7 @@ class CataloguePagesTest < ActionDispatch::IntegrationTest
 
   test "titles worded differently on ISFDB are listed to review: take ISFDB's or keep mine" do
     work = @books.first
-    work.provider_editions.create!(provider: "isfdb", provider_id: "77", title: "Neuromancer: A Novel of the Sprawl")
+    work.update!(isfdb_main_title: "Neuromancer: A Novel of the Sprawl")
 
     get settings_titles_url
     assert_select "li", text: /Neuromancer: A Novel of the Sprawl/
@@ -137,5 +137,19 @@ class CataloguePagesTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to work_path(@books.first)
     assert_equal [ "Neuromancer (Ace Special)", "manual" ], [ @books.first.reload.title, @books.first.field_sources["title"] ]
+  end
+
+  test "a book found by a title it was known by before; an edition printed under another title says so" do
+    work = @books.first
+    edition = work.editions.first
+    TitleCleanup.retitle(work, "Sprawl One", source: "isfdb")
+    edition.edition_identifiers.create!(id_type: "isfdb", value: "99")
+    work.provider_editions.create!(provider: "isfdb", provider_id: "99", title: "Neuromancer")
+
+    get works_url(q: "neuromancer")
+    assert_redirected_to work_path(work)
+
+    get work_url(work)
+    assert_select "p", text: "as Neuromancer"
   end
 end
