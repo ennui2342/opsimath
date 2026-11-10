@@ -841,9 +841,15 @@ alternate title, which search covers. Each linked book's main title and
 variants come from isfdb-adapter `/titles/:id` (Isfdb::MainTitles,
 nightly, monthly per book). TitleCleanup sorts differences into brackets,
 cosmetic, variant (one of its variant titles), reworded (shares words)
-and suspect (shares nothing — likely a wrong ISFDB link, never retitled);
-`AUTOMATIC` kinds apply nightly, the rest are in Settings → Titles to
-review. Earlier the same day, before main titles:
+and suspect (shares nothing — likely a wrong ISFDB link, never retitled).
+Mark approved all but suspect as automatic (dry run: 52 brackets, 128
+cosmetic, 58 variant, 71 reworded), applied nightly; the main title is
+the English one (for a translation ISFDB's main title is the original's),
+volume-number mismatches and no-letter ISFDB titles excluded. A suspect
+book becomes a pending decision, "Wrong ISFDB link?" (`title_link_question`):
+choose the right printing, take ISFDB's title, or keep Mark's — under
+Pending decisions, not Settings (Mark: it's a decision about a book).
+Earlier the same day, before main titles:
 
 **Titles from ISFDB** (2026-11-10): a book's title is the book's, so
 choosing an edition never changed it. For books linked to ISFDB, the

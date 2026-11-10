@@ -15,13 +15,16 @@
 #   :suspect   — shares nothing with the main title or any variant: likely a
 #                book linked to the wrong ISFDB record (Kesrith → The Faded
 #                Sun Trilogy) — listed in Settings → Titles to review, to fix
-#                the link, never retitled here.
+#                the link, never retitled here — a pending decision instead
+#                (#ask), resolved by taking ISFDB's title, keeping Mark's, or
+#                choosing the right printing.
 # AUTOMATIC kinds are applied nightly. A title Mark set himself
 # (field_sources "manual" — the cog, or "Keep mine") is never touched.
 class TitleCleanup
   Fix = Struct.new(:work, :from, :to, :kind, keyword_init: true)
 
-  AUTOMATIC = %i[brackets cosmetic].freeze
+  AUTOMATIC = %i[brackets cosmetic variant reworded].freeze # Mark, 2026-11-10: all but suspect
+  QUESTION = "title_link_question"
   BRACKETED = /\s*\([^()]+\)\s*\z/
   STOP = %w[the a an of and in on to for with by at from or s].freeze
 
@@ -39,6 +42,19 @@ class TitleCleanup
     fixes = plan(works).select { |f| kinds.include?(f.kind) }
     fixes.each { |f| self.class.retitle(f.work, f.to, source: "isfdb") }
     fixes.size
+  end
+
+  # One pending decision per suspect book ("ISFDB's record is titled
+  # something else entirely — wrong link?"); a question no longer suspect
+  # (the link fixed, the title changed) is closed. -> number of new questions.
+  def self.ask(works = Work.all)
+    suspects = plan(works).select { |f| f.kind == :suspect }.index_by { |f| f.work.id }
+    open = PendingDecision.pending.where(kind: QUESTION).to_a
+    open.reject { |d| suspects.key?(d.payload["entity_id"].to_i) }.each { |d| d.update!(status: "rejected", resolved_at: Time.current) }
+    asked = open.map { |d| d.payload["entity_id"].to_i }.to_set
+    suspects.reject { |id, _| asked.include?(id) }.count do |id, fix|
+      PendingDecision.create!(kind: QUESTION, payload: { entity_type: "Work", entity_id: id, title: fix.from, isfdb_title: fix.to })
+    end
   end
 
   # Set a book's title, with where it came from, and say so. The title it

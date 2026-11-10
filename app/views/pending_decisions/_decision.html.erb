@@ -8,6 +8,8 @@
       <%= render "pending_decisions/decision_reread_conflict", pending_decision: pending_decision, kind_filter: kind_filter %>
     <% when "enrichment_printing_choice" %>
       <%= render "pending_decisions/decision_printing_choice", pending_decision: pending_decision, kind_filter: kind_filter %>
+    <% when TitleCleanup::QUESTION %>
+      <%= render "pending_decisions/decision_title_link", pending_decision: pending_decision, kind_filter: kind_filter %>
     <% when "edition_reconciliation" %>
       <%= render "pending_decisions/decision_edition_reconciliation", pending_decision: pending_decision, kind_filter: kind_filter %>
     <% else %>

@@ -90,8 +90,6 @@ Rails.application.routes.draw do
     get "/", to: "authorities#index"
     # The collecting profile — what bargain hunting looks for (docs/BARGAIN_HUNTING.md).
     resource :collecting_profile, path: "collecting", only: [ :show, :update ]
-    # Book titles that differ from ISFDB's in wording — Mark's call (TitleCleanup).
-    resources :titles, only: [ :index, :update ]
     get "authorities", to: "authorities#index"
     get "authorities/:vocabulary", to: "authorities#show", as: :authority
     post "authorities/:vocabulary/rescan", to: "authorities#rescan", as: :authority_rescan

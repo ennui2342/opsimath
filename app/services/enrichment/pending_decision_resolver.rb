@@ -36,6 +36,7 @@ module Enrichment
       case @pending_decision.kind
       when "reread_conflict" then accept_reread_conflict
       when "enrichment_printing_choice" then accept_printing_choice(selected_fields, pub_id)
+      when TitleCleanup::QUESTION then accept_title(@pending_decision.entity)
       else accept_enrichment(selected_fields)
       end
       @pending_decision.update!(status: "accepted", resolved_at: Time.current, payload: @pending_decision.payload)
@@ -45,6 +46,8 @@ module Enrichment
     end
 
     def reject
+      # "Keep my title": Mark's, never asked again.
+      TitleCleanup.retitle(@pending_decision.entity, @pending_decision.entity.title, source: "manual") if @pending_decision.kind == TitleCleanup::QUESTION && @pending_decision.entity
       @pending_decision.candidate_covers.purge_later if @pending_decision.candidate_covers.attached?
       @pending_decision.update!(status: "rejected", resolved_at: Time.current)
       record_event("rejected")
@@ -57,6 +60,7 @@ module Enrichment
       source = ApplicationHelper::SOURCE_LABELS.fetch(@pending_decision.payload["source"].to_s, @pending_decision.payload["source"].to_s.humanize)
       what = case @pending_decision.kind
       when "enrichment_printing_choice" then "chose its printing"
+      when TitleCleanup::QUESTION then verdict == "accepted" ? "took ISFDB's title" : "kept its title"
       when "enrichment_conflict" then "#{verdict} #{source}'s #{Array(@pending_decision.payload['fields']).map { |f| f == 'cover_image' ? 'cover' : f.humanize(capitalize: false) }.to_sentence}"
       else "#{verdict} a #{@pending_decision.kind.humanize(capitalize: false)}"
       end
@@ -71,6 +75,11 @@ module Enrichment
     # #entity is nil for this kind, so purge_own_candidate_cover is a
     # no-op) = "no, this was a Goodreads mixup" — do nothing, matching
     # ShelfSync#currently_reading's own framing of the ambiguity.
+    # "Use ISFDB's title" — the book is what ISFDB says after all.
+    def accept_title(work)
+      TitleCleanup.retitle(work, TitleCleanup.isfdb_title(work), source: "isfdb") if work && TitleCleanup.isfdb_title(work)
+    end
+
     def accept_reread_conflict
       work = Work.find_by(id: @pending_decision.payload["work_id"])
       edition = Edition.find_by(id: @pending_decision.payload["edition_id"])

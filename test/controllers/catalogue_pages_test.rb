@@ -114,17 +114,39 @@ class CataloguePagesTest < ActionDispatch::IntegrationTest
     assert hrefs.none? { |h| h.include?("pocket") }, hrefs.inspect
   end
 
-  test "titles worded differently on ISFDB are listed to review: take ISFDB's or keep mine" do
+  test "a book whose ISFDB title shares nothing with its own is a pending decision: keep mine, or take ISFDB's" do
     work = @books.first
-    work.update!(isfdb_main_title: "Neuromancer: A Novel of the Sprawl")
+    work.update!(isfdb_main_title: "The Sprawl Trilogy")
 
-    get settings_titles_url
-    assert_select "li", text: /Neuromancer: A Novel of the Sprawl/
+    assert_equal 1, TitleCleanup.ask
+    assert_equal 0, TitleCleanup.ask # asked once
+    decision = PendingDecision.pending.find_by!(kind: TitleCleanup::QUESTION)
+    assert_equal "Neuromancer", decision.display_title
 
-    patch settings_title_url(work), params: { choice: "mine" }
-    assert_equal "manual", work.reload.field_sources["title"]
-    get settings_titles_url
-    assert_match "Nothing to review", response.body
+    get pending_decision_url(decision)
+    assert_select "span", text: "Wrong ISFDB link?"
+    assert_match "The Sprawl Trilogy", response.body
+
+    post reject_pending_decision_url(decision)
+    assert_equal [ "Neuromancer", "manual" ], [ work.reload.title, work.field_sources["title"] ]
+    assert_equal 0, TitleCleanup.ask # Mark's title now: never asked again
+  end
+
+  test "a title question no longer suspect is closed; accepting takes ISFDB's title" do
+    work = @books.first
+    work.update!(isfdb_main_title: "The Sprawl Trilogy")
+    TitleCleanup.ask
+    decision = PendingDecision.pending.find_by!(kind: TitleCleanup::QUESTION)
+
+    post accept_pending_decision_url(decision)
+    assert_equal "The Sprawl Trilogy", work.reload.title
+
+    other = @books.second
+    other.update!(isfdb_main_title: "Burning Chrome Stories")
+    TitleCleanup.ask
+    other.update!(isfdb_main_title: other.title) # its link fixed
+    TitleCleanup.ask
+    assert_equal 0, PendingDecision.pending.where(kind: TitleCleanup::QUESTION).count
   end
 
   test "the cog sets the book's title as Mark's own" do

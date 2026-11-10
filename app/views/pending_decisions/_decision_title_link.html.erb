@@ -1,0 +1,31 @@
+<%# A book whose ISFDB record is titled something else entirely
+    (TitleCleanup :suspect) — most likely linked to the wrong record: an
+    omnibus for one of its books, another volume, a different book. %>
+<% work = pending_decision.entity %>
+<% if work %>
+  <%= render Ui::BookMastheadComponent.new(work:, size: :compact, badges: [ [ "Wrong ISFDB link?", :conflict ] ]) %>
+  <% edition = work.editions_in_order.first %>
+
+  <p class="mb-4 text-sm text-gray-700 dark:text-gray-300">
+    ISFDB's record for this book is titled <span class="font-medium text-gray-900 dark:text-gray-100">“<%= pending_decision.payload["isfdb_title"] %>”</span>,
+    which has nothing in common with yours — so it's probably linked to the wrong record (an omnibus for one of its books,
+    another volume, or a different book). Choosing the right printing fixes the link, and with it the title, covers and series.
+  </p>
+
+  <div class="flex flex-wrap items-center gap-3">
+    <% if edition %>
+      <%= link_to "Choose the right printing", edit_work_edition_change_path(work, edition),
+                  class: "rounded-md bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600" %>
+    <% end %>
+    <%= button_to "Use ISFDB's title (A)", accept_pending_decision_path(pending_decision, **decision_params(kind_filter)), method: :post,
+                  form: { data: { turbo_stream: true, decision_shortcuts_target: "accept" } },
+                  class: "rounded-md bg-gray-200 px-4 py-2 font-medium text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600" %>
+    <%= button_to "Keep my title (R)", reject_pending_decision_path(pending_decision, **decision_params(kind_filter)), method: :post,
+                  form: { data: { turbo_stream: true, decision_shortcuts_target: "reject" } },
+                  class: "rounded-md bg-gray-200 px-4 py-2 font-medium text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600" %>
+    <%= link_to "Back to queue", pending_decisions_path(kind: kind_filter), class: "ml-auto self-center text-sm text-gray-500 hover:underline dark:text-gray-400" %>
+  </div>
+<% else %>
+  <h1 class="mb-4 text-2xl font-bold text-gray-900 dark:text-gray-100">That book is no longer in the catalogue</h1>
+  <%= button_to "Dismiss (R)", reject_pending_decision_path(pending_decision, **decision_params(kind_filter)), method: :post, class: "text-sm text-gray-500 hover:underline" %>
+<% end %>

@@ -17,7 +17,7 @@ class WorkKnownEditionsRefreshJob < ApplicationJob
     # TitleCleanup::AUTOMATIC nightly; the rest wait in Settings → Titles
     # to review.
     Rails.logger.info("ISFDB main titles fetched: #{Isfdb::MainTitles.run}")
-    Rails.logger.info("titles from ISFDB: #{TitleCleanup.apply} books retitled")
+    Rails.logger.info("titles from ISFDB: #{TitleCleanup.apply} books retitled; #{TitleCleanup.ask} questions asked")
     Rails.logger.info("authors linked to ISFDB through their books: #{AuthorLinks.run}")
     results.join("; ")
   end

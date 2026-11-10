@@ -5,7 +5,7 @@ class TitleCleanupTest < ActiveSupport::TestCase
     Work.create!(title:, literary_form: "novel", field_sources: sources, isfdb_main_title: main, isfdb_variant_titles: variants)
   end
 
-  test "each difference from ISFDB's main title has a kind; only the automatic kinds are applied" do
+  test "each difference from ISFDB's main title has a kind; all but a suspect link are applied" do
     worlds_end = book("World's End (Snow Queen Vol. 2)", main: "World's End")
     shadrach = book("Shadrach In The Furnace", main: "Shadrach in the Furnace")
     venus = book("Voyage to Venus", main: "Perelandra", variants: [ "Voyage to Venus" ])
@@ -19,13 +19,11 @@ class TitleCleanupTest < ActiveSupport::TestCase
                    dispossessed.id => :reworded, kesrith.id => :suspect }, kinds)
     assert_not kinds.key?(mine.id)
 
-    assert_equal 2, TitleCleanup.apply
+    assert_equal 4, TitleCleanup.apply # all but the suspect link
     assert_equal [ "World's End", "isfdb" ], [ worlds_end.reload.title, worlds_end.field_sources["title"] ]
-    assert_equal "Voyage to Venus", venus.reload.title # not automatic (yet)
-
-    TitleCleanup.apply(kinds: %i[variant])
     assert_equal "Perelandra", venus.reload.title
     assert_equal [ "Voyage to Venus" ], venus.work_alternate_titles.pluck(:title) # still findable
+    assert_equal "Kesrith", kesrith.reload.title # a suspect link is never retitled
   end
 
   test "a title Mark sets is his: marked manual, never listed again" do
