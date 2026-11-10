@@ -1,12 +1,12 @@
 namespace :titles do
-  # Goodreads' bracketed series/imprint text on titles (TitleCleanup).
+  # Books' titles against ISFDB's (TitleCleanup). Brackets and cosmetic
+  # differences are applied nightly; this is the dry run, or APPLY=1 now.
   desc "Dry run unless APPLY=1"
   task cleanup: :environment do
-    fixes, rest = TitleCleanup.plan
-    puts "to retitle from ISFDB: #{fixes.size}"
-    fixes.each { |f| puts "  #{f.from}  ->  #{f.to}" }
-    puts "left alone (no matching ISFDB title): #{rest.size}"
-    rest.each { |w| puts "  #{w.title}" }
+    TitleCleanup.plan.group_by(&:kind).each do |kind, fixes|
+      puts "#{kind}: #{fixes.size}#{' (review only)' unless TitleCleanup::AUTOMATIC.include?(kind)}"
+      fixes.first(ENV.fetch("EXAMPLES", 10).to_i).each { |f| puts "  #{f.from}  ->  #{f.to}" }
+    end
     puts "applied: #{TitleCleanup.apply} books retitled" if ENV["APPLY"] == "1"
   end
 end

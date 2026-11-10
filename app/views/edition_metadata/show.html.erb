@@ -1,15 +1,27 @@
 <% content_for :title, "Reconcile edition" %>
 
 <div class="w-full max-w-5xl">
-  <div class="mb-4">
-    <%= render(Ui::BadgeComponent.new(text: [ @edition.format_detail, @edition.format ].compact.map(&:humanize).first || "Edition")) %>
-  </div>
-  <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
-    <%= @edition.works.map(&:title).join(", ").presence || "Edition ##{@edition.id}" %>
-  </h1>
-  <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
-    <%= @edition.works.flat_map { |w| w.work_contributors.where(role: "author").map { |wc| wc.contributor.name } }.uniq.join(", ").presence || "Unknown author" %>
-  </p>
+  <% if @work %>
+    <%= render Ui::BookMastheadComponent.new(work: @work, size: :compact,
+                                             badges: [ [ "Reconcile edition", :accent ], [ [ @edition.format_detail, @edition.format ].compact.map(&:humanize).first || "Edition", :default ] ]) %>
+
+    <%# The book's title — the only book-level field here; set by Mark, it's his. %>
+    <%= form_with url: title_edition_metadata_path(@edition), method: :patch, class: "mb-6 rounded-lg border border-gray-200 p-4 text-sm dark:border-gray-700" do %>
+      <p class="mb-2 font-medium text-gray-900 dark:text-gray-100">Title<%= " · set by you" if @work.field_sources["title"] == "manual" %></p>
+      <% labels = { "current" => "now", "isfdb" => "ISFDB", "openlibrary" => "Open Library", "goodreads" => "Goodreads" } %>
+      <% @title_choices.each_with_index do |(text, source), i| %>
+        <label class="mb-1 flex items-start gap-2">
+          <input type="radio" name="title" value="<%= text %>" <%= "checked" if i.zero? %> class="mt-1">
+          <span><%= text %> <span class="text-xs text-gray-500 dark:text-gray-400">(<%= labels.fetch(source, source) %>)</span></span>
+        </label>
+      <% end %>
+      <label class="mt-2 block"><span class="mb-1 block text-xs text-gray-500 dark:text-gray-400">Or your own</span>
+        <input type="text" name="custom_title" class="w-full rounded-md border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-900"></label>
+      <button type="submit" class="mt-3 rounded-md bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">Set title</button>
+    <% end %>
+  <% else %>
+    <h1 class="mb-4 text-2xl font-bold text-gray-900 dark:text-gray-100">Edition #<%= @edition.id %></h1>
+  <% end %>
 
   <% if @cards[:sources].empty? %>
     <p class="mb-6 rounded-lg border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500 dark:border-gray-600 dark:text-gray-400">

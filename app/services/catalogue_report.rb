@@ -58,7 +58,14 @@ module CatalogueReport
       lines << "• …and #{series.size - 10} more" if series.size > 10
     end
 
-    (events - linked - printings - refreshed - series).group_by(&:origin).each do |origin, es|
+    retitled = events.select { |e| e.kind == "retitled" && e.origin == "title_cleanup" }
+    if retitled.any?
+      lines << "**Titles set to ISFDB's:** #{retitled.size}"
+      lines.concat(retitled.first(10).map { |e| "• #{e.summary}" })
+      lines << "• …and #{retitled.size - 10} more" if retitled.size > 10
+    end
+
+    (events - linked - printings - refreshed - series - retitled).group_by(&:origin).each do |origin, es|
       lines << "**#{JOB_LABELS.fetch(origin, origin.humanize)}:** #{es.map(&:summary).uniq.join('; ')}"
     end
     lines

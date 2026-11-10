@@ -833,6 +833,18 @@ Book of Confluence") with its books in that ISFDB series (books ISFDB
 files in none don't count). The digest reports filings as a count and a
 sample.
 
+**Titles from ISFDB** (2026-11-10): a book's title is the book's, so
+choosing an edition never changed it. For books linked to ISFDB, the
+title follows ISFDB's (the one most of its printings carry) nightly when
+the difference is only a bracketed Goodreads note or cosmetic (capitals,
+punctuation, "&", a leading article) — Mark approved the dry run: 50 + 122
+books (TitleCleanup). Anything worded differently (UK/US titles,
+subtitles, or a book linked to the wrong ISFDB record — Kesrith → The
+Faded Sun Trilogy) waits in Settings → Titles to review: take ISFDB's,
+keep mine, or choose the right printing. The cog has a Title section
+(sources' titles, or Mark's own); a title Mark sets is "manual" and never
+changed or listed again.
+
 **Wanting an edition in better condition** (2026-11-09): an owned
 edition's panel on the book page has "Want this edition in better
 condition" (BetterCopy): the book onto the wishlist hunting exactly that

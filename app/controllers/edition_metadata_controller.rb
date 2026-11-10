@@ -10,6 +10,19 @@ class EditionMetadataController < ApplicationController
 
   def show
     @cards = Enrichment::EditionMetadataCards.build(@edition)
+    @work = @edition.works.first
+    @title_choices = title_choices if @work
+  end
+
+  # The book's title from the cog: one of the sources' titles or Mark's
+  # own — his either way ("manual"), so nothing automatic changes it after.
+  def title
+    work = @edition.works.first or return redirect_to(root_path)
+    chosen = params[:custom_title].to_s.strip.presence || params[:title].to_s.strip.presence
+    return redirect_to(edition_metadata_path(@edition), alert: "No title given.") unless chosen
+
+    TitleCleanup.retitle(work, chosen, source: "manual")
+    redirect_to work_path(work), notice: "Title set: “#{chosen}”."
   end
 
   def update
@@ -20,6 +33,15 @@ class EditionMetadataController < ApplicationController
   end
 
   private
+
+  # [title, where from] — the book's own, then each source's for this
+  # edition (its ISFDB printing's, Open Library's, Goodreads'), distinct.
+  def title_choices
+    from_records = @edition.enrichment_records.filter_map { |r| [ r.raw_payload&.dig("title").presence, r.provider ] }.select(&:first)
+    printing = TitleCleanup.isfdb_title(@work)
+    ([ [ @work.title, "current" ] ] + (printing ? [ [ printing, "isfdb" ] ] : []) + from_records)
+      .uniq(&:first)
+  end
 
   def set_edition
     @edition = Edition.find(params[:edition_id])

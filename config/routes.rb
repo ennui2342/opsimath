@@ -80,7 +80,9 @@ Rails.application.routes.draw do
     end
   end
   resources :editions, only: [] do
-    resource :metadata, only: [ :show, :update ], controller: "edition_metadata"
+    resource :metadata, only: [ :show, :update ], controller: "edition_metadata" do
+      patch :title # the book's title, Mark's choice (the cog's Title section)
+    end
   end
 
   # Settings — authority control is the first section (docs/AUTHORITY_CONTROL.md).
@@ -88,6 +90,8 @@ Rails.application.routes.draw do
     get "/", to: "authorities#index"
     # The collecting profile — what bargain hunting looks for (docs/BARGAIN_HUNTING.md).
     resource :collecting_profile, path: "collecting", only: [ :show, :update ]
+    # Book titles that differ from ISFDB's in wording — Mark's call (TitleCleanup).
+    resources :titles, only: [ :index, :update ]
     get "authorities", to: "authorities#index"
     get "authorities/:vocabulary", to: "authorities#show", as: :authority
     post "authorities/:vocabulary/rescan", to: "authorities#rescan", as: :authority_rescan

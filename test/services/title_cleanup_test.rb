@@ -7,22 +7,32 @@ class TitleCleanupTest < ActiveSupport::TestCase
     work
   end
 
-  test "bracketed series and imprint text goes when ISFDB's title is the same book's title" do
+  test "differences from ISFDB's title: bracketed notes and cosmetic ones applied, different wording only listed" do
     worlds_end = book("World's End (Snow Queen Vol. 2)", isfdb: "World's End")
-    recalled = book("Recalled to life (Panther science fiction)", isfdb: "Recalled to Life")
     traps = book("All the Traps of Earth (collection of stories)", isfdb: "All the Traps of Earth and Other Stories")
-    middles = book("Beginnings, Middles & Ends (Elements of Fiction Writing)", isfdb: "Beginnings, Middles and Ends")
-    interzone = book("Interzone #282 (July-August 2019)")
-    other = book("Clarion (I)", isfdb: "The Clarion Anthology")
+    shadrach = book("Shadrach In The Furnace", isfdb: "Shadrach in the Furnace")
+    engines = book("Engines of God", isfdb: "The Engines of God")
+    venus = book("Voyage to Venus", isfdb: "Perelandra")
     mine = book("Fury (U.K.)", isfdb: "Fury", sources: { "title" => "manual" })
+    book("Interzone #282 (July-August 2019)") # no ISFDB title: nothing to compare
 
-    fixes, rest = TitleCleanup.plan
-    assert_equal [ worlds_end, recalled, traps, middles ].map(&:id).sort, fixes.map { |f| f.work.id }.sort
-    assert_equal [ interzone, other, mine ].map(&:id).sort, rest.map(&:id).sort
+    kinds = TitleCleanup.plan.to_h { |f| [ f.work.id, f.kind ] }
+    assert_equal({ worlds_end.id => :brackets, traps.id => :brackets, shadrach.id => :cosmetic, engines.id => :cosmetic, venus.id => :different }, kinds)
+    assert_not kinds.key?(mine.id)
 
     assert_equal 4, TitleCleanup.apply
     assert_equal [ "World's End", "isfdb" ], [ worlds_end.reload.title, worlds_end.field_sources["title"] ]
-    assert_equal "Recalled to Life", recalled.reload.title
+    assert_equal "The Engines of God", engines.reload.title
+    assert_equal "Voyage to Venus", venus.reload.title # left for Mark
     assert_equal "Retitled “World's End (Snow Queen Vol. 2)” to ISFDB's “World's End”", CatalogueEvent.where(work: worlds_end).sole.summary
+  end
+
+  test "a title Mark sets is his: marked manual, never listed again" do
+    venus = book("Voyage to Venus", isfdb: "Perelandra")
+
+    TitleCleanup.retitle(venus, "Voyage to Venus", source: "manual")
+
+    assert_equal "manual", venus.reload.field_sources["title"]
+    assert_empty TitleCleanup.plan
   end
 end

@@ -16,6 +16,21 @@
     </li>
   </ul>
 
+  <h2 class="mb-2 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Catalogue</h2>
+  <% to_review = TitleCleanup.plan.count { |f| f.kind == :different } %>
+  <ul class="mb-8 rounded-lg border border-gray-200 dark:border-gray-700">
+    <li>
+      <%= link_to settings_titles_path,
+            class: "flex items-center justify-between gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800" do %>
+        <span>
+          <span class="font-medium text-gray-900 dark:text-gray-100">Titles to review</span>
+          <span class="block text-xs text-gray-500 dark:text-gray-400">books ISFDB words differently — a UK/US title, a subtitle, or a wrong link</span>
+        </span>
+        <span class="text-sm text-gray-500 dark:text-gray-400 tabular-nums"><%= to_review %></span>
+      <% end %>
+    </li>
+  </ul>
+
   <h2 class="mb-2 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Authority control</h2>
   <p class="mb-3 text-sm text-gray-500 dark:text-gray-400">
     Authority control — the preferred forms of names, and their variants, that enrichment resolves data to.

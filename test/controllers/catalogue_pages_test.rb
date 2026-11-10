@@ -113,4 +113,29 @@ class CataloguePagesTest < ActionDispatch::IntegrationTest
     assert hrefs.any? { |h| h.include?("tailwind") }
     assert hrefs.none? { |h| h.include?("pocket") }, hrefs.inspect
   end
+
+  test "titles worded differently on ISFDB are listed to review: take ISFDB's or keep mine" do
+    work = @books.first
+    work.provider_editions.create!(provider: "isfdb", provider_id: "77", title: "Neuromancer: A Novel of the Sprawl")
+
+    get settings_titles_url
+    assert_select "li", text: /Neuromancer: A Novel of the Sprawl/
+
+    patch settings_title_url(work), params: { choice: "mine" }
+    assert_equal "manual", work.reload.field_sources["title"]
+    get settings_titles_url
+    assert_match "Nothing to review", response.body
+  end
+
+  test "the cog sets the book's title as Mark's own" do
+    edition = @books.first.editions.first
+
+    get edition_metadata_url(edition)
+    assert_select "form[action=?]", title_edition_metadata_path(edition)
+
+    patch title_edition_metadata_url(edition), params: { title: "Neuromancer", custom_title: "Neuromancer (Ace Special)" }
+
+    assert_redirected_to work_path(@books.first)
+    assert_equal [ "Neuromancer (Ace Special)", "manual" ], [ @books.first.reload.title, @books.first.field_sources["title"] ]
+  end
 end
