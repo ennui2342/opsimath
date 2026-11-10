@@ -36,4 +36,16 @@ class TitleCleanupTest < ActiveSupport::TestCase
     assert_equal "manual", venus.reload.field_sources["title"]
     assert_empty TitleCleanup.plan
   end
+
+  test "different volume numbers make it suspect; a title of no letters is ignored" do
+    reader = book("The Astounding-Analog Reader, Book Two", main: "The Astounding-Analog Reader: Volume One",
+                  variants: [ "The Astounding-Analog Reader, Book Two" ])
+    nebula = book("Nebula Award Stories 2", main: "Nebula Award Stories Two")
+    slant = book("Slant", main: "/")
+
+    kinds = TitleCleanup.plan.to_h { |f| [ f.work.id, f.kind ] }
+    assert_equal :suspect, kinds[reader.id]
+    assert_equal :reworded, kinds[nebula.id] # 2 and Two are the same number
+    assert_not kinds.key?(slant.id)
+  end
 end

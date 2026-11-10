@@ -64,7 +64,7 @@ class TitleCleanup
     return if work.field_sources["title"] == "manual"
 
     main = self.class.isfdb_title(work) or return
-    return if work.title == main
+    return if work.title == main || !main.match?(/[[:alpha:]]/) # ISFDB's title "/" (Slant)
 
     Fix.new(work:, from: work.title, to: main, kind: kind_of(work, main))
   end
@@ -74,6 +74,9 @@ class TitleCleanup
     plain = title.sub(BRACKETED, "")
     return :brackets if plain != title && (fold(plain) == fold(main) || longer_form?(fold(plain), fold(main)))
     return :cosmetic if fold(title).delete(" ") == fold(main).delete(" ") # "Brainrose" / "Brain Rose"
+    # Different volume numbers: linked to another volume ("Book Two" →
+    # "Volume One"), whatever else matches.
+    return :suspect if numbers_differ?(plain, main)
     return :variant if work.isfdb_variant_titles.any? { |v| [ fold(title), fold(plain) ].include?(fold(v)) }
     return :reworded if (words(plain) & words(main)).any?
 
@@ -85,6 +88,17 @@ class TitleCleanup
   def longer_form?(short, long) = short.split.size >= 3 && long.start_with?("#{short} ")
 
   def words(text) = fold(text).split - STOP
+
+  NUMBER_WORDS = %w[zero one two three four five six seven eight nine ten eleven twelve].each_with_index.to_h
+                                                                                       .merge("first" => 1, "second" => 2, "third" => 3, "fourth" => 4, "fifth" => 5).freeze
+
+  # Both titles carry numbers ("2", "Two", "Second") and they aren't the same.
+  def numbers_differ?(a, b)
+    na, nb = numbers(a), numbers(b)
+    na.any? && nb.any? && na != nb
+  end
+
+  def numbers(text) = fold(text).split.filter_map { |w| w.match?(/\A\d+\z/) ? w.to_i : NUMBER_WORDS[w] }.to_set
 
   def fold(text)
     I18n.transliterate(text.to_s).downcase.gsub("&", " and ").gsub(/(\d)'s\b/, "\\1s")
