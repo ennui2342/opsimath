@@ -6,9 +6,9 @@ module AddBook
   #
   # - ISFDB printings with the same publisher and the same cover share a
   #   card: the same scan (Orbit's 1979 and 1985 Birthgrave), or the same
-  #   ISBN and cover artist (DAW's 1975 Birthgrave is in ISFDB twice, once
-  #   undated, with two scans of George Barr's cover). The card's record is
-  #   the printing with a cover and a date.
+  #   ISBN and cover artist when one has no image to compare. Two different
+  #   images are two cards (Pan's two Sphere covers). The card's record is
+  #   the printing with a cover and a date, and its cover is that one's.
   # - An Open Library edition joins the ISFDB card that has its ISBN — if
   #   only one does: a reused ISBN on several covers (Orbit's Birthgrave
   #   0860079422, 1977 and 1979/85) can't say which, so it stays apart.
@@ -23,7 +23,9 @@ module AddBook
           editions.first
       end
 
-      def cover_url = editions.filter_map(&:cover_url).first
+      # The cover of the printing the card saves (its primary), so what's
+      # shown is what's chosen.
+      def cover_url = primary.cover_url.presence || editions.filter_map(&:cover_url).first
 
       def publisher = primary.publisher.presence || editions.filter_map(&:publisher).first
 
@@ -69,9 +71,15 @@ module AddBook
       [ cards.sort_by(&:sort_key), hidden.size ]
     end
 
+    # Two printings with cover images that differ are never one card, even
+    # with the same ISBN and artist: Pan's Sphere (0330301276, Geoff Hunt)
+    # is in ISFDB three times with two different covers — the 1988 original
+    # and a Jurassic Park reissue — and one card showed one and saved the
+    # other (2026-11-11). Two scans of one cover then show as two cards,
+    # the harmless way round. A printing without an image still joins.
     def self.same_cover?(a, b)
       return false unless publisher_core(a.publisher) == publisher_core(b.publisher)
-      return true if a.cover_url.present? && a.cover_url == b.cover_url
+      return a.cover_url == b.cover_url if a.cover_url.present? && b.cover_url.present?
 
       a.isbn.present? && a.isbn == b.isbn && a.cover_artist.present? && a.cover_artist == b.cover_artist
     end

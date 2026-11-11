@@ -26,16 +26,28 @@ module AddBook
       assert_equal "Mass-market paperback", cards.find { |c| c.primary.id == "2" }.format_label
     end
 
-    test "the same ISBN and cover artist under one publisher is one cover; the card's record has the cover and date" do
+    test "the same ISBN and cover artist joins a printing with no image; the card's record has the cover and date" do
       dated = ed("isfdb", "1", publisher: "DAW Books", publish_date: "1975-11", binding: "pb", cover_url: "https://c/a.jpg",
                                cover_artist: "George Barr", isbn10: "0879971770")
-      undated = ed("isfdb", "2", publisher: "DAW Books", binding: "pb", cover_url: "https://c/b.jpg", cover_artist: "George Barr", isbn10: "0879971770")
+      undated = ed("isfdb", "2", publisher: "DAW Books", binding: "pb", cover_artist: "George Barr", isbn10: "0879971770")
       other_art = ed("isfdb", "3", publisher: "DAW Books", binding: "pb", cover_artist: "Ken W. Kelly", isbn10: "0879971770")
 
       cards, = EditionCards.build([ undated, dated, other_art ])
 
       assert_equal [ %w[1 2], %w[3] ], cards.map { |c| c.editions.map(&:id).sort }
       assert_equal "1", cards.first.primary.id
+    end
+
+    test "two different cover images are two cards, even with the same ISBN and artist; a card shows the cover it saves" do
+      original = ed("isfdb", "31670", publisher: "Pan Books", publish_date: "1988-08", binding: "pb", cover_url: "https://c/original.jpg",
+                                      cover_artist: "Geoff Hunt", isbn10: "0330301276")
+      reissue = ed("isfdb", "31667", publisher: "Pan Books", binding: "pb", cover_url: "https://c/jurassic.jpg",
+                                     cover_artist: "Geoff Hunt", isbn10: "0330301276")
+
+      cards, = EditionCards.build([ reissue, original ])
+
+      assert_equal 2, cards.size
+      cards.each { |c| assert_equal c.primary.cover_url, c.cover_url }
     end
 
     test "other languages are hidden unless asked for; ebooks come after physical books" do
