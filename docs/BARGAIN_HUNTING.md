@@ -319,6 +319,10 @@ No sold-price data, so three signals, any of which can flag a listing
 on a wanted printing:
 
 - **Target price** — optional per wishlist item (`target_price`, pence).
+  Once set, it's the only test for that book's finds: a copy well below
+  the cover's usual price but over the target isn't one (Mark,
+  2026-11-11: a £35 copy at 41% of the usual £87 showed under a £10
+  target). Without a target, finds are judged by spread.
   Anything at or under it is a find.
 - **Spread** — price + UK postage well below the median of current
   listings *in the same price group*. Needs a minimum number of

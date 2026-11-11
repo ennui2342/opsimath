@@ -43,13 +43,13 @@ class FindsTest < ActiveSupport::TestCase
     assert_empty Finds.all
   end
 
-  test "at or under the target price is a find whatever the spread, and sorts first" do
+  test "at or under the target price is a find; over it, a copy cheap for its cover isn't" do
     @item.update!(target_price: 450)
     under = listing(400, [ 4 ])
-    cheap = listing(500)
+    listing(500) # 40% of the usual price, but over the target
     [ 1200, 1400, 1500 ].each { |p| listing(p) }
 
-    assert_equal [ under, cheap ], Finds.all.map(&:listing)
+    assert_equal [ under ], Finds.all.map(&:listing)
     assert_equal :target, Finds.all.first.reason
   end
 
@@ -73,5 +73,19 @@ class FindsTest < ActiveSupport::TestCase
     kept = listing(600)
 
     assert_equal [ kept ], Finds.all.map(&:listing)
+  end
+
+  test "with a target price set, the target is the only test: a copy well below the usual price but over target isn't a find" do
+    @item.update!(target_price: 1000)
+    [ 2000, 2000, 2000 ].each { |t| listing(t) }
+    listing(900)
+
+    finds = Finds.all
+
+    assert_equal [ 900 ], finds.map { |f| f.listing.total }
+    assert_equal [ :target ], finds.map(&:reason)
+
+    @item.update!(target_price: 500)
+    assert_empty Finds.all # £9 is 45% of usual, but over a £5 target
   end
 end

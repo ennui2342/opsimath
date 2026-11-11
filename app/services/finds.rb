@@ -1,10 +1,12 @@
 # The eBay listings worth acting on (docs/BARGAIN_HUNTING.md, "Judging a
-# bargain"): live, not dismissed, on a cover Mark wants, and either
+# bargain"): live, not dismissed, on a cover Mark wants, and
 #
-# - at or under the book's target price, or
-# - well below the median of the *same cover's* live listings — prices
-#   are compared per cover, never per book, since a reprint is usually
-#   the cheapest copy of anything.
+# - for a book with a target price: at or under it — the target is what
+#   he'll pay, so it's the only test (a £35 copy at 41% of the usual £87
+#   was still a find under a £10 target, 2026-11-11);
+# - otherwise: well below the median of the *same cover's* live listings
+#   — prices are compared per cover, never per book, since a reprint is
+#   usually the cheapest copy of anything.
 #
 # Only a cover's cheapest listing can be a spread find: several bulk
 # sellers at the same low price are that cover's going rate, not several
@@ -37,7 +39,7 @@ class Finds
     cheapest = candidates.min_by(&:total)
     candidates.filter_map do |listing|
       reason =
-        if want.target_price && listing.total <= want.target_price then :target
+        if want.target_price then (:target if listing.total <= want.target_price)
         elsif listing == cheapest && market.size >= MIN_LISTINGS && listing.total <= SPREAD * median then :spread
         end
       reason && Find.new(listing:, want:, cover:, median:, count: market.size, reason:)
