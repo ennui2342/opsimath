@@ -112,4 +112,13 @@ class WishlistItemsControllerTest < ActionDispatch::IntegrationTest
     get wishlist_item_url(@item)
     assert_select "h1 a[href=?]", work_path(@item.work)
   end
+
+  test "the cover picker has select all / clear all; saving with every cover cleared hunts none" do
+    get wishlist_item_url(@item)
+    assert_select "[data-controller=check-all] button", text: "Clear all"
+
+    patch wishlist_item_url(@item), params: { target_price: "" } # no covers ticked
+
+    assert_equal [], @item.reload.printing_override_ids
+  end
 end

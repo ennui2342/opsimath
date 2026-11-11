@@ -22,10 +22,16 @@
     <% if @view.all_formats %><input type="hidden" name="all" value="1"><% end %>
     <% if @view.covers.any? %>
       <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">Tick the covers you want.</p>
-      <div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        <% @view.covers.each do |cover| %>
-          <%= render Ui::CoverChoiceCardComponent.new(cover:) %>
-        <% end %>
+      <div data-controller="check-all">
+        <p class="mb-2 flex gap-3 text-sm">
+          <button type="button" data-action="check-all#all" class="text-green-700 hover:underline dark:text-green-400">Select all</button>
+          <button type="button" data-action="check-all#none" class="text-green-700 hover:underline dark:text-green-400">Clear all</button>
+        </p>
+        <div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <% @view.covers.each do |cover| %>
+            <%= render Ui::CoverChoiceCardComponent.new(cover:) %>
+          <% end %>
+        </div>
       </div>
     <% elsif @view.hunted? %>
       <p class="mb-6 text-sm text-gray-600 dark:text-gray-400">ISFDB has no printings for this book yet — a book just wanted is looked up within a minute, so try reloading; otherwise every listing below is a copy of unknown printing.</p>
