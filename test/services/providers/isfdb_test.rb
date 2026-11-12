@@ -47,5 +47,19 @@ module Providers
       assert_equal %w[1911 77], works.map(&:id)
       assert_equal [ 2, 2003, "https://covers.test/1.jpg" ], [ works.first.edition_count, works.first.first_year, works.first.cover_url ]
     end
+  test "known editions come by the linked titles too, not only an ISBN that may be another title's" do
+      base = BASE_URL
+      chapbook = { "_isfdb_pub_id" => 74123, "_isfdb_title_id" => 172997, "title" => "The Midwich Cuckoos", "isbn_13" => "9780237526894",
+                   "publisher" => "Evans Brothers", "binding" => "tp" }
+      novel = { "_isfdb_pub_id" => 5501, "_isfdb_title_id" => 7701, "title" => "The Midwich Cuckoos", "isbn_10" => "0140013083",
+                "publisher" => "Penguin", "binding" => "pb", "publish_date" => "1960" }
+      stub_request(:get, "#{base}/isbn/9780237526894/editions").to_return(status: 200, body: [ chapbook ].to_json)
+      stub_request(:get, "#{base}/titles/7701/editions").to_return(status: 200, body: [ novel ].to_json)
+      stub_request(:get, "#{base}/titles/172997/editions").to_return(status: 200, body: [ chapbook ].to_json)
+
+      known = @provider.known_editions(isbns: [ "9780237526894" ], work_ids: %w[172997 7701])
+
+      assert_equal %w[5501 74123], known.editions.map(&:id).sort
+    end
   end
 end

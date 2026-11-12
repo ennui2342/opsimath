@@ -67,6 +67,17 @@ module Isfdb
       JSON.parse(response.body)
     end
 
+    # Every printing of a title and its same-language variant family —
+    # isfdb-adapter raw printing hashes; [] for an unknown title.
+    def title_editions(title_id)
+      response = get("/titles/#{Integer(title_id)}/editions", read_timeout: 60)
+      return [] if response.is_a?(Net::HTTPNotFound)
+
+      raise ServiceError, "isfdb-adapter returned #{response.code} for title #{title_id} editions" unless response.is_a?(Net::HTTPSuccess)
+
+      JSON.parse(response.body)
+    end
+
     # A title's main (parent) title and its variants: { "main" => { "id",
     # "title" }, "variants" => [{ "id", "title", "language" }] } — nil if
     # there's no such title.

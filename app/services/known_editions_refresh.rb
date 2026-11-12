@@ -19,7 +19,8 @@ class KnownEditionsRefresh
     # every work due once more, over as many nights as it takes (ISFDB:
     # isfdb-adapter began naming each printing's series and line, and
     # counting anthologies as books, 2026-11-08). Self-expiring.
-    "isfdb" => { pool_size: 6, deadline: 15.minutes, max_age: 7.days, refetch_before: Time.utc(2026, 11, 8, 15) },
+    # 2026-11-12: again, for printings by each linked ISFDB title, not just ISBN.
+    "isfdb" => { pool_size: 6, deadline: 15.minutes, max_age: 7.days, refetch_before: Time.utc(2026, 11, 12, 12) },
     "openlibrary" => { pool_size: 1, deadline: 30.minutes, max_age: 30.days, refetch_before: nil }
   }.freeze
   # A book a provider hasn't found is asked again weekly whatever its

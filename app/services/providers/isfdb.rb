@@ -25,9 +25,14 @@ module Providers
     # for the edition's anchor (AnchoredRefresh); its siblings stay unknown.
     OWN_LOOKUPS = 2
 
+    # By the book's ISBNs and by the ISFDB titles it's linked to: an ISBN
+    # can belong to a different title (The Midwich Cuckoos' only ISBN was a
+    # schools chapbook's, so the novel's printings never came, 2026-11-12).
     def known_editions(isbns:, work_ids: [])
       raw = isbns.any? ? ::Isfdb::WorkEditions.for(nil, client: @client, isbns:) : []
       raw = isbns.first(OWN_LOOKUPS).lazy.map { |isbn| @client.lookup_isbn(isbn) }.find(&:any?) || [] if raw.empty? && isbns.any?
+      raw += Array(work_ids).flat_map { |id| title_editions(id) }
+      raw = raw.uniq { |ed| ed["_isfdb_pub_id"] }
       own = isbns.map { |i| i.length == 10 ? Isbn.to_13(i) : i }.compact
 
       editions = raw.filter_map { |ed| edition(ed) }
@@ -48,6 +53,15 @@ module Providers
 
     # The work(s) an ISBN belongs to, with the printings under that ISBN.
     def works_for_isbn(isbn) = works_from(@client.lookup_isbn(isbn))
+
+    # A title's printings; [] if the adapter can't say (an older one
+    # without /titles/:id/editions).
+    def title_editions(id)
+      @client.title_editions(id)
+    rescue StandardError => e
+      Rails.logger.warn("ISFDB title #{id} editions: #{e.class}: #{e.message}")
+      []
+    end
 
     # Every ISFDB publication of the title an ISBN belongs to (and of any
     # omnibus containing it) — the full edition list for the picker.
