@@ -23,12 +23,12 @@ module HasCoverImage
   # caller with more than one cover to hold — PendingDecision's
   # candidate_covers for enrichment_printing_choice — reuse the download.
   #
-  # When ENV["COVER_CACHE_DIR"] is set, a URL already in that directory is
-  # served from disk instead of re-fetched, and every real fetch is
-  # written back to it. Off by default — it exists for `goodreads:rebuild`
-  # (and `covers:cache_export` to seed it from the current library), where
-  # the ~2k provider cover downloads are the slow part and the URLs are
-  # stable content addresses, so reusing them is free. See docs/INTEGRATIONS.md.
+  # A URL already in the cover cache is served from disk instead of
+  # re-fetched, and every real fetch is written back to it. Provider cover
+  # URLs are stable content addresses, so reusing them is free. Added for
+  # `goodreads:rebuild` (2026-09-05) as opt-in; on everywhere since
+  # 2026-11-12, when it also backs the cover proxy (CoversController) —
+  # ISFDB's image server trickles each cover out at ~3 KB/s.
   MAX_REDIRECTS = 3
 
   def self.fetch_image(url)
@@ -59,7 +59,13 @@ module HasCoverImage
     nil
   end
 
-  def self.cover_cache_dir = ENV["COVER_CACHE_DIR"].presence
+  # ENV["COVER_CACHE_DIR"], else storage/cover_cache (on the volume web and
+  # worker share in production); none in tests unless set.
+  def self.cover_cache_dir
+    ENV["COVER_CACHE_DIR"].presence || (Rails.root.join("storage", "cover_cache").to_s unless Rails.env.test?)
+  end
+
+  def self.cached?(url) = !!(cover_cache_dir && url.present? && cache_paths(url).all? { |path| File.exist?(path) })
 
   # <dir>/<sha1(url)> holds the raw bytes, <sha1(url)>.json the
   # filename/content_type/url — everything cover_image.attach needs.

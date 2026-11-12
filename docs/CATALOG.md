@@ -833,6 +833,18 @@ Book of Confluence") with its books in that ISFDB series (books ISFDB
 files in none don't count). The digest reports filings as a count and a
 sample.
 
+**Cover proxy** (2026-11-12): ISFDB's image server trickles each cover
+out at ~3 KB/s per connection (19–27s each), so the edition picker took
+most of a minute. Every provider cover on a page now goes through
+`/cover?u=` (CoversController, `cover_src` helper; known cover hosts
+only): a cover in the cache (HasCoverImage, storage/cover_cache on the
+volume web and worker share — the 2026-09-05 rebuild's cache, never
+switched on for the running app until now) is served from disk with a
+year's caching; a miss sends the browser to the provider as before while
+CoverCacheFetchJob fetches it in the background. CoverCacheWarmJob (05:00)
+fetches up to 300 a night, one at a time, of the covers of books Mark owns
+or wants — never in bulk: ISFDB is volunteer-run.
+
 **A book's title is ISFDB's main title** (Mark, 2026-11-10): the title
 of first publication, as a book added from ISFDB gets — library practice's
 preferred title of the work; an edition printed under another title says

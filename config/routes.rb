@@ -41,6 +41,7 @@ Rails.application.routes.draw do
   end
   get "publisher", to: "publishers#show", as: :publisher
   get "artist", to: "artists#show", as: :artist
+  get "cover", to: "covers#show", as: :cover # provider cover images through the cache
   # Publishers' lines (ISFDB publication series), and collecting one.
   resources :lines, only: [ :show ] do
     member do

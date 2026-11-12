@@ -17,7 +17,7 @@
         <label class="flex items-center gap-3 px-3 py-2">
           <input type="radio" name="printing" value="<%= ids.join(",") %>" <%= "checked" if (ids & @listing.matched_pub_ids).any? %>
                  class="h-4 w-4 text-green-600 focus:ring-2 focus:ring-green-600">
-          <% if cover_url %><%= image_tag cover_url, alt: "", loading: "lazy", class: "h-16 w-11 flex-none object-contain" %><% end %>
+          <% if cover_url %><%= image_tag cover_src(cover_url), alt: "", loading: "lazy", class: "h-16 w-11 flex-none object-contain" %><% end %>
           <span class="text-sm">
             <span class="block font-medium"><%= printings.flat_map(&:artists).uniq.join(", ").presence || "Artist unknown" %></span>
             <span class="block text-xs text-gray-500 dark:text-gray-400">

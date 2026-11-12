@@ -32,7 +32,7 @@
     </div>
   <% elsif @card.cover_url.present? %>
     <div class="flex justify-center px-4 pt-4">
-      <%= image_tag @card.cover_url, class: "h-40 w-auto rounded shadow", alt: "", loading: "lazy" %>
+      <%= image_tag helpers.cover_src(@card.cover_url), class: "h-40 w-auto rounded shadow", alt: "", loading: "lazy" %>
     </div>
   <% elsif @card.show_empty_cover %>
     <div class="flex justify-center px-4 pt-4">

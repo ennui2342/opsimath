@@ -20,6 +20,10 @@ production:
   #   class: GoodreadsSyncJob
   #   queue: default
   #   schedule: every hour at minute 42
+  cover_cache_warm:
+    class: CoverCacheWarmJob
+    queue: default
+    schedule: every day at 5:00am
   line_wants:
     class: LineWantsJob
     queue: default

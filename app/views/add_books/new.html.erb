@@ -48,7 +48,7 @@
       <% token = sign(result.to_payload) %>
       <li class="flex gap-3 px-4 py-3">
         <div class="h-20 w-14 flex-none bg-gray-50 dark:bg-gray-900">
-          <% if result.cover_url %><%= image_tag result.cover_url, alt: "", loading: "lazy", class: "h-full w-full object-contain" %><% end %>
+          <% if result.cover_url %><%= image_tag cover_src(result.cover_url), alt: "", loading: "lazy", class: "h-full w-full object-contain" %><% end %>
         </div>
         <div class="min-w-0 flex-1 text-sm">
           <p class="font-medium"><%= result.work ? work_link(result.work, result.title) : result.title %></p>

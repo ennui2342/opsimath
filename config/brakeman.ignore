@@ -9,6 +9,28 @@
       "file": "app/views/ebay_listings/edit.html.erb",
       "line": 9,
       "note": "EbayListing#link returns the eBay API's listing URL only when it parses as an https URL on www.ebay.co.uk / ebay.com, else nil \u2014 never a javascript: URL. Covered by test/models/ebay_listing_test.rb. Brakeman can't see through the method. Fingerprint updated 2026-11-03 when the page started loading the listing through its Work (catalogue step 4)."
+    },
+    {
+      "warning_type": "Redirect",
+      "warning_code": 18,
+      "fingerprint": "de4d582e4b2040ad62470fa0e94d8ba1ca5c5d6dbfe2980d28c5c4db97a3c6dc",
+      "check_name": "Redirect",
+      "message": "Possible unprotected redirect",
+      "file": "app/controllers/covers_controller.rb",
+      "line": 28,
+      "code": "redirect_to(params[:u].to_s, :allow_other_host => true)",
+      "render_path": null,
+      "location": {
+        "type": "method",
+        "class": "CoversController",
+        "method": "show"
+      },
+      "user_input": "params[:u].to_s",
+      "confidence": "Weak",
+      "cwe_id": [
+        601
+      ],
+      "note": "CoversController#show redirects only to a URL whose host is on CoversController::HOSTS (known cover hosts), checked by proxied? first \u2014 not an open redirect."
     }
   ],
   "brakeman_version": "8.1.0"

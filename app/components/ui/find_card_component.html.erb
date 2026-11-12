@@ -5,7 +5,7 @@
         <%= image_tag listing.image_url, alt: "eBay photo", loading: "lazy", class: "h-28 w-20 rounded object-cover" %>
       <% end %>
       <% if find.cover.cover_url %>
-        <%= image_tag find.cover.cover_url, alt: "Matched cover", loading: "lazy", class: "h-28 w-20 rounded object-contain bg-gray-50 dark:bg-gray-900" %>
+        <%= image_tag helpers.cover_src(find.cover.cover_url), alt: "Matched cover", loading: "lazy", class: "h-28 w-20 rounded object-contain bg-gray-50 dark:bg-gray-900" %>
       <% end %>
     </div>
     <div class="min-w-0 flex-1 text-sm">

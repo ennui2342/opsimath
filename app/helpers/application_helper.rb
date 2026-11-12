@@ -52,4 +52,12 @@ module ApplicationHelper
 
   # Several books' titles (an omnibus edition's), each linked.
   def work_links(works, fallback:) = works.any? ? safe_join(works.map { |w| work_link(w) }, ", ") : fallback
+
+  # A provider cover's src: through opsimath's cover cache (CoversController)
+  # for a known cover host, the URL itself otherwise.
+  def cover_src(url)
+    return if url.blank?
+
+    CoversController.proxied?(url) ? Rails.application.routes.url_helpers.cover_path(u: url) : url
+  end
 end
