@@ -34,7 +34,7 @@ class TitleCleanup
 
   # -> every difference, each with its kind
   def plan(works)
-    works.includes(:provider_editions).find_each.filter_map { |w| fix_for(w) }
+    works.includes(:provider_editions, :work_identifiers).find_each.filter_map { |w| fix_for(w) }
   end
 
   # -> number of books retitled
@@ -74,9 +74,14 @@ class TitleCleanup
   # Linked to an ISFDB record that shares nothing with it — likely the
   # wrong one (The Adventures of Alyx → Picnic on Paradise, one of the
   # novels in it): nothing else should be taken from that record either.
+  #
+  # Not a book whose title Mark set ("Keep mine" says the link is right)
+  # or whose link he made himself — a UK split volume linked to the whole
+  # book, "A Dance with Dragons 1", differs by a number on purpose.
   def self.suspect?(work)
     main = isfdb_title(work) or return false
-    return false if work.title == main
+    return false if work.title == main || work.field_sources["title"] == "manual"
+    return false if work.work_identifiers.any? { |i| i.id_type == "isfdb_title" && i.source == "manual" }
 
     new.send(:kind_of, work, main) == :suspect
   end
@@ -88,6 +93,8 @@ class TitleCleanup
 
   def fix_for(work)
     return if work.field_sources["title"] == "manual"
+    return if work.work_identifiers.any? { |i| i.id_type == "isfdb_title" && i.source == "manual" } &&
+              numbers_differ?(work.title, self.class.isfdb_title(work).to_s) # a split Mark linked to the whole
 
     main = self.class.isfdb_title(work) or return
     return if work.title == main || !main.match?(/[[:alpha:]]/) # ISFDB's title "/" (Slant)

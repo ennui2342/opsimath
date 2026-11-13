@@ -48,4 +48,15 @@ class TitleCleanupTest < ActiveSupport::TestCase
     assert_not kinds.key?(slant.id)
     assert_equal :suspect, kinds[split.id] # a split volume linked to the whole
   end
+
+  test "a split volume Mark linked to the whole book isn't suspect, nor one whose title he kept" do
+    split = book("A Dance with Dragons 1: Dreams and Dust", main: "A Dance with Dragons")
+    split.work_identifiers.create!(id_type: "isfdb_title", value: "867793", source: "manual")
+    kept = book("The Hugo Winners 1955-1961", main: "The Hugo Winners")
+    kept.update!(field_sources: { "title" => "manual" })
+
+    assert_not TitleCleanup.suspect?(split.reload)
+    assert_not TitleCleanup.suspect?(kept)
+    assert_empty TitleCleanup.plan.select { |f| [ split.id, kept.id ].include?(f.work.id) }
+  end
 end
