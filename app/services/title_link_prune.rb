@@ -30,7 +30,7 @@ class TitleLinkPrune
         records = links[work.id].map(&:last).filter_map { |v| (r = @client.title(v)) && [ v, r ] }
         next if records.size < 2
 
-        keep = Isfdb::MainTitles.ordered(records.map(&:last), work.title).first
+        keep = Isfdb::MainTitles.ordered(records.map(&:last), work.title, own: own_titles(work, records.map(&:first))).first
         drop = records.reject { |_, r| r.dig("main", "id").to_s == keep.dig("main", "id").to_s }
         Prune.new(work:, keep:, drop:) if drop.any?
       end
@@ -48,5 +48,15 @@ class TitleLinkPrune
       end
       p.drop.size
     end
+  end
+
+  private
+
+  # Which of the book's linked titles hold a printing of one of its editions.
+  def own_titles(work, values)
+    pubs = EditionIdentifier.where(id_type: "isfdb", edition_id: work.editions.select(:id)).pluck(:value).to_set
+    return [] if pubs.empty?
+
+    values.select { |v| @client.title_editions(v).any? { |ed| pubs.include?(ed["_isfdb_pub_id"].to_s) } }
   end
 end
