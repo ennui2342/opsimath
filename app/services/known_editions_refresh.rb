@@ -166,6 +166,7 @@ class KnownEditionsRefresh
     rows = known.editions.map { |e| row(work, e, now) }.uniq { |r| r[:provider_id] }
     had_ids = work.provider_editions.where(provider: @provider.name).pluck(:provider_id)
     had_links = work.work_identifiers.where(id_type: @id_type).pluck(:value)
+    rejected = work.work_identifiers.where(id_type: "#{@id_type}_rejected").pluck(:value) # TitleLinkPrune
 
     ProviderEdition.transaction do
       if rows.any?
@@ -173,13 +174,13 @@ class KnownEditionsRefresh
                                          update_only: UPDATED_COLUMNS, record_timestamps: false)
       end
       work.provider_editions.where(provider: @provider.name).where.not(provider_id: rows.map { |r| r[:provider_id] }).delete_all
-      known.work_ids.each do |value|
+      (known.work_ids - rejected).each do |value|
         work.work_identifiers.find_or_create_by!(id_type: @id_type, value:) { |i| i.source = "isbn_lookup" }
       end
       ProviderEditionRefresh.upsert({ work_id: work.id, provider: @provider.name, refreshed_at: now, queried_isbns: isbns },
                                     unique_by: [ :work_id, :provider ])
     end
-    record_events(work, known.work_ids - had_links, had_ids.empty? ? [] : rows.reject { |r| had_ids.include?(r[:provider_id]) })
+    record_events(work, known.work_ids - had_links - rejected, had_ids.empty? ? [] : rows.reject { |r| had_ids.include?(r[:provider_id]) })
   end
 
   # For #catalogue's morning digest: a book newly linked to this provider,

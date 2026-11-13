@@ -45,6 +45,15 @@ class KnownEditionsRefreshTest < ActiveSupport::TestCase
     assert_equal 1, result.refreshed
   end
 
+  test "a link pruned as a different work (TitleLinkPrune) isn't put back" do
+    @work.work_identifiers.create!(id_type: "fake_work_rejected", value: "1911")
+    provider = FakeProvider.new("9780765304674" => [ "1911", [ ed("1") ] ])
+
+    refresh(provider)
+
+    assert_not @work.work_identifiers.exists?(id_type: "fake_work")
+  end
+
   test "a work the provider already identified is asked by its id next time" do
     @work.work_identifiers.create!(id_type: "fake_work", value: "1911")
     provider = FakeProvider.new
