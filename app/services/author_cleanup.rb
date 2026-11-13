@@ -72,6 +72,14 @@ class AuthorCleanup
       (name == name.upcase && name.match?(/[A-Z]{2}/)) || !name.strip.include?(" ")
   end
 
+  # An author's name in Latin script: ISFDB's canonical name for a
+  # Russian author is Cyrillic (Борис Стругацкий); the book's English
+  # variants are credited under "Boris Strugatsky".
+  def self.latin_name(author, aliases)
+    names = [ author["name"], *aliases.select { |al| al["of"].include?(author["id"]) }.map { |al| al["name"] } ].map { |n| clean(n) }
+    names.find { |n| n.match?(/\A[\p{Latin}\p{Common}\p{Inherited}]+\z/) } || names.first
+  end
+
   # ISFDB's form of a name: entities decoded, a disambiguator dropped
   # ("Ben Smith (I)").
   def self.clean(name) = CGI.unescapeHTML(name.to_s).sub(/\s*\([IVX]+\)\z/, "").strip
@@ -174,7 +182,7 @@ class AuthorCleanup
         demote << c
       end
     end
-    add = authors.reject { |a| matched.key?(a["id"]) }.map { |a| [ self.class.clean(a["name"]), a["id"] ] }
+    add = authors.reject { |a| matched.key?(a["id"]) }.map { |a| [ self.class.latin_name(a, aliases), a["id"] ] }
     return if demote.empty? && remove.empty? && add.empty? && link.empty?
 
     Change.new(work:, demote:, remove:, add:, link:)

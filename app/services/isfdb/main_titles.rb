@@ -65,8 +65,8 @@ module Isfdb
     # this book first: a record whose main or variant title is the book's
     # title; then a real book over a chapbook (The Midwich Cuckoos: the
     # novel, not the schools chapbook); then the container over a work in
-    # it (Revolt in 2100: the collection, not "If This Goes On—"). Among
-    # titles still level — two ISFDB titles of one name (a collection
+    # it (Revolt in 2100: the collection, not "If This Goes On—" — a
+    # collection's printings are its contents' too). Among titles still level — two ISFDB titles of one name (a collection
     # reissued with other contents) — the one holding a printing Mark has
     # (`own`: title ids, where known), then the earliest (The Caves of
     # Steel: 1954, not 1978). Nothing matching: TitleCleanup calls the
@@ -77,8 +77,8 @@ module Isfdb
       records.each_with_index.sort_by do |r, i|
         names = [ r["main"]["title"], r["title"], *Array(r["variants"]).map { |v| v["title"] } ].map(&fold)
         type = r["main"]["type"].to_s.upcase
-        [ names.include?(mine) ? 0 : 1, type == "CHAPBOOK" ? 1 : 0, own.include?(r["id"].to_s) ? 0 : 1,
-          CONTAINERS.include?(type) ? 0 : 1, r["main"]["year"] || 9999, i ]
+        [ names.include?(mine) ? 0 : 1, type == "CHAPBOOK" ? 1 : 0, CONTAINERS.include?(type) ? 0 : 1,
+          own.include?(r["id"].to_s) ? 0 : 1, r["main"]["year"] || 9999, i ]
       end.map(&:first)
     end
 

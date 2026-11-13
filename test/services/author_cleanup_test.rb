@@ -91,4 +91,16 @@ class AuthorCleanupTest < ActiveSupport::TestCase
     assert_not AuthorCleanup.same?("Christopher Tolkien", "J. R. R. Tolkien")
     assert_not AuthorCleanup.same?("Ken Liu", "Cixin Liu")
   end
+
+  test "an author added by their Latin-script name, reusing the person already in the catalogue" do
+    boris = Contributor.create!(name: "Boris Strugatsky")
+    work = book("Prisoners of Power", "Arkady Strugatsky", isfdb: 50)
+    title(50, "Prisoners of Power", [ [ 1, "&#1040;&#1088;&#1082;&#1072;&#1076;&#1080;&#1081; Strugatsky-ru" ], [ 2, "&#1041;&#1086;&#1088;&#1080;&#1089;" ] ],
+          aliases: [ [ 11, "Arkady Strugatsky", [ 1 ] ], [ 12, "Boris Strugatsky", [ 2 ] ] ])
+
+    AuthorCleanup.apply
+
+    assert_equal [ [ "Arkady Strugatsky", "author" ], [ "Boris Strugatsky", "author" ] ], roles(work)
+    assert_equal boris, work.reload.work_contributors.find_by(role: "author", display_order: 1).contributor
+  end
 end
