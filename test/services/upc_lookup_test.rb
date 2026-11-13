@@ -104,4 +104,12 @@ class UpcLookupTest < ActiveSupport::TestCase
     assert_equal %w[0425], UpcLookup.call(upc: "037145011111", add_on: "67890").prefixes
     assert_equal %w[0425 0765 0812], UpcPrefix.find_by!(manufacturer: "37145").known_prefixes
   end
+
+  test "a fuller form of a known prefix is the same publisher: DAW's 0886 finds 0-88677 at once" do
+    UpcPrefix.create!(manufacturer: "71125", known_prefixes: %w[0886])
+    smugglers = pub("088677299")
+    middle("00299", smugglers, pub("038000299"), pub("078600299"))
+
+    assert_equal [ smugglers["isbn_13"] ], UpcLookup.call(upc: "071125003504", add_on: "00299").isbns
+  end
 end

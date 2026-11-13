@@ -52,7 +52,10 @@ class UpcLookup
   # rather than ruling everything out. -> the known prefixes to keep to.
   def learn(manufacturer, mass_market, all:)
     record = UpcPrefix.find_or_initialize_by(manufacturer:)
-    hits = record.known_prefixes & all
+    # A fuller form of a known prefix is the same publisher: DAW is 0886
+    # in LibraryThing's table, 0-88677 when its add-on is the title part
+    # (Smuggler's Gold, 00299 — Mark checked the printed digits, 2026-11-13).
+    hits = all.select { |p| record.known_prefixes.any? { |k| p.start_with?(k) || k.start_with?(p) } }
     return hits if hits.any?
     return [] if mass_market.empty?
 

@@ -231,7 +231,9 @@
     }
     stmt.free();
     // Keep to the publisher's known prefixes when any match; else all.
-    const narrowed = all.filter(([, front]) => known.has(front));
+    // A fuller form of a known prefix counts (DAW: 0886 / 088677).
+    const knownList = [...known];
+    const narrowed = all.filter(([, front]) => knownList.some((k) => front.startsWith(k) || k.startsWith(front)));
     return (narrowed.length ? narrowed : all).map(([isbn13]) => isbn13);
   }
 
