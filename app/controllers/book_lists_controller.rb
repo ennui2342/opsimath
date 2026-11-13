@@ -64,17 +64,29 @@ class BookListsController < ApplicationController
     redirect_back_or_to book_list_path(@list)
   end
 
+  LATIN = /\A[\p{Latin}\p{Common}\p{Inherited}]+\z/
+
+  def self.latin_name(award)
+    names = [ award["name"], award["short_name"] ].map { |n| CGI.unescapeHTML(n.to_s) }
+    parts = names.flat_map { |n| [ n, *n.split(" / ") ] }.map(&:strip).compact_blank
+    parts.find { |n| n.match?(LATIN) } || names.first
+  end
+
   private
 
   def set_list
     @list = BookList.find(params[:id])
   end
 
-  # ISFDB's awards with categories that have entries, cached a day.
+  # ISFDB's awards with categories that have entries, cached a day, by
+  # name — in Latin script: ISFDB keeps a Russian or Japanese award's name
+  # as HTML character references, with the transliteration after a slash
+  # ("Аэлита / Aelita").
   def award_types
     Rails.cache.fetch("isfdb/awards", expires_in: 1.day, skip_nil: true) { Isfdb::Client.new.award_types }
-                .map { |a| a.merge("categories" => Array(a["categories"]).select { |c| c["entries"].to_i.positive? }) }
+                .map { |a| a.merge("name" => self.class.latin_name(a), "categories" => Array(a["categories"]).select { |c| c["entries"].to_i.positive? }) }
                 .select { |a| a["categories"].any? }
+                .sort_by { |a| I18n.transliterate(a["name"]).downcase.sub(/\Athe /, "") }
   rescue Isfdb::ServiceError, Net::OpenTimeout, Net::ReadTimeout => e
     Rails.logger.warn("awards: #{e.class}: #{e.message}")
     []

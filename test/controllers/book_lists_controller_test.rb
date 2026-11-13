@@ -35,4 +35,10 @@ class BookListsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 0, Want.count
     assert_nil @list.reload.book_list_want
   end
+
+  test "an award's name in Latin script: ISFDB's character references decoded, the transliteration taken" do
+    assert_equal "Aelita", BookListsController.latin_name("name" => "&#1040;&#1101;&#1083;&#1080;&#1090;&#1072;", "short_name" => "&#1040;&#1101;&#1083;&#1080;&#1090;&#1072; / Aelita")
+    assert_equal "Seiun Award", BookListsController.latin_name("name" => "&#26143;&#38642;&#36062; / Seiun Award", "short_name" => "Seiun")
+    assert_equal "Hugo Award", BookListsController.latin_name("name" => "Hugo Award", "short_name" => "Hugo")
+  end
 end
