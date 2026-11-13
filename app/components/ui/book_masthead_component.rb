@@ -24,15 +24,27 @@ module Ui
 
     # Authors first, then other roles ("Ann (editor)"), each linked; an
     # author's death year with `died:` (bargain hunting's buy-new rule).
+    # Plain contributors — an anthology's, an introduction's — folded away
+    # behind "and 22 contributors".
     def contributors_html
       wcs = @work.work_contributors.sort_by { |wc| [ wc.role == "author" ? 0 : 1, wc.display_order || Float::INFINITY ] }
-      helpers.safe_join(wcs.map do |wc|
-        link = helpers.link_to(wc.contributor.name, helpers.author_path(wc.contributor), class: "hover:underline")
+      named, others = wcs.partition { |wc| wc.role != "contributor" }
+      credits = helpers.safe_join(named.map do |wc|
+        link = person_link(wc)
         died = (" (d. #{wc.contributor.died_date.first(4)})" if @died && wc.role == "author" && wc.contributor.died_date)
         role = (" (#{wc.role})" unless wc.role == "author")
         helpers.safe_join([ link, died, role ].compact)
       end, ", ")
+      return credits if others.empty?
+
+      folded = helpers.tag.details(class: "inline [&[open]>summary]:hidden") do
+        helpers.tag.summary("#{'and ' if named.any?}#{helpers.pluralize(others.size, 'contributor')}", class: "inline cursor-pointer hover:underline") +
+          helpers.safe_join(others.map { |wc| person_link(wc) }, ", ")
+      end
+      helpers.safe_join([ credits, folded ].compact_blank, " ")
     end
+
+    def person_link(wc) = helpers.link_to(wc.contributor.name, helpers.author_path(wc.contributor), class: "hover:underline")
 
     def series_html
       return if @work.work_series.empty?

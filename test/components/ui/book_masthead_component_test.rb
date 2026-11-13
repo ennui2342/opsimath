@@ -18,7 +18,7 @@ module Ui
       assert_selector "span", text: "Owned"
       assert_selector "h1 a[href='/works/#{@work.id}']", text: "The Left Hand of Darkness"
       assert_text "A Novel"
-      assert_equal [ "Ursula K. Le Guin", "Brian Attebery" ], page.all("p a[href^='/authors/']").map(&:text)
+      assert_equal [ "Ursula K. Le Guin", "Brian Attebery" ], page.all("div a[href^='/authors/']").map(&:text)
       assert_text "Brian Attebery (editor)"
       assert_selector "a[href='/series/#{@hainish.id}']", text: "Hainish"
       assert_text "#4"
@@ -29,6 +29,15 @@ module Ui
 
       assert_no_selector "h1 a"
       assert_text "Ursula K. Le Guin (d. 2018)"
+    end
+  test "plain contributors are folded away behind a count" do
+      %w[Ann Bea].each_with_index { |n, i| @work.work_contributors.create!(contributor: Contributor.create!(name: "#{n} Writer"), role: "contributor", display_order: i) }
+
+      render_inline(BookMastheadComponent.new(work: @work))
+
+      assert_selector "details summary", text: "and 2 contributors"
+      assert_selector "details a", text: "Ann Writer", visible: :all
+      assert_no_text "(contributor)"
     end
   end
 end
