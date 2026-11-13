@@ -54,6 +54,27 @@ class KnownEditionsRefreshTest < ActiveSupport::TestCase
     assert_not @work.work_identifiers.exists?(id_type: "fake_work")
   end
 
+  test "the link comes from the edition's own printing: an omnibus edition is linked to the omnibus, not a novel in it" do
+    edition = @work.editions.first
+    EditionIdentifier.create!(edition:, id_type: "isfdb", value: "20507") # anchored: Mark's printing
+    # The provider reports the novel's title for the ISBN (as isfdb-adapter
+    # did before 2026-11-14); the anchored printing says it's the omnibus's.
+    provider = FakeProvider.new("9780765304674" => [ "868", [ ed("20507", work_id: "11111"), ed("54237", work_id: "868", isbn13: "9780380701780") ] ])
+
+    refresh(provider)
+
+    assert_equal [ "11111" ], @work.work_identifiers.where(id_type: "fake_work").pluck(:value)
+    assert_equal "11111", @work.provider_editions.find_by(provider_id: "20507").provider_work_id
+  end
+
+  test "an edition not yet anchored is linked by its ISBN's printing" do
+    provider = FakeProvider.new("9780765304674" => [ "999", [ ed("1", work_id: "1911") ] ])
+
+    refresh(provider)
+
+    assert_equal [ "1911" ], @work.work_identifiers.where(id_type: "fake_work").pluck(:value)
+  end
+
   test "a work the provider already identified is asked by its id next time" do
     @work.work_identifiers.create!(id_type: "fake_work", value: "1911")
     provider = FakeProvider.new

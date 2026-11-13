@@ -16,10 +16,27 @@ class WorkMerge
            RecommendationShow => %w[shown_on], EbayListing => %w[ebay_item_id] }.freeze
   FIELDS = %w[subtitle original_publication_year original_language description isfdb_main_title].freeze
 
-  def self.merge!(keep:, drop:) = new(keep:, drop:).merge!
+  def self.merge!(keep:, drop:, force: false) = new(keep:, drop:, force:).merge!
 
-  def initialize(keep:, drop:)
+  # The ISFDB titles a book's anchored editions are printings of.
+  def self.edition_titles(work)
+    pubs = EditionIdentifier.where(id_type: "isfdb", edition_id: work.editions.select(:id)).pluck(:value)
+    ProviderEdition.where(work:, provider: "isfdb", provider_id: pubs).where.not(provider_work_id: nil).pluck(:provider_work_id).to_set
+  end
+
+  class Different < StandardError; end
+
+  # Refused when both books' editions are printings of different ISFDB
+  # titles (their own titles, provider_work_id): two books, not one —
+  # Peace and War, the omnibus, was merged into The Forever War on a shared
+  # (wrong) link, 2026-11-13. `force:` for a variant ISFDB keeps apart.
+  def initialize(keep:, drop:, force: false)
     raise ArgumentError, "a book can't be merged into itself" if keep.id == drop.id
+
+    mine, theirs = [ keep, drop ].map { |w| self.class.edition_titles(w) }
+    if !force && mine.any? && theirs.any? && !mine.intersect?(theirs)
+      raise Different, "their editions are printings of different ISFDB titles (#{mine.to_a.join(', ')} / #{theirs.to_a.join(', ')})"
+    end
 
     @keep = keep
     @drop = drop

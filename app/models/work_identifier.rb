@@ -3,9 +3,13 @@
 # Library's work key. How the add flow recognises a provider's work as one
 # already catalogued.
 #
-# Not unique per (id_type, value): ISFDB resolves an omnibus edition's ISBN
-# to a novel inside it, so the omnibus and the novel can share a title id
-# (Peace and War / The Forever War). `source` says how it was learnt.
+# A book's ISFDB titles come from its editions' printings (docs/CATALOG.md,
+# "ISFDB links from editions"); `source` says how each was learnt.
+# Not unique per (id_type, value): until isfdb-adapter's 2026-11-14 fix an
+# omnibus printing was credited to a novel in it, so an omnibus and the
+# novel could share a title id (Peace and War / The Forever War) —
+# Isfdb::LinkReconcile corrects those. "isfdb_title_rejected" records a
+# link found wrong, which the lookups don't put back.
 class WorkIdentifier < ApplicationRecord
   belongs_to :work
 

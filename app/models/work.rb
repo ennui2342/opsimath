@@ -73,4 +73,18 @@ class Work < ApplicationRecord
     list << :dnf if readings.any?(&:dnf?) && readings.none?(&:completed?)
     list
   end
+
+  # The book's own ISFDB printings — not an omnibus's or collection's that
+  # contains it: those whose own title (provider_work_id) is one of the
+  # book's ISFDB titles. A printing stored before its title was kept
+  # (until the 2026-11-14 refetch reaches it) is judged by its title.
+  def own_isfdb_printings
+    titles = work_identifiers.select { |i| i.id_type == "isfdb_title" }.map(&:value)
+    key = WorkMatcher.key(WorkMatcher.short(title))
+    provider_editions.select do |p|
+      next false unless p.provider == "isfdb"
+
+      p.provider_work_id ? titles.include?(p.provider_work_id) : WorkMatcher.key(WorkMatcher.short(p.title.to_s)) == key
+    end
+  end
 end

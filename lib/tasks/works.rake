@@ -16,9 +16,10 @@ namespace :works do
     keep = Work.find(ENV.fetch("KEEP"))
     drop = Work.find(ENV.fetch("DROP"))
     puts "keep ##{keep.id} #{keep.title} ← ##{drop.id} #{drop.title} (#{drop.editions.count} editions, #{drop.readings.count} readings, #{drop.want ? 'wanted' : 'not wanted'})"
+    [ keep, drop ].each { |w| puts "  ##{w.id}'s editions are printings of ISFDB titles #{WorkMerge.edition_titles(w).to_a.inspect}" }
     next unless ENV["APPLY"] == "1"
 
-    WorkMerge.merge!(keep:, drop:)
+    WorkMerge.merge!(keep:, drop:, force: ENV["FORCE"] == "1")
     puts "merged"
   end
 end

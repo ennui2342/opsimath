@@ -57,4 +57,16 @@ class WorkMergeTest < ActiveSupport::TestCase
 
     assert keep.reload.want
   end
+
+  test "two books whose editions are printings of different ISFDB titles aren't merged" do
+    keep = book("The Forever War")
+    drop = book("The Forever War")
+    [ [ keep, "468971", "1911" ], [ drop, "287484", "5000" ] ].each do |w, pub, title_id|
+      w.editions.first.edition_identifiers.create!(id_type: "isfdb", value: pub)
+      ProviderEdition.create!(work: w, provider: "isfdb", provider_id: pub, provider_work_id: title_id)
+    end
+
+    assert_raises(WorkMerge::Different) { WorkMerge.merge!(keep:, drop:) }
+    assert Work.exists?(drop.id)
+  end
 end

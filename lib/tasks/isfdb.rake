@@ -106,4 +106,26 @@ namespace :isfdb do
     end
     puts "resolved=#{resolved}"
   end
+
+  # A book's ISFDB titles checked against its editions' printings
+  # (Isfdb::LinkReconcile). Dry run unless APPLY=1; EXAMPLES=n per kind.
+  desc "Reconcile ISFDB title links with editions (APPLY=1)"
+  task reconcile_links: :environment do
+    n = ENV.fetch("EXAMPLES", 25).to_i
+    r = Isfdb::LinkReconcile.new
+    plan = r.plan
+    show = ->(pairs) { pairs.map { |id, t| "#{t} (#{id})" }.join(", ") }
+    drops = plan.select { |c| c.drop.any? }
+    adds = plan.select { |c| c.add.any? }
+    puts "books checked against their editions; not yet judged (printings not refetched, or ISFDB unreadable): #{r.skipped}"
+    puts "links no edition supports — dropped: #{drops.sum { |c| c.drop.size }} on #{drops.size} books"
+    drops.first(n).each { |c| puts "  ##{c.work.id} #{c.work.title.truncate(45)} — drop #{show.(c.drop)}#{"; add #{show.(c.add)}" if c.add.any?}#{"; title back to “#{c.restore_title}”" if c.restore_title}" }
+    puts "edition titles missing — added: #{adds.sum { |c| c.add.size }} on #{adds.size} books (#{(adds - drops).size} with nothing dropped)"
+    (adds - drops).first(n).each { |c| puts "  ##{c.work.id} #{c.work.title.truncate(45)} — add #{show.(c.add)}" }
+    conflicts = plan.select { |c| c.conflicts.any? }
+    puts "conflicts (an edition's title was rejected before — for Mark): #{conflicts.size}"
+    conflicts.first(n).each { |c| puts "  ##{c.work.id} #{c.work.title.truncate(45)} — edition says #{show.(c.conflicts)}" }
+    puts "titles restored: #{plan.count(&:restore_title)}"
+    puts "applied: #{r.apply} books changed" if ENV["APPLY"] == "1"
+  end
 end

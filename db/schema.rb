@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_13_180000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_13_200000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -371,6 +371,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_180000) do
     t.decimal "series_num"
     t.string "author_names", default: [], null: false, array: true
     t.integer "author_ids", default: [], null: false, array: true
+    t.string "provider_work_id"
     t.index ["isbn13"], name: "index_provider_editions_on_isbn13"
     t.index ["pub_series_id"], name: "index_provider_editions_on_pub_series_id"
     t.index ["work_id", "provider", "provider_id"], name: "idx_on_work_id_provider_provider_id_93ac77baa6", unique: true

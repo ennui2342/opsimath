@@ -23,11 +23,11 @@ class WorkSeriesSync
 
   # -> number of books filed (or positions filled)
   def run(works)
-    works.includes(:work_series, :provider_editions).find_each.count { |work| sync(work) }
+    works.includes(:work_series, :provider_editions, :work_identifiers).find_each.count { |work| sync(work) }
   end
 
   def plan(works)
-    works.includes(:work_series, :provider_editions).find_each.filter_map { |work| change_for(work) }
+    works.includes(:work_series, :provider_editions, :work_identifiers).find_each.filter_map { |work| change_for(work) }
   end
 
   private
@@ -66,10 +66,7 @@ class WorkSeriesSync
 
   # The book's own ISFDB printings — not an omnibus's that contains it,
   # whose title is in another series (or none).
-  def own_printings(work)
-    key = WorkMatcher.key(WorkMatcher.short(work.title))
-    work.provider_editions.select { |p| p.provider == "isfdb" && WorkMatcher.key(WorkMatcher.short(p.title.to_s)) == key }
-  end
+  def own_printings(work) = work.own_isfdb_printings
 
   # The series tied to this ISFDB series, else one of the same name —
   # tied to it when `adopt:`.
@@ -87,7 +84,7 @@ class WorkSeriesSync
     name = fold(printing.series_name)
     return if name.blank?
 
-    @unlinked_series ||= Series.where(isfdb_series_id: nil).includes(work_series: { work: :provider_editions }).to_a
+    @unlinked_series ||= Series.where(isfdb_series_id: nil).includes(work_series: { work: [ :provider_editions, :work_identifiers ] }).to_a
     @unlinked_series.find do |s|
       next false if s.isfdb_series_id # tied earlier in this run
       other = fold(s.name)

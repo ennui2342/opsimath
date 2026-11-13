@@ -20,7 +20,10 @@ class KnownEditionsRefresh
     # isfdb-adapter began naming each printing's series and line, and
     # counting anthologies as books, 2026-11-08). Self-expiring.
     # 2026-11-12: again, for printings by each linked ISFDB title, not just ISBN.
-    "isfdb" => { pool_size: 6, deadline: 15.minutes, max_age: 7.days, refetch_before: Time.utc(2026, 11, 12, 12) },
+    # 2026-11-14: again, keeping each printing's own title (provider_work_id)
+    # now that isfdb-adapter gives an omnibus printing the omnibus's, not a
+    # novel's in it.
+    "isfdb" => { pool_size: 6, deadline: 15.minutes, max_age: 7.days, refetch_before: Time.utc(2026, 11, 14, 0) },
     "openlibrary" => { pool_size: 1, deadline: 30.minutes, max_age: 30.days, refetch_before: nil }
   }.freeze
   # A book a provider hasn't found is asked again weekly whatever its
@@ -38,7 +41,7 @@ class KnownEditionsRefresh
   # every ISFDB work is due once more, over as many nights as it takes.
   UPDATED_COLUMNS = %i[isbn13 isbn10 title publisher binding publish_date language page_count cover_url cover_artist
                        pub_series_id pub_series_name pub_series_num series_id series_name series_num
-                       author_names author_ids updated_at].freeze
+                       author_names author_ids provider_work_id updated_at].freeze
 
   Result = Struct.new(:provider, :works, :due, :refreshed, :truncated, keyword_init: true) do
     def to_s = "#{provider}: works=#{works} due=#{due} refreshed=#{refreshed}#{' TRUNCATED' if truncated}"
@@ -166,7 +169,8 @@ class KnownEditionsRefresh
     rows = known.editions.map { |e| row(work, e, now) }.uniq { |r| r[:provider_id] }
     had_ids = work.provider_editions.where(provider: @provider.name).pluck(:provider_id)
     had_links = work.work_identifiers.where(id_type: @id_type).pluck(:value)
-    rejected = work.work_identifiers.where(id_type: "#{@id_type}_rejected").pluck(:value) # TitleLinkPrune
+    rejected = work.work_identifiers.where(id_type: "#{@id_type}_rejected").pluck(:value) # Isfdb::LinkReconcile
+    links = links_from_editions(work, rows).presence || known.work_ids
 
     ProviderEdition.transaction do
       if rows.any?
@@ -174,13 +178,32 @@ class KnownEditionsRefresh
                                          update_only: UPDATED_COLUMNS, record_timestamps: false)
       end
       work.provider_editions.where(provider: @provider.name).where.not(provider_id: rows.map { |r| r[:provider_id] }).delete_all
-      (known.work_ids - rejected).each do |value|
+      (links - rejected).each do |value|
         work.work_identifiers.find_or_create_by!(id_type: @id_type, value:) { |i| i.source = "isbn_lookup" }
       end
       ProviderEditionRefresh.upsert({ work_id: work.id, provider: @provider.name, refreshed_at: now, queried_isbns: isbns },
                                     unique_by: [ :work_id, :provider ])
     end
-    record_events(work, known.work_ids - had_links - rejected, had_ids.empty? ? [] : rows.reject { |r| had_ids.include?(r[:provider_id]) })
+    record_events(work, links - had_links - rejected, had_ids.empty? ? [] : rows.reject { |r| had_ids.include?(r[:provider_id]) })
+  end
+
+  # The provider's titles for this book, from its editions (docs/CATALOG.md,
+  # "ISFDB links from editions"): an edition anchored to one of the
+  # provider's printings is a printing of that printing's own title; an
+  # edition not yet anchored, of the title of a printing with its ISBN (an
+  # ISBN can be reused: anchoring settles which). A wanted book with no
+  # editions goes by the ISBNs it's wanted under. Empty when no printing
+  # is the book's (the provider's title search found it): its matches
+  # stand.
+  def links_from_editions(work, rows)
+    editions = work.editions.includes(:edition_identifiers).to_a
+    anchors = editions.flat_map(&:edition_identifiers).select { |i| i.id_type == @provider.name }.map(&:value).to_set
+    loose = editions.reject { |e| e.edition_identifiers.any? { |i| i.id_type == @provider.name } }
+                    .flat_map(&:edition_identifiers).select { |i| %w[isbn13 isbn10].include?(i.id_type) }
+                    .filter_map { |i| i.id_type == "isbn10" ? Isbn.to_13(i.value) : i.value }
+    loose += Array(work.want&.seed_isbns) if editions.empty?
+    rows.select { |r| anchors.include?(r[:provider_id].to_s) || (r[:isbn13] && loose.include?(r[:isbn13])) }
+        .filter_map { |r| r[:provider_work_id].presence&.to_s }.uniq
   end
 
   # For #catalogue's morning digest: a book newly linked to this provider,
@@ -219,6 +242,7 @@ class KnownEditionsRefresh
       pub_series_id: edition.pub_series_id, pub_series_name: edition.pub_series_name, pub_series_num: edition.pub_series_num,
       series_id: edition.series_id, series_name: edition.series_name, series_num: edition.series_num,
       author_names: Array(edition.author_names), author_ids: Array(edition.author_ids),
+      provider_work_id: edition.work_id,
       created_at: now, updated_at: now
     }
   end

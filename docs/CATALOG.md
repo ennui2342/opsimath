@@ -764,6 +764,47 @@ Wanting a book (book page, or "Want it" in Add a book) now runs
 `WantPrintingsJob` straight away: its printings fetched and covers
 grouped, so the bargain page fills in within a minute, not overnight.
 
+## ISFDB links from editions (2026-11-13)
+
+A book (Work) is linked to ISFDB *titles*; an edition is anchored to one
+ISFDB *printing* (publication). The two must agree: **a book's ISFDB
+titles are the titles its editions are printings of.**
+
+Until 2026-11-13 they could disagree. Links were learnt from ISBNs — the
+edition's ISBN found a printing, and the printing was asked its title —
+and isfdb-adapter answered with the first book-length title in the
+printing's contents. An omnibus printing contains the OMNIBUS title and
+each novel in it, so it was often credited to a novel. The wrong link then
+drove everything that trusts it: Peace and War was renamed The Forever War
+(TitleCleanup), typed a novel (Isfdb::MainTitles), and merged into the
+novel as a duplicate. Code had grown around the symptom — string-matching
+"own printings", heuristics picking the right one of several links, a
+pruning pass — instead of fixing the cause. Reviewed with Mark the same
+day; the fix:
+
+1. **isfdb-adapter**: a printing's title is the one of its own type
+   (`pubs.pub_ctype`) — an omnibus printing is the omnibus's.
+2. **Each printing keeps its own title** (`provider_editions.provider_work_id`),
+   so a book's own printings are exact (`Work#own_isfdb_printings`, used
+   by AuthorLinks and WorkSeriesSync), not judged by title.
+3. **Links come from editions** (KnownEditionsRefresh): an anchored
+   edition gives its printing's title; an edition not yet anchored, its
+   ISBN's (an ISBN can be reused — anchoring settles which). The
+   provider's own title search stands only when no printing is the book's.
+4. **Existing links reconciled** (Isfdb::LinkReconcile, `rake
+   isfdb:reconcile_links`, dry run first): links no edition supports are
+   dropped and remembered as `isfdb_title_rejected`; missing ones added;
+   a title taken from a dropped link goes back to the book's own. An
+   edition whose title was rejected before is a conflict for Mark — the
+   anchor may be the wrong one — and nothing changes on it. Replaces
+   TitleLinkPrune.
+5. **Merging** refuses two books whose editions are printings of different
+   titles (WorkMerge), whatever links they share.
+
+Left until the reconciliation has run: simplifying Isfdb::MainTitles'
+choice among several links (chapbook last, container first, …), which
+only books not yet anchored should need.
+
 ## Author, series and publisher pages (2026-11-08)
 
 Linked from the book page: each author's name (`/authors/:id`), each

@@ -23,7 +23,7 @@ class AuthorLinks
   # -> [links to make, disagreements with an existing link]
   def plan
     found = Contributor.where(id: WorkContributor.where(role: "author").select(:contributor_id))
-                       .includes(work_contributors: { work: [ :provider_editions, :work_contributors ] }).filter_map { |c| link_for(c) }
+                       .includes(work_contributors: { work: [ :provider_editions, :work_contributors, :work_identifiers ] }).filter_map { |c| link_for(c) }
     found.partition { |l| l.current.nil? }.then { |new_links, linked| [ new_links, linked.reject { |l| l.current == l.isfdb_id.to_s } ] }
   end
 
@@ -64,8 +64,5 @@ class AuthorLinks
     end
   end
 
-  def own_printings(work)
-    key = WorkMatcher.key(WorkMatcher.short(work.title))
-    work.provider_editions.select { |p| p.provider == "isfdb" && p.author_ids.any? && WorkMatcher.key(WorkMatcher.short(p.title.to_s)) == key }
-  end
+  def own_printings(work) = work.own_isfdb_printings.select { |p| p.author_ids.any? }
 end
