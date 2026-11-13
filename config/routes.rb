@@ -41,6 +41,17 @@ Rails.application.routes.draw do
       post :include
     end
   end
+  # Reading lists — award shortlists and curated lists (docs/LISTS.md) —
+  # wanting a book on one, or collecting the list.
+  resources :book_lists, path: "lists", only: [ :index, :show, :create ] do
+    member do
+      post :want_entry
+      post :collect
+      delete :collect, action: :stop
+      post :exclude
+      post :include
+    end
+  end
   get "publisher", to: "publishers#show", as: :publisher
   get "artist", to: "artists#show", as: :artist
   get "cover", to: "covers#show", as: :cover # provider cover images through the cache

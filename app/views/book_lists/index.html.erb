@@ -1,0 +1,46 @@
+<% content_for :title, "Lists" %>
+<% list = "divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700" %>
+
+<div class="w-full max-w-3xl">
+  <h1 class="mb-1 text-2xl font-bold text-gray-900 dark:text-gray-100">Lists</h1>
+  <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">Award shortlists and the best-of lists you're reading through.</p>
+
+  <% if @lists.any? %>
+    <ul class="<%= list %>">
+      <% @lists.each do |l| %>
+        <% v = @views[l.id] %>
+        <li class="px-4 py-3" data-book-list>
+          <%= link_to l.name, book_list_path(l), class: "font-medium text-gray-900 hover:underline dark:text-gray-100" %>
+          <p class="text-xs text-gray-600 dark:text-gray-400">
+            <%= [ "read #{v.read} of #{v.entries.size}", "own #{v.owned}", ("collecting" if l.book_list_want) ].compact.join(" · ") %>
+          </p>
+        </li>
+      <% end %>
+    </ul>
+  <% end %>
+
+  <div class="mt-6 text-sm">
+    <% if @awards.nil? %>
+      <%= link_to "Add an award list", book_lists_path(add: 1), class: "text-green-700 hover:underline dark:text-green-400" %>
+    <% elsif @awards.empty? %>
+      <p class="text-gray-500 dark:text-gray-400">ISFDB's awards aren't available just now.</p>
+    <% else %>
+      <h2 class="mb-2 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">Add an award list</h2>
+      <%= form_with url: book_lists_path, method: :get, class: "flex flex-wrap items-center gap-2" do %>
+        <input type="hidden" name="add" value="1">
+        <select name="award" onchange="this.form.requestSubmit()" class="rounded-md border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-900">
+          <option value="">Choose an award…</option>
+          <% @awards.each do |a| %><option value="<%= a["id"] %>" <%= "selected" if @award && @award["id"] == a["id"] %>><%= a["name"] %></option><% end %>
+        </select>
+      <% end %>
+      <% if @award %>
+        <%= form_with url: book_lists_path, method: :post, class: "mt-2 flex flex-wrap items-center gap-2" do %>
+          <select name="category_id" class="rounded-md border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-900">
+            <% @award["categories"].each do |c| %><option value="<%= c["id"] %>"><%= c["name"] %> (<%= c["entries"] %>)</option><% end %>
+          </select>
+          <button type="submit" class="<%= card_button_class %>">Add</button>
+        <% end %>
+      <% end %>
+    <% end %>
+  </div>
+</div>

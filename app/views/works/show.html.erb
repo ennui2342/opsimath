@@ -9,6 +9,14 @@
                                            badges: [ [ @work.literary_form, :default ] ] + @work.statuses.map { |s| badge[s] }) %>
 
   <div class="mt-3 flex flex-wrap gap-2">
+    <% @list_entries.each do |e| %>
+      <% label = case e.status
+                 when "winner" then "#{e.book_list.short_name} winner #{e.year}"
+                 when "shortlisted" then "#{e.book_list.short_name} shortlist #{e.year}"
+                 else [ e.book_list.short_name, ("##{e.position}" if e.position) ].compact.join(" ")
+                 end %>
+      <%= link_to book_list_path(e.book_list), data: { list_badge: true } do %><%= render(Ui::BadgeComponent.new(text: label, variant: :info)) %><% end %>
+    <% end %>
     <% @work.genres.each { |g| %><%= render(Ui::BadgeComponent.new(text: g.name)) %><% } %>
     <% @work.subjects.each { |s| %><%= render(Ui::BadgeComponent.new(text: s.name)) %><% } %>
     <% @work.tags.each { |t| %><%= render(Ui::BadgeComponent.new(text: t.name)) %><% } %>

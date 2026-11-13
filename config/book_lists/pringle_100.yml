@@ -1,0 +1,107 @@
+# David Pringle, Science Fiction: The 100 Best Novels — An English-Language Selection, 1949–1984 (Xanadu, 1985). Numbered in the book's (chronological) order.
+# Source: https://en.wikipedia.org/wiki/Science_Fiction:_The_100_Best_Novels (fetched 2026-11-13)
+key: pringle_100
+short_name: "Pringle 100"
+name: "Pringle's 100 Best SF Novels"
+source: "https://en.wikipedia.org/wiki/Science_Fiction:_The_100_Best_Novels (fetched 2026-11-13)"
+entries:
+  - { title: "Nineteen Eighty-Four", author: "George Orwell", year: 1949, position: 1 }
+  - { title: "Earth Abides", author: "George R. Stewart", year: 1949, position: 2 }
+  - { title: "The Martian Chronicles", author: "Ray Bradbury", year: 1950, position: 3 }
+  - { title: "The Puppet Masters", author: "Robert A. Heinlein", year: 1951, position: 4 }
+  - { title: "The Day of the Triffids", author: "John Wyndham", year: 1951, position: 5 }
+  - { title: "Limbo", author: "Bernard Wolfe", year: 1952, position: 6 }
+  - { title: "The Demolished Man", author: "Alfred Bester", year: 1953, position: 7 }
+  - { title: "Fahrenheit 451", author: "Ray Bradbury", year: 1953, position: 8 }
+  - { title: "Childhood's End", author: "Arthur C. Clarke", year: 1953, position: 9 }
+  - { title: "The Paradox Men", author: "Charles L. Harness", year: 1953, position: 10 }
+  - { title: "Bring the Jubilee", author: "Ward Moore", year: 1953, position: 11 }
+  - { title: "The Space Merchants", author: "Frederik Pohl and C. M. Kornbluth", year: 1953, position: 12 }
+  - { title: "Ring Around the Sun", author: "Clifford D. Simak", year: 1953, position: 13 }
+  - { title: "More Than Human", author: "Theodore Sturgeon", year: 1953, position: 14 }
+  - { title: "Mission of Gravity", author: "Hal Clement", year: 1954, position: 15 }
+  - { title: "A Mirror for Observers", author: "Edgar Pangborn", year: 1954, position: 16 }
+  - { title: "The End of Eternity", author: "Isaac Asimov", year: 1955, position: 17 }
+  - { title: "The Long Tomorrow", author: "Leigh Brackett", year: 1955, position: 18 }
+  - { title: "The Inheritors", author: "William Golding", year: 1955, position: 19 }
+  - { title: "The Stars My Destination", author: "Alfred Bester ", year: 1956, position: 20 }
+  - { title: "The Death of Grass", author: "John Christopher", year: 1956, position: 21 }
+  - { title: "The City and the Stars", author: "Arthur C. Clarke", year: 1956, position: 22 }
+  - { title: "The Door into Summer", author: "Robert A. Heinlein", year: 1957, position: 23 }
+  - { title: "The Midwich Cuckoos", author: "John Wyndham", year: 1957, position: 24 }
+  - { title: "Non-Stop", author: "Brian Aldiss", year: 1958, position: 25 }
+  - { title: "A Case of Conscience", author: "James Blish", year: 1958, position: 26 }
+  - { title: "Have Space Suit—Will Travel", author: "Robert A. Heinlein", year: 1958, position: 27 }
+  - { title: "Time Out of Joint", author: "Philip K. Dick", year: 1959, position: 28 }
+  - { title: "Alas, Babylon", author: "Pat Frank", year: 1959, position: 29 }
+  - { title: "A Canticle for Leibowitz", author: "Walter M. Miller, Jr.", year: 1959, position: 30 }
+  - { title: "The Sirens of Titan", author: "Kurt Vonnegut, Jr.", year: 1959, position: 31 }
+  - { title: "Rogue Moon", author: "Algis Budrys", year: 1960, position: 32 }
+  - { title: "Venus Plus X", author: "Theodore Sturgeon ", year: 1960, position: 33 }
+  - { title: "Hothouse", author: "Brian Aldiss ", year: 1962, position: 34 }
+  - { title: "The Drowned World", author: "J. G. Ballard ", year: 1962, position: 35 }
+  - { title: "A Clockwork Orange", author: "Anthony Burgess", year: 1962, position: 36 }
+  - { title: "The Man in the High Castle", author: "Philip K. Dick", year: 1962, position: 37 }
+  - { title: "Journey Beyond Tomorrow", author: "Robert Sheckley", year: 1962, position: 38 }
+  - { title: "Way Station", author: "Clifford D. Simak", year: 1963, position: 39 }
+  - { title: "Cat's Cradle", author: "Kurt Vonnegut Jr.", year: 1963, position: 40 }
+  - { title: "Greybeard", author: "Brian Aldiss", year: 1964, position: 41 }
+  - { title: "Nova Express", author: "William S. Burroughs", year: 1964, position: 42 }
+  - { title: "Martian Time-Slip", author: "Philip K. Dick ", year: 1964, position: 43 }
+  - { title: "The Three Stigmata of Palmer Eldritch", author: "Philip K. Dick", year: 1965, position: 44 }
+  - { title: "The Wanderer", author: "Fritz Leiber", year: 1965, position: 45 }
+  - { title: "Norstrilia", author: "Cordwainer Smith", year: 1965, position: 46 }
+  - { title: "Dr. Bloodmoney", author: "Philip K. Dick", year: 1965, position: 47 }
+  - { title: "Dune", author: "Frank Herbert", year: 1965, position: 48 }
+  - { title: "The Crystal World", author: "J. G. Ballard", year: 1966, position: 49 }
+  - { title: "Make Room! Make Room!", author: "[[Harry Harrison", year: 1966, position: 50 }
+  - { title: "Flowers for Algernon", author: "Daniel Keyes", year: 1966, position: 51 }
+  - { title: "The Dream Master", author: "Roger Zelazny", year: 1966, position: 52 }
+  - { title: "Stand on Zanzibar", author: "[[John Brunner", year: 1968, position: 53 }
+  - { title: "Nova", author: "Samuel R. Delany", year: 1968, position: 54 }
+  - { title: "Do Androids Dream of Electric Sheep?", author: "Philip K. Dick", year: 1968, position: 55 }
+  - { title: "Camp Concentration", author: "Thomas M. Disch", year: 1968, position: 56 }
+  - { title: "The Final Programme", author: "Michael Moorcock", year: 1968, position: 57 }
+  - { title: "Pavane", author: "Keith Roberts", year: 1968, position: 58 }
+  - { title: "Heroes and Villains", author: "Angela Carter", year: 1969, position: 59 }
+  - { title: "The Left Hand of Darkness", author: "Ursula K. Le Guin", year: 1969, position: 60 }
+  - { title: "The Palace of Eternity", author: "Bob Shaw", year: 1969, position: 61 }
+  - { title: "Bug Jack Barron", author: "Norman Spinrad", year: 1969, position: 62 }
+  - { title: "Tau Zero", author: "Poul Anderson", year: 1970, position: 63 }
+  - { title: "Downward to the Earth", author: "Robert Silverberg", year: 1970, position: 64 }
+  - { title: "The Year of the Quiet Sun", author: "[[Wilson Tucker", year: 1970, position: 65 }
+  - { title: "334", author: "Thomas M. Disch", year: 1972, position: 66 }
+  - { title: "The Fifth Head of Cerberus", author: "Gene Wolfe", year: 1972, position: 67 }
+  - { title: "The Dancers at the End of Time", author: "Michael Moorcock", year: 1972, position: 68 }
+  - { title: "Crash", author: "J. G. Ballard", year: 1973, position: 69 }
+  - { title: "Looking Backward, from the Year 2000", author: "Mack Reynolds", year: 1973, position: 70 }
+  - { title: "The Embedding", author: "[[Ian Watson", year: 1973, position: 71 }
+  - { title: "Walk to the End of the World", author: "Suzy McKee Charnas", year: 1974, position: 72 }
+  - { title: "The Centauri Device", author: "M. John Harrison", year: 1974, position: 73 }
+  - { title: "The Dispossessed", author: "Ursula K. Le Guin", year: 1974, position: 74 }
+  - { title: "Inverted World", author: "[[Christopher Priest", year: 1974, position: 75 }
+  - { title: "High Rise", author: "J.G. Ballard ", year: 1975, position: 76 }
+  - { title: "Galaxies", author: "Barry N. Malzberg", year: 1975, position: 77 }
+  - { title: "The Female Man", author: "Joanna Russ", year: 1975, position: 78 }
+  - { title: "Orbitsville", author: "Bob Shaw", year: 1975, position: 79 }
+  - { title: "The Alteration", author: "Kingsley Amis", year: 1976, position: 80 }
+  - { title: "Woman on the Edge of Time", author: "Marge Piercy", year: 1976, position: 81 }
+  - { title: "Man Plus", author: "Frederik Pohl", year: 1976, position: 82 }
+  - { title: "Michaelmas", author: "Algis Budrys", year: 1977, position: 83 }
+  - { title: "The Ophiuchi Hotline", author: "[[John Varley", year: 1977, position: 84 }
+  - { title: "Miracle Visitors", author: "Ian Watson", year: 1978, position: 85 }
+  - { title: "Engine Summer", author: "[[John Crowley", year: 1979, position: 86 }
+  - { title: "On Wings of Song", author: "Thomas M. Disch", year: 1979, position: 87 }
+  - { title: "The Walking Shadow", author: "Brian Stableford", year: 1979, position: 88 }
+  - { title: "Juniper Time", author: "Kate Wilhelm", year: 1979, position: 89 }
+  - { title: "Timescape", author: "Gregory Benford", year: 1980, position: 90 }
+  - { title: "The Dreaming Dragons", author: "Damien Broderick", year: 1980, position: 91 }
+  - { title: "Wild Seed", author: "Octavia E. Butler", year: 1980, position: 92 }
+  - { title: "Riddley Walker", author: "Russell Hoban", year: 1980, position: 93 }
+  - { title: "The Complete Roderick", author: "John Sladek", year: 1980, position: 94 }
+  - { title: "The Shadow of the Torturer", author: "Gene Wolfe ", year: 1980, position: 95 }
+  - { title: "The Unreasoning Mask", author: "Philip José Farmer", year: 1981, position: 96 }
+  - { title: "Oath of Fealty", author: "Larry Niven and Jerry Pournelle", year: 1981, position: 97 }
+  - { title: "No Enemy But Time", author: "[[Michael Bishop", year: 1982, position: 98 }
+  - { title: "The Birth of the People's Republic of Antarctica", author: "John Calvin Batchelor", year: 1983, position: 99 }
+  - { title: "Neuromancer", author: "William Gibson", year: 1984, position: 100 }

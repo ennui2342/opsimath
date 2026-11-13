@@ -1,0 +1,95 @@
+<% content_for :title, @list.name %>
+<% small = card_button_class %>
+<% v = @view %>
+
+<div class="w-full max-w-3xl">
+  <p class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400"><%= @list.award? ? "Award" : "List" %></p>
+  <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100"><%= @list.name %></h1>
+  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400" data-progress>
+    <%= [ "read #{v.read} of #{v.entries.size}", "own #{v.owned}" ].join(" · ") %>
+    <% if @list.source&.start_with?("http") %> · <%= link_to "source", @list.source.split.first, target: "_blank", rel: "noopener", class: "hover:underline" %><% end %>
+  </p>
+
+  <% if @list.award? %>
+    <nav class="mt-3 flex flex-wrap items-center gap-2 text-sm" aria-label="Which entries">
+      <% pill = "rounded-full px-3 py-1" %>
+      <% %w[shortlist winners].each do |s| %>
+        <%= link_to (s == "winners" ? "Winners" : "Shortlists"), book_list_path(@list, scope: s, from: @from_year),
+                    class: "#{pill} #{@scope == s ? 'bg-conflict-100 text-conflict-800 dark:bg-conflict-900 dark:text-conflict-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300'}" %>
+      <% end %>
+      <%= form_with url: book_list_path(@list), method: :get, class: "flex items-center gap-1" do %>
+        <input type="hidden" name="scope" value="<%= @scope %>">
+        <label for="from" class="text-gray-500 dark:text-gray-400">from</label>
+        <input id="from" type="number" name="from" value="<%= @from_year %>" placeholder="year" class="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-900">
+      <% end %>
+    </nav>
+  <% end %>
+
+  <div class="mt-3 text-sm" data-collect>
+    <% if @list_want %>
+      <div class="flex flex-wrap items-center gap-3">
+        <span class="text-gray-700 dark:text-gray-300">
+          Collecting <%= @list.award? ? (@list_want.scope == "winners" ? "the winners" : "the whole shortlist") : "this list" %><%= " from #{@list_want.from_year}" if @list_want.from_year %>
+          <%= " · last checked #{time_ago_in_words(@list_want.synced_at)} ago" if @list_want.synced_at %>
+        </span>
+        <%= button_to "Stop collecting", collect_book_list_path(@list), method: :delete, class: small,
+                      form: { data: { turbo_confirm: "Stop collecting #{@list.name}? The wants it added go; books you wanted anyway stay." } } %>
+      </div>
+    <% elsif v.missing.any? %>
+      <%= form_with url: collect_book_list_path(@list), method: :post, class: "flex flex-wrap items-center gap-2" do %>
+        <% if @list.award? %>
+          <select name="scope" class="rounded-md border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-900">
+            <option value="winners">Winners</option>
+            <option value="shortlist" <%= "selected" if @scope == "shortlist" %>>Whole shortlists</option>
+          </select>
+          <label class="text-gray-500 dark:text-gray-400">from <input type="number" name="from_year" value="<%= @from_year %>" placeholder="any year" class="w-24 rounded-md border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-900"></label>
+        <% else %>
+          <input type="hidden" name="scope" value="winners">
+        <% end %>
+        <button type="submit" class="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600">Collect this list</button>
+        <span class="w-full text-xs text-gray-500 dark:text-gray-400">Wants every book on it you don't have<%= " — and each new year's, as they're announced" if @list.award? %>.</span>
+      <% end %>
+    <% end %>
+  </div>
+
+  <% card = lambda do |e, number| %>
+    <% if e.work&.editions&.any? %>
+      <% e.work.editions_in_order.each do |edition| %>
+        <%= render Ui::EditionCardComponent.new(edition:, size: :row, work: e.work, number:) %>
+      <% end %>
+    <% else %>
+      <% excluded = @list_want && e.isfdb_title_id && @list_want.excluded?(e.isfdb_title_id) %>
+      <% wanted = e.status == :wanted %>
+      <%= render Ui::BookCandidateCardComponent.new(
+            title: e.work&.title || e.title, authors: e.work ? e.work.authors.map(&:name) : [ e.author ], number:,
+            detail: [ ("not matched to ISFDB" unless e.isfdb_title_id || e.work), ("not collecting" if excluded) ].compact.join(" · ").presence,
+            url: (work_path(e.work) if e.work), dim: !wanted, badges: (wanted ? [ ApplicationHelper::WORK_STATUS_BADGES[:wanted] ] : [])) do %>
+        <% if !wanted && e.isfdb_title_id && !excluded %>
+          <%= button_to "Want it", want_entry_book_list_path(@list), params: { title_id: e.isfdb_title_id }, class: small %>
+        <% end %>
+        <% unless wanted || e.work %>
+          <%= link_to "Add", add_book_path(q: [ e.title, e.author.to_s.split(/ and | & /).first ].compact.join(" ")), class: small %>
+        <% end %>
+        <% if @list_want && e.isfdb_title_id && !wanted %>
+          <%= button_to excluded ? "Collect again" : "Not this one", (excluded ? include_book_list_path(@list) : exclude_book_list_path(@list)),
+                        params: { title_id: e.isfdb_title_id }, class: "text-xs text-gray-500 hover:underline dark:text-gray-400" %>
+        <% end %>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <% if @list.award? %>
+    <% v.by_year.each do |year, entries| %>
+      <h2 class="mb-2 mt-6 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400"><%= year || "Undated" %></h2>
+      <div class="divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
+        <% entries.each do |e| %><div data-entry><% card.call(e, (e.winner? ? "Winner" : nil)) %></div><% end %>
+      </div>
+    <% end %>
+  <% else %>
+    <div class="mt-6 divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
+      <% v.entries.each do |e| %><div data-entry><% card.call(e, e.position ? "##{e.position}" : e.year&.to_s) %></div><% end %>
+    </div>
+  <% end %>
+
+  <%= link_to "All lists", book_lists_path, class: "mt-8 inline-block text-sm text-gray-500 hover:underline dark:text-gray-400" %>
+</div>

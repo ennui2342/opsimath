@@ -48,6 +48,9 @@ class WorksController < ApplicationController
       :provider_editions,
       editions: [ :edition_identifiers, :copies, { cover_image_attachment: :blob }, { enrichment_records: { cover_image_attachment: :blob } } ]
     ).find(params[:id])
+    # The lists it's on (docs/LISTS.md), for its badges.
+    @list_entries = BookListEntry.includes(:book_list).where(isfdb_title_id: @work.work_identifiers.select { |i| i.id_type == "isfdb_title" }.map { |i| i.value.to_i })
+                                 .sort_by { |e| [ e.winner? ? 0 : 1, e.year || 0 ] }
     # Each edition's queued decisions (docs/CATALOG.md, build step 7 and
     # after): a "which printing is yours?" is settled from the edition
     # picker, anything else on the review screen, which returns here.

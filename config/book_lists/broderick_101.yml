@@ -1,0 +1,109 @@
+# Damien Broderick & Paul Di Filippo, Science Fiction: The 101 Best Novels 1985–2010 (Nonstop Press, 2012). 101 entries, 102 books: two entries pair a novel with its sequel (The Sparrow / Children of God; The Labyrinth Key / The Spears of God). Unnumbered here: in year order.
+# Source: https://www.sfadb.com/Broderick_Di_Filippo (fetched 2026-11-13)
+key: broderick_101
+short_name: "Broderick 101"
+name: "Broderick & Di Filippo's 101 Best SF Novels"
+source: "https://www.sfadb.com/Broderick_Di_Filippo (fetched 2026-11-13)"
+entries:
+  - { title: "The Handmaid's Tale", author: "Margaret Atwood", year: 1985 }
+  - { title: "Ender's Game", author: "Orson Scott Card", year: 1985 }
+  - { title: "Radio Free Albemuth", author: "Philip K. Dick", year: 1985 }
+  - { title: "Always Coming Home", author: "Ursula K. Le Guin", year: 1985 }
+  - { title: "Galápagos", author: "Kurt Vonnegut, Jr.", year: 1985 }
+  - { title: "This Is the Way the World Ends", author: "James Morrow", year: 1986 }
+  - { title: "The Falling Woman", author: "Pat Murphy", year: 1986 }
+  - { title: "The Shore of Women", author: "Pamela Sargent", year: 1986 }
+  - { title: "A Door Into Ocean", author: "Joan Slonczewski", year: 1986 }
+  - { title: "Soldiers of Paradise", author: "Paul Park", year: 1987 }
+  - { title: "Life During Wartime", author: "Lucius Shepard", year: 1987 }
+  - { title: "The Sea and Summer", author: "George Turner", year: 1987 }
+  - { title: "Cyteen", author: "C. J. Cherryh", year: 1988 }
+  - { title: "Neverness", author: "David Zindell", year: 1988 }
+  - { title: "The Steerswoman", author: "Rosemary Kirstein", year: 1989 }
+  - { title: "Grass", author: "Sheri S. Tepper", year: 1989 }
+  - { title: "Use of Weapons", author: "Iain M. Banks", year: 1990 }
+  - { title: "Queen Of Angels", author: "Greg Bear", year: 1990 }
+  - { title: "Barrayar", author: "Lois McMaster Bujold", year: 1991 }
+  - { title: "Synners", author: "Pat Cadigan", year: 1991 }
+  - { title: "Sarah Canary", author: "Karen Joy Fowler", year: 1991 }
+  - { title: "White Queen", author: "Gwyneth Jones", year: 1991 }
+  - { title: "Eternal Light", author: "Paul J. McAuley", year: 1991 }
+  - { title: "Stations of the Tide", author: "Michael Swanwick", year: 1991 }
+  - { title: "Timelike Infinity", author: "Stephen Baxter", year: 1992 }
+  - { title: "Jumper", author: "Steven Gould", year: 1992 }
+  - { title: "China Mountain Zhang", author: "Maureen F. McHugh", year: 1992 }
+  - { title: "Red Mars", author: "Kim Stanley Robinson", year: 1992 }
+  - { title: "A Fire Upon The Deep", author: "Vernor Vinge", year: 1992 }
+  - { title: "Aristoi", author: "Walter Jon Williams", year: 1992 }
+  - { title: "Doomsday Book", author: "Connie Willis", year: 1992 }
+  - { title: "Parable of the Sower", author: "Octavia E. Butler", year: 1993 }
+  - { title: "Dead Girls", author: "Richard Calder", year: 1993 }
+  - { title: "Ammonite", author: "Nicola Griffith", year: 1993 }
+  - { title: "Chimera", author: "Mary Rosenblum", year: 1993 }
+  - { title: "Nightside The Long Sun", author: "Gene Wolfe", year: 1993 }
+  - { title: "Mother of Storms", author: "John Barnes", year: 1994 }
+  - { title: "Brittle Innings", author: "Michael Bishop", year: 1994 }
+  - { title: "Permutation City", author: "Greg Egan", year: 1994 }
+  - { title: "Sailing Bright Eternity", author: "Gregory Benford", year: 1995 }
+  - { title: "Blood", author: "Michael Moorcock", year: 1995 }
+  - { title: "Galatea 2.2", author: "Richard Powers", year: 1995 }
+  - { title: "The Diamond Age", author: "Neal Stephenson", year: 1995 }
+  - { title: "The Transmigration of Souls", author: "William Barton", year: 1996 }
+  - { title: "The Fortunate Fall", author: "Raphael Carter", year: 1996 }
+  - { title: "The Sparrow", author: "Mary Doria Russell", year: 1996 }
+  - { title: "Holy Fire", author: "Bruce Sterling", year: 1996 }
+  - { title: "Night Lamp", author: "Jack Vance", year: 1996 }
+  - { title: "In the Garden of Iden", author: "Kage Baker", year: 1997 }
+  - { title: "Forever Peace", author: "Joe Haldeman", year: 1997 }
+  - { title: "Glimmering", author: "Elizabeth Hand", year: 1997 }
+  - { title: "As She Climbed Across the Table", author: "Jonathan Lethem", year: 1997 }
+  - { title: "The Cassini Division", author: "Ken MacLeod", year: 1998 }
+  - { title: "Bloom", author: "Wil McCarthy", year: 1998 }
+  - { title: "Vast", author: "Linda Nagata", year: 1998 }
+  - { title: "Children of God", author: "Mary Doria Russell", year: 1998 }
+  - { title: "The Golden Globe", author: "John Varley", year: 1998 }
+  - { title: "Headlong", author: "Simon Ings", year: 1999 }
+  - { title: "Cave of Stars", author: "George Zebrowski", year: 1999 }
+  - { title: "Genesis", author: "Poul Anderson", year: 2000 }
+  - { title: "Super-Cannes", author: "J. G. Ballard", year: 2000 }
+  - { title: "Under the Skin", author: "Michel Faber", year: 2000 }
+  - { title: "Perdido Street Station", author: "China Miéville", year: 2000 }
+  - { title: "Distance Haze", author: "Jamil Nasir", year: 2000 }
+  - { title: "Revelation Space Trilogy", author: "Alastair Reynolds", year: 2000 }
+  - { title: "Salt", author: "Adam Roberts", year: 2000 }
+  - { title: "Ventus", author: "Karl Schroeder", year: 2000 }
+  - { title: "The Cassandra Complex", author: "Brian Stableford", year: 2001 }
+  - { title: "Light", author: "M. John Harrison", year: 2002 }
+  - { title: "Altered Carbon", author: "Richard Morgan", year: 2002 }
+  - { title: "The Separation", author: "Christopher Priest", year: 2002 }
+  - { title: "The Golden Age", author: "John C. Wright", year: 2002 }
+  - { title: "The Time Traveler's Wife", author: "Audrey Niffenegger", year: 2003 }
+  - { title: "Natural History", author: "Justina Robson", year: 2003 }
+  - { title: "The Labyrinth Key", author: "Howard V. Hendrix", year: 2004 }
+  - { title: "River of Gods", author: "Ian McDonald", year: 2004 }
+  - { title: "The Plot Against America", author: "Philip Roth", year: 2004 }
+  - { title: "Air (Or, Have Not Have)", author: "Geoff Ryman", year: 2004 }
+  - { title: "Never Let Me Go", author: "Kazuo Ishiguro", year: 2005 }
+  - { title: "The House of Storms", author: "Ian R. MacLeod", year: 2005 }
+  - { title: "Counting Heads", author: "David Marusek", year: 2005 }
+  - { title: "Accelerando", author: "Charles Stross", year: 2005 }
+  - { title: "Spin", author: "Robert Charles Wilson", year: 2005 }
+  - { title: "The Spears of God", author: "Howard V. Hendrix", year: 2006 }
+  - { title: "My Dirty Little Book of Stolen Time", author: "Liz Jensen", year: 2006 }
+  - { title: "The Road", author: "Cormac McCarthy", year: 2006 }
+  - { title: "Temeraire", author: "Naomi Novik", year: 2006 }
+  - { title: "Blindsight", author: "Peter Watts", year: 2006 }
+  - { title: "HARM", author: "Brian W. Aldiss", year: 2007 }
+  - { title: "The Yiddish Policemen's Union", author: "Michael Chabon", year: 2007 }
+  - { title: "The Secret City", author: "Carol Emshwiller", year: 2007 }
+  - { title: "In War Times", author: "Kathleen Ann Goonan", year: 2007 }
+  - { title: "Postsingular", author: "Rudy Rucker", year: 2007 }
+  - { title: "Shadow of the Scorpion", author: "Neal Asher", year: 2008 }
+  - { title: "Little Brother", author: "Cory Doctorow", year: 2008 }
+  - { title: "The Alchemy of Stone", author: "Ekaterina Sedia", year: 2008 }
+  - { title: "The Windup Girl", author: "Paolo Bacigalupi", year: 2009 }
+  - { title: "Steal Across the Sky", author: "Nancy Kress", year: 2009 }
+  - { title: "Boneshaker", author: "Cherie Priest", year: 2009 }
+  - { title: "Zoo City", author: "Lauren Beukes", year: 2010 }
+  - { title: "Zero History", author: "William Gibson", year: 2010 }
+  - { title: "The Quantum Thief", author: "Hannu Rajaniemi", year: 2010 }

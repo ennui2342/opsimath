@@ -11,10 +11,11 @@ class Want < ApplicationRecord
   include HasCoverThumbnail
 
   belongs_to :work
-  # The line or series want that created this want, if one did
-  # (LineWants::Sync, SeriesWants::Sync).
+  # The line, series or list want that created this want, if one did
+  # (LineWants::Sync, SeriesWants::Sync, BookListWants::Sync).
   belongs_to :line_want, optional: true
   belongs_to :series_want, optional: true
+  belongs_to :book_list_want, optional: true
 
   validates :work_id, uniqueness: true
 

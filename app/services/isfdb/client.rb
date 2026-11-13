@@ -123,6 +123,26 @@ module Isfdb
       JSON.parse(response.body)
     end
 
+    # Every award ISFDB records, with its categories (docs/LISTS.md):
+    # [{ "id", "name", "short_name", "categories" => [{ "id", "name", "entries" }] }].
+    def award_types
+      response = get("/awards", read_timeout: 60)
+      raise ServiceError, "isfdb-adapter returned #{response.code} for awards" unless response.is_a?(Net::HTTPSuccess)
+
+      JSON.parse(response.body)
+    end
+
+    # One award category, every year: { "name", "award" => { "name" },
+    # "entries" => [{ "year", "status", "title", "author", "title_id",
+    # "main_title_id", "type" }] }. nil if there's no such category.
+    def award_category(id)
+      response = get("/awards/categories/#{Integer(id)}", read_timeout: 60)
+      return nil if response.is_a?(Net::HTTPNotFound)
+      raise ServiceError, "isfdb-adapter returned #{response.code} for award category #{id}" unless response.is_a?(Net::HTTPSuccess)
+
+      JSON.parse(response.body)
+    end
+
     # isfdb-adapter's freetext /search — title and author words matched
     # separately, every edition of each matched title (up to
     # editions_per_title), in the /isbn shape. [] when nothing matches.

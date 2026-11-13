@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_13_160000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_13_180000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -77,6 +77,44 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_160000) do
     t.string "name", null: false
     t.datetime "updated_at", null: false
     t.string "wikidata_id"
+  end
+
+  create_table "book_list_entries", force: :cascade do |t|
+    t.bigint "book_list_id", null: false
+    t.integer "year"
+    t.integer "position"
+    t.string "status", null: false
+    t.string "title", null: false
+    t.string "author"
+    t.integer "isfdb_title_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["book_list_id"], name: "index_book_list_entries_on_book_list_id"
+    t.index ["isfdb_title_id"], name: "index_book_list_entries_on_isfdb_title_id"
+  end
+
+  create_table "book_list_wants", force: :cascade do |t|
+    t.bigint "book_list_id", null: false
+    t.string "scope", default: "winners", null: false
+    t.integer "from_year"
+    t.integer "excluded_title_ids", default: [], null: false, array: true
+    t.datetime "synced_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["book_list_id"], name: "index_book_list_wants_on_book_list_id", unique: true
+  end
+
+  create_table "book_lists", force: :cascade do |t|
+    t.string "key", null: false
+    t.string "name", null: false
+    t.string "short_name", null: false
+    t.string "kind", null: false
+    t.integer "isfdb_award_category_id"
+    t.string "source"
+    t.datetime "synced_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["key"], name: "index_book_lists_on_key", unique: true
   end
 
   create_table "catalogue_events", force: :cascade do |t|
@@ -500,6 +538,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_160000) do
     t.datetime "updated_at", null: false
     t.bigint "line_want_id"
     t.bigint "series_want_id"
+    t.bigint "book_list_want_id"
+    t.index ["book_list_want_id"], name: "index_wants_on_book_list_want_id"
     t.index ["legacy_wishlist_item_id"], name: "index_wants_on_legacy_wishlist_item_id", unique: true
     t.index ["line_want_id"], name: "index_wants_on_line_want_id"
     t.index ["series_want_id"], name: "index_wants_on_series_want_id"
@@ -649,6 +689,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_160000) do
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "api_tokens", "users"
   add_foreign_key "authority_variants", "authority_terms"
+  add_foreign_key "book_list_entries", "book_lists"
+  add_foreign_key "book_list_wants", "book_lists"
   add_foreign_key "catalogue_events", "works", on_delete: :nullify
   add_foreign_key "copies", "editions"
   add_foreign_key "copies", "storage_locations"
@@ -672,6 +714,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_160000) do
   add_foreign_key "series_wants", "series", on_delete: :cascade
   add_foreign_key "sessions", "users"
   add_foreign_key "storage_locations", "storage_locations", column: "parent_location_id"
+  add_foreign_key "wants", "book_list_wants"
   add_foreign_key "wants", "line_wants", on_delete: :nullify
   add_foreign_key "wants", "series_wants", on_delete: :nullify
   add_foreign_key "wants", "works", on_delete: :cascade

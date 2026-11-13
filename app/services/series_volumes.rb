@@ -50,7 +50,7 @@ class SeriesVolumes
 
   def fetch
     Rails.cache.fetch("isfdb/series/#{@isfdb_id}/volumes", expires_in: 1.day, skip_nil: true) { ::Isfdb::Client.new.series_volumes(@isfdb_id) }
-  rescue ::Isfdb::Client::ServiceError, Net::OpenTimeout, Net::ReadTimeout => e
+  rescue ::Isfdb::ServiceError, Net::OpenTimeout, Net::ReadTimeout => e
     Rails.logger.warn("series volumes #{@isfdb_id}: #{e.class}: #{e.message}")
     nil
   end

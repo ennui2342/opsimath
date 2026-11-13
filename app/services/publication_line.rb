@@ -24,7 +24,7 @@ class PublicationLine
     @name = data&.dig("name").presence || known.filter_map(&:pub_series_name).first || "ISFDB line #{@id}"
     @entries = rows.uniq { |e| e.pub_id }.each { |e| e.status = status_of(e) }
     self
-  rescue ::Isfdb::Client::ServiceError, Net::OpenTimeout, Net::ReadTimeout => e
+  rescue ::Isfdb::ServiceError, Net::OpenTimeout, Net::ReadTimeout => e
     Rails.logger.warn("publication line #{@id}: #{e.class}: #{e.message}")
     @complete = false
     @entries = known_rows.each { |x| x.status = status_of(x) }
