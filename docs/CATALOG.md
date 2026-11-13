@@ -891,7 +891,11 @@ convention, ISBN-10 digits 5–9 (Tor: 0-8125-5010-2 → 55010) or the
 ISBN's title part zero-padded (DAW: 0-88677-299-0 → 00299, found
 2026-11-13 — publisher code lengths from the ISBN ranges,
 `Isbn.publisher_prefix`); isfdb-adapter `/isbn/addon/:digits` tries both,
-and UpcPrefix learns each UPC publisher's real ISBN prefix.
+and UpcPrefix learns each UPC publisher's real ISBN prefixes — several for
+some (Tor's UPC 037145 is 0812 and 0765) — seeded 2026-11-13 from
+LibraryThing's UPC vendor → ISBN vendor table (wiki.librarything.com,
+"ISBN" → "UPC to ISBN conversion", 40 entries), which also confirms digits
+5–9 as the usual convention (it lists DAW as 0886).
 Both scanners (web `barcode_scan_controller`, pocket `pocket.js`) read
 through `app/assets/mobile/scan.js` — zxing-cpp in WebAssembly (zxing-wasm
 3.1.6, served from our assets and cached for offline), because the

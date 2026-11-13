@@ -215,22 +215,24 @@
   // where opsimath has learnt it (upc_prefixes; absent from older
   // snapshots). -> the matching ISBN-13s.
   function isbnsForUpc(upc, addOn) {
-    let prefix = null;
+    const known = new Set();
     try {
       const p = db.prepare("SELECT prefix FROM upc_prefixes WHERE manufacturer = ?");
       p.bind([upc.slice(1, 6)]);
-      if (p.step()) prefix = p.getAsObject().prefix;
+      while (p.step()) known.add(p.getAsObject().prefix);
       p.free();
     } catch (_) { /* a snapshot from before upc_prefixes */ }
     const stmt = db.prepare("SELECT DISTINCT isbn13 FROM isbn_index WHERE substr(isbn13, 1, 3) = '978'");
-    const out = [];
+    const all = [];
     while (stmt.step()) {
       const isbn13 = stmt.getAsObject().isbn13;
       const front = prefixFor(isbn13.slice(3, 12), addOn);
-      if (front && (!prefix || front === prefix)) out.push(isbn13);
+      if (front) all.push([isbn13, front]);
     }
     stmt.free();
-    return out;
+    // Keep to the publisher's known prefixes when any match; else all.
+    const narrowed = all.filter(([, front]) => known.has(front));
+    return (narrowed.length ? narrowed : all).map(([isbn13]) => isbn13);
   }
 
   // A wanted book's prices (docs/MOBILE.md, "Prices"): its target and

@@ -76,7 +76,7 @@ module Mobile
       );
       CREATE INDEX idx_cover_isbns ON cover_isbns (isbn13);
       CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
-      CREATE TABLE upc_prefixes (manufacturer TEXT PRIMARY KEY, prefix TEXT NOT NULL);
+      CREATE TABLE upc_prefixes (manufacturer TEXT NOT NULL, prefix TEXT NOT NULL);
     SQL
 
     def self.build(version:) = new(version).build
@@ -100,7 +100,9 @@ module Mobile
           view.entries.each { |entry| write_entry(db, entry, thumbs) }
           # The learnt US mass-market UPC publisher codes (UpcLookup), so a
           # scanned UPC + add-on narrows to that publisher offline too.
-          UpcPrefix.where.not(prefix: nil).pluck(:manufacturer, :prefix).each { |row| db.execute("INSERT INTO upc_prefixes VALUES (?,?)", row) }
+          UpcPrefix.pluck(:manufacturer, :known_prefixes).each do |manufacturer, prefixes|
+            prefixes.each { |prefix| db.execute("INSERT INTO upc_prefixes VALUES (?,?)", [ manufacturer, prefix ]) }
+          end
           write_meta(db, view.entries.size)
         end
       ensure

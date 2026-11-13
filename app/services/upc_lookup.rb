@@ -10,7 +10,7 @@
 # until one is left — then the ISBN follows exactly. Until then every
 # candidate is offered and Mark picks his by its cover.
 class UpcLookup
-  Result = Struct.new(:isbns, :prefix, keyword_init: true) # isbns: ISBN-13s, most likely first
+  Result = Struct.new(:isbns, :prefixes, keyword_init: true) # isbns: ISBN-13s, most likely first; prefixes: the known ones used
 
   UPC = /\A\d{12}\z/
   ADD_ON = /\A\d{5}\z/
@@ -37,27 +37,34 @@ class UpcLookup
     # mass-market's, and a misread add-on (25011 for 55010 on a Tor,
     # 2026-11-08) usually matches only other formats, so it teaches nothing.
     mass_market = by_prefix.select { |_, ps| ps.any? { |p| p["binding"] == "pb" } }.keys
-    known = learn(upc[1, 5], mass_market) || (by_prefix.keys & [ UpcPrefix.find_by(manufacturer: upc[1, 5])&.prefix ]).first
-    chosen = known ? by_prefix.slice(known) : by_prefix
+    known = learn(upc[1, 5], mass_market, all: by_prefix.keys)
+    chosen = known.any? ? by_prefix.slice(*known) : by_prefix
     isbns = chosen.values.flatten.sort_by { |p| p["binding"] == "pb" ? 0 : 1 }.filter_map { |p| isbn13(p) }.uniq
-    Result.new(isbns:, prefix: known)
+    Result.new(isbns:, prefixes: known)
   end
 
   private
 
-  # Narrow the publisher's possible prefixes by this scan's; one left is
-  # its prefix. A scan that shares none (a printing ISFDB lacks) starts
-  # the candidates afresh rather than ruling everything out.
-  def learn(manufacturer, prefixes)
-    return if prefixes.empty?
-
+  # The publisher's known prefixes among this scan's candidates — or, if
+  # none is (a new prefix for it, or none known yet), narrow its open
+  # candidates by this scan's mass-market ones; one left joins the known.
+  # A scan sharing nothing with the open candidates starts them afresh
+  # rather than ruling everything out. -> the known prefixes to keep to.
+  def learn(manufacturer, mass_market, all:)
     record = UpcPrefix.find_or_initialize_by(manufacturer:)
-    return record.prefix if record.prefix && prefixes.include?(record.prefix)
+    hits = record.known_prefixes & all
+    return hits if hits.any?
+    return [] if mass_market.empty?
 
-    narrowed = record.candidates.presence ? (record.candidates & prefixes) : prefixes
-    narrowed = prefixes if narrowed.empty?
-    record.update!(candidates: narrowed.sort, prefix: (narrowed.first if narrowed.one?))
-    record.prefix
+    narrowed = record.candidates.presence ? (record.candidates & mass_market) : mass_market
+    narrowed = mass_market if narrowed.empty?
+    if narrowed.one?
+      record.update!(candidates: [], known_prefixes: (record.known_prefixes | narrowed).sort)
+      narrowed
+    else
+      record.update!(candidates: narrowed.sort)
+      []
+    end
   end
 
   # What stands in front of the add-on in this ISBN: its first four digits
