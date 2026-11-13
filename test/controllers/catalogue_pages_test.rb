@@ -174,4 +174,13 @@ class CataloguePagesTest < ActionDispatch::IntegrationTest
     get work_url(work)
     assert_select "p", text: "as Neuromancer"
   end
+
+  test "the book search finds a book by ISFDB's other titles for it — the title an edition was printed under" do
+    work = @books.first
+    work.update!(isfdb_variant_titles: [ "Neuromante Judgement" ])
+
+    get works_url(q: "neuromante judgement")
+
+    assert_redirected_to work_path(work)
+  end
 end

@@ -22,7 +22,12 @@ module CatalogueSearch
   end
 
   def self.haystack(work)
-    " " + fold([ work.title, work.subtitle, *work.work_alternate_titles.map(&:title), *work.authors.map(&:name), *work.series.map(&:name) ].compact.join(" ")) + " "
+    # Every title the book goes by: its own, the ones it had before a
+    # rename (alternate titles), and ISFDB's other titles for it — the
+    # title an edition was printed under ("The Judgement of Eve" for The
+    # Judgment of Eve, 2026-11-13).
+    " " + fold([ work.title, work.subtitle, *work.work_alternate_titles.map(&:title), *work.isfdb_variant_titles,
+                 *work.authors.map(&:name), *work.series.map(&:name) ].compact.join(" ")) + " "
   end
 
   def self.fold(text) = I18n.transliterate(text.to_s.tr("’‘", "''")).downcase.delete("'").gsub(/[^a-z0-9]+/, " ").strip
