@@ -5,6 +5,14 @@
 <div class="w-full max-w-3xl">
   <p class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Author</p>
   <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100"><%= @author.name %></h1>
+  <%# Pen names, from ISFDB: each to their page here, or ISFDB's. %>
+  <% other = ->(o) { o.contributor ? link_to(o.name, author_path(o.contributor), class: "font-medium text-gray-900 hover:underline dark:text-gray-100") : link_to(o.name, "https://www.isfdb.org/cgi-bin/ea.cgi?#{ERB::Util.url_encode(o.isfdb_id)}", target: "_blank", rel: "noopener", class: "hover:underline") } %>
+  <% if (real = @author.pen_name_of).any? %>
+    <p class="mt-1 text-sm text-gray-700 dark:text-gray-300" data-pen-name-of>Pen name of <%= safe_join(real.map(&other), " & ") %></p>
+  <% end %>
+  <% if (names = @author.published_as).any? %>
+    <p class="mt-1 text-sm text-gray-700 dark:text-gray-300" data-published-as>Also published as <%= safe_join(names.map(&other), " · ") %></p>
+  <% end %>
   <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
     <%= [ ("died #{@author.died_date}" if @author.died_date.present?),
           pluralize(entries.size, "book"),

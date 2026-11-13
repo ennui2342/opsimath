@@ -183,4 +183,14 @@ class CataloguePagesTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to work_path(work)
   end
+
+  test "an author page says whose pen name it is, linking the real author's page" do
+    sign_in_as users(:one)
+    webb = Contributor.create!(name: "Catherine Webb", external_ids: { "isfdb" => "77" })
+    north = Contributor.create!(name: "Claire North", isfdb_names: { "pseudonyms" => [], "pseudonym_of" => [ { "id" => "77", "name" => "Catherine Webb" } ] })
+
+    get author_url(north)
+
+    assert_select "[data-pen-name-of] a[href='#{author_path(webb)}']", text: "Catherine Webb"
+  end
 end

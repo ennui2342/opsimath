@@ -137,5 +137,15 @@ module Isfdb
 
       assert_nil lee.reload.life_checked_at
     end
+  test "a linked author's pen names are stored, and one without them yet is checked again now" do
+      north = item("Claire North", external_ids: { "isfdb" => "500" }, life_checked_at: 1.day.ago)
+      stub_request(:get, "#{BASE_URL}/authors/500").with(query: { works: false }).to_return(status: 200, body: {
+        external_id: "500", died_date: nil, pseudonyms: [], pseudonym_of: [ { id: "77", name: "Catherine Webb" } ]
+      }.to_json, headers: { "Content-Type" => "application/json" })
+
+      ContributorLifeRefresh.run(client: @client)
+
+      assert_equal [ { "id" => "77", "name" => "Catherine Webb" } ], north.reload.isfdb_names["pseudonym_of"]
+    end
   end
 end

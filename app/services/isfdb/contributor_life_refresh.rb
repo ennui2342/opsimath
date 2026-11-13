@@ -18,7 +18,9 @@ module Isfdb
   # the result limit ("Taylor"), so the full name is tried next. A
   # non-ASCII query ("Stanisław") makes the adapter fail outright, so it's
   # never sent. Death dates rarely change, so a contributor is re-checked
-  # monthly.
+  # monthly. The same record carries the author's pen names both ways
+  # (Contributor#isfdb_names, for the author page); a linked author without
+  # them yet is checked now.
   class ContributorLifeRefresh
     STALE_AFTER = 30.days
     POOL_SIZE = 4
@@ -43,8 +45,16 @@ module Isfdb
       found = new(client:).send(:lookup, contributor.name) or return contributor
       author_id, died = found
       ids = author_id ? contributor.external_ids.merge("isfdb" => author_id.to_s) : contributor.external_ids
-      contributor.update_columns(died_date: died, life_checked_at: Time.current, external_ids: ids)
+      contributor.update_columns(died_date: died, life_checked_at: Time.current, external_ids: ids, **names_from(found))
       contributor
+    end
+
+    # { isfdb_names: … } from a found author, when the adapter gave them.
+    def self.names_from(found)
+      author = found[2] or return {}
+      return {} unless author.key?("pseudonyms")
+
+      { isfdb_names: author.slice("pseudonyms", "pseudonym_of") }
     end
 
     # Wanted books' authors first (the buy-new rule needs them), then every
@@ -52,7 +62,7 @@ module Isfdb
     def run
       wanted = Contributor.where(id: WorkContributor.where(role: "author", work_id: Want.select(:work_id)).select(:contributor_id)).to_a
       authors = (wanted + Contributor.where(id: WorkContributor.where(role: "author").select(:contributor_id)).order(:id).to_a).uniq
-      stale = authors.select { |c| c.life_checked_at.nil? || c.life_checked_at < @max_age.ago }
+      stale = authors.select { |c| c.life_checked_at.nil? || c.life_checked_at < @max_age.ago || (c.external_ids["isfdb"].present? && c.isfdb_names.nil?) }
 
       found = Concurrent::Hash.new
       pool = Concurrent::FixedThreadPool.new(@pool_size)
@@ -70,7 +80,7 @@ module Isfdb
       stale.select { |c| found.key?(c.id) }.each do |contributor|
         author_id, died = found[contributor.id]
         ids = author_id ? contributor.external_ids.merge("isfdb" => author_id.to_s) : contributor.external_ids.except("isfdb")
-        contributor.update_columns(died_date: died, life_checked_at: now, external_ids: ids)
+        contributor.update_columns(died_date: died, life_checked_at: now, external_ids: ids, **self.class.names_from(found[contributor.id]))
       end
 
       Rails.logger.warn("contributor life refresh truncated: #{stale.size - found.size} authors unprocessed") if truncated
@@ -79,7 +89,7 @@ module Isfdb
 
     private
 
-    # [isfdb_author_id, died_date] — [nil, nil] when the name matches no
+    # [isfdb_author_id, died_date, author record] — [nil, nil] when the name matches no
     # ISFDB author; nil on an adapter failure
     # (left stale, retried next run).
     def lookup(name)
@@ -91,7 +101,7 @@ module Isfdb
       return [ nil, nil ] unless main
 
       author = @client.author(main["external_id"])
-      author ? [ author["external_id"].to_i, author["died_date"].presence ] : [ nil, nil ]
+      author ? [ author["external_id"].to_i, author["died_date"].presence, author ] : [ nil, nil ]
     rescue StandardError => e
       Rails.logger.warn("wishlist author refresh: #{name} — #{e.class}: #{e.message}")
       nil
@@ -101,7 +111,7 @@ module Isfdb
     # by id — no name search.
     def by_id(author_id)
       author = @client.author(author_id)
-      author ? [ author["external_id"].to_i, author["died_date"].presence ] : [ nil, nil ]
+      author ? [ author["external_id"].to_i, author["died_date"].presence, author ] : [ nil, nil ]
     rescue StandardError => e
       Rails.logger.warn("contributor life refresh: ISFDB author #{author_id} — #{e.class}: #{e.message}")
       nil
