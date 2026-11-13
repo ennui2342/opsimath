@@ -53,4 +53,17 @@ class BookListWantsSyncTest < ActiveSupport::TestCase
 
     assert_equal mine, BookListView.for(list).entries.sole.work
   end
+
+  test "Jr. isn't a surname: Kurt Vonnegut, Jr. on the list is Mark's Kurt Vonnegut Jr." do
+    assert_equal "vonnegut", BookList.surname("Kurt Vonnegut, Jr.")
+    assert_equal "vonnegut", BookList.surname("Kurt Vonnegut Jr.")
+    assert_equal "pohl", BookList.surname("Frederik Pohl and C. M. Kornbluth")
+
+    list = BookList.create!(key: "broderick_101", name: "B", short_name: "Broderick 101", kind: "curated")
+    list.entries.create!(title: "Galápagos", author: "Kurt Vonnegut, Jr.", year: 1985, status: "listed", isfdb_title_id: 936587)
+    mine = Work.create!(title: "Galapagos", literary_form: "novel")
+    mine.work_contributors.create!(contributor: Contributor.create!(name: "Kurt Vonnegut Jr."), role: "author")
+
+    assert_equal mine, BookListView.for(list).entries.sole.work
+  end
 end

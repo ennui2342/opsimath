@@ -66,7 +66,7 @@ class BookListView
   end
 
   def name_key(title, author)
-    surname = author.to_s.split(/,| and | & /).first.to_s.split.last.to_s
+    surname = BookList.surname(author)
     [ WorkMatcher.key(WorkMatcher.short(title.to_s)), I18n.transliterate(surname).downcase ]
   end
 

@@ -69,8 +69,8 @@ module BookLists
     # is the listed title (a printing titled "Norstrilia" can lead to The
     # Planet Buyer), then the one whose year is nearest the list's.
     def match(title, author, year = nil)
-      surname = author.to_s.split(/,| and | & /).first.to_s.split.last.to_s
-      by = ->(r) { Array(r["authors"]).any? { |a| fold(a.split.last) == fold(surname) } }
+      surname = BookList.surname(author)
+      by = ->(r) { Array(r["authors"]).any? { |a| BookList.surname(a) == surname } }
       hits = [ "#{title} #{surname}", title ].lazy.map do |q|
         rows = @client.search(q, limit: 100, editions_per_title: 1).select(&by)
         exact = rows.select { |r| fold(r["title"]) == fold(title) }
