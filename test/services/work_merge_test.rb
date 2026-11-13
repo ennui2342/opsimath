@@ -37,6 +37,7 @@ class WorkMergeTest < ActiveSupport::TestCase
     drop = book("The Mind of Mr. Soames", edition: false)
     keep.create_want!(printing_override_ids: [ 601 ])
     drop.create_want!(printing_override_ids: [ 602 ], target_price: 500)
+    [ keep, drop ].each { |w| EbayListing.create!(work: w, ebay_item_id: "v1|1|0", title: "Soames", found_by: "title", first_seen_at: Time.current, last_seen_at: Time.current) }
 
     WorkMerge.merge!(keep:, drop:)
 
@@ -44,6 +45,7 @@ class WorkMergeTest < ActiveSupport::TestCase
     assert_equal [ 601, 602 ], want.printing_override_ids.sort
     assert_equal 500, want.target_price
     assert_equal 1, Want.where(work: keep).count
+    assert_equal 1, keep.ebay_listings.count # both had found the same listing
   end
 
   test "a wanted duplicate's want moves to an owned book that had none" do

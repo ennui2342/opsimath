@@ -8,12 +8,12 @@
 # ISBNs have changed).
 class WorkMerge
   # Rows that simply move.
-  MOVE = [ Reading, Review, CatalogueEvent, EbayListing ].freeze
+  MOVE = [ Reading, Review, CatalogueEvent ].freeze
   # Rows that move unless `keep` has one with the same key.
   JOIN = { EditionContent => %w[edition_id], WorkContributor => %w[contributor_id role], WorkSeries => %w[series_id],
            WorkGenre => %w[genre_id], WorkSubject => %w[subject_id], WorkTag => %w[tag_id], WorkAward => %w[award_id],
            WorkIdentifier => %w[id_type value], WorkAlternateTitle => %w[title], RecommendationDismissal => [],
-           RecommendationShow => %w[shown_on] }.freeze
+           RecommendationShow => %w[shown_on], EbayListing => %w[ebay_item_id] }.freeze
   FIELDS = %w[subtitle original_publication_year original_language description isfdb_main_title].freeze
 
   def self.merge!(keep:, drop:) = new(keep:, drop:).merge!
