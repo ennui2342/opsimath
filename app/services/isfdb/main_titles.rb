@@ -50,11 +50,31 @@ module Isfdb
         records = found[work.id]
         next if records.blank?
 
+        records = self.class.ordered(records, work.title)
         main, variants = self.class.english_titles(records, current: work.title)
         work.update_columns(isfdb_main_title: main, isfdb_variant_titles: variants, isfdb_titles_checked_at: now)
         self.class.apply_book_fields(work, records.first["main"])
       end
       found.size
+    end
+
+    CONTAINERS = %w[OMNIBUS COLLECTION ANTHOLOGY].freeze
+
+    # A book linked to several ISFDB titles (170 are — often by an ISBN that
+    # led to something it contains or is contained in), the one that is
+    # this book first: a record whose main or variant title is the book's
+    # title; then a real book over a chapbook (The Midwich Cuckoos: the
+    # novel, not the schools chapbook); then the container over a work in
+    # it (Revolt in 2100: the collection, not "If This Goes On—"). Nothing
+    # matching: link order, and TitleCleanup calls the book suspect.
+    def self.ordered(records, title)
+      fold = ->(t) { I18n.transliterate(CGI.unescapeHTML(t.to_s)).downcase.gsub(/[^a-z0-9]+/, " ").strip.sub(/\A(the|a|an) /, "") }
+      mine = fold.(WorkMatcher.plain(title))
+      records.each_with_index.sort_by do |r, i|
+        names = [ r["main"]["title"], r["title"], *Array(r["variants"]).map { |v| v["title"] } ].map(&fold)
+        type = r["main"]["type"].to_s.upcase
+        [ names.include?(mine) ? 0 : 1, type == "CHAPBOOK" ? 1 : 0, CONTAINERS.include?(type) ? 0 : 1, i ]
+      end.map(&:first)
     end
 
     # A main title record's {field => value} for the book (nil values left out).

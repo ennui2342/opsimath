@@ -48,5 +48,18 @@ module Isfdb
       assert_empty MainTitles.apply_book_fields(work, { "type" => "NOVEL", "year" => 1968, "language" => "eng" })
       assert_equal "collection", work.reload.literary_form
     end
+  test "several title links: the one that is this book — matching title, a real book over a chapbook, the container over its contents" do
+      rec = ->(title, type, year) { { "title" => title, "main" => { "title" => title, "type" => type, "year" => year }, "variants" => [] } }
+      chapbook = rec.("The Midwich Cuckoos", "CHAPBOOK", 2005)
+      novel = rec.("The Midwich Cuckoos", "NOVEL", 1957)
+      assert_equal novel, MainTitles.ordered([ chapbook, novel ], "The Midwich Cuckoos").first
+
+      novella = rec.("\"If This Goes on—\"", "NOVEL", 1940)
+      collection = rec.("Revolt in 2100", "COLLECTION", 1953)
+      assert_equal collection, MainTitles.ordered([ novella, collection ], "Revolt in 2100").first
+
+      both = [ rec.("Rainbow Mars", "NOVEL", 1999), rec.("Rainbow Mars", "COLLECTION", 1999) ]
+      assert_equal "COLLECTION", MainTitles.ordered(both, "Rainbow Mars").first["main"]["type"]
+    end
   end
 end
