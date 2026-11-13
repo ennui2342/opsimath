@@ -20,11 +20,16 @@ class ReadingsController < ApplicationController
     end
   end
 
+  # Deletes a reading — a past one to correct the log, or the open one to
+  # take the book off currently reading as if never started (Remove): it's
+  # then read or TBR, from whatever readings remain.
   def destroy
+    was_open = @reading.open?
     @reading.reviews.update_all(reading_id: nil) # a review outlives the reading it came from
     @reading.destroy!
-    CatalogueEvent.record(kind: "reading", work: @work, summary: "#{@work.title}: a reading deleted")
-    redirect_to work_path(@work), notice: "Reading deleted."
+    text = was_open ? "Removed from currently reading." : "Reading deleted."
+    CatalogueEvent.record(kind: "reading", work: @work, summary: "#{@work.title}: #{text.chomp('.').downcase}")
+    redirect_to return_path, notice: text
   end
 
   private
@@ -39,7 +44,7 @@ class ReadingsController < ApplicationController
   end
 
   # `notice` may be a lambda, called after the save — what happened (Finished,
-  # Paused …) is only known from the saved changes.
+  # Did not finish …) is only known from the saved changes.
   def save_and_return(reading, notice)
     if reading.save
       yield if block_given?
@@ -68,8 +73,6 @@ class ReadingsController < ApplicationController
   def notice_for(reading)
     return "Finished." if reading.saved_change_to_status? && reading.completed?
     return "Marked did not finish." if reading.saved_change_to_status? && reading.dnf?
-    return "Paused." if reading.saved_change_to_status? && reading.paused?
-    return "Resumed." if reading.saved_change_to_status? && reading.reading?
 
     "Reading updated."
   end

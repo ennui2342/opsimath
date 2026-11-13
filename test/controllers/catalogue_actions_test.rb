@@ -27,14 +27,19 @@ class CatalogueActionsTest < ActionDispatch::IntegrationTest
     assert_equal [ "Still **sharp**.", "draft", reading, 4 ], [ review.text, review.status, review.reading, review.rating.to_i ]
   end
 
-  test "did not finish, with a reason; pause and resume" do
+  test "remove takes a book off currently reading, back to read if it had been read before" do
+    @work.readings.create!(edition: @edition, status: "completed", date_started: Date.new(2020, 1, 1), date_finished: Date.new(2020, 2, 1))
     reading = @work.readings.create!(edition: @edition, status: "reading", date_started: Date.new(2026, 10, 1))
 
-    patch work_reading_url(@work, reading), params: { reading: { status: "paused" } }
-    assert_equal "paused", reading.reload.status
-    assert_equal "Paused.", flash[:notice]
-    patch work_reading_url(@work, reading), params: { reading: { status: "reading" } }
-    assert_equal "reading", reading.reload.status
+    delete work_reading_url(@work, reading)
+
+    assert_not Reading.exists?(reading.id)
+    assert_equal "Removed from currently reading.", flash[:notice]
+    assert_equal [ :read ], @work.reload.statuses & %i[reading read]
+  end
+
+  test "did not finish, with a reason" do
+    reading = @work.readings.create!(edition: @edition, status: "reading", date_started: Date.new(2026, 10, 1))
 
     patch work_reading_url(@work, reading), params: { reading: { status: "dnf", dnf_reason: "Not now" } }
     reading.reload

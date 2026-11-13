@@ -1,4 +1,5 @@
-<%# The current read: finish / did not finish / pause or resume — or start one. %>
+<%# The current read: finish / did not finish / remove (as if never
+    started — back to read or TBR) — or start one. %>
 <% field = "rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-600 dark:border-gray-700 dark:bg-gray-900" %>
 <% label = "mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" %>
 <% sources = { "owned_copy" => "Mine", "library" => "Library", "borrowed" => "Borrowed", "other" => "Other" } %>
@@ -31,10 +32,9 @@
         <label class="text-sm"><span class="<%= label %>">Why (optional)</span><%= f.text_field :dnf_reason, class: field %></label>
         <%= f.submit "Did not finish", class: secondary %>
       <% end %>
-      <%= form_with model: [ work, open_reading ], method: :patch do |f| %>
-        <%= f.hidden_field :status, value: open_reading.paused? ? "reading" : "paused" %>
-        <%= f.submit open_reading.paused? ? "Resume" : "Pause", class: secondary %>
-      <% end %>
+      <%= button_to "Remove", work_reading_path(work, open_reading), method: :delete, class: secondary,
+                    title: "Take it off currently reading, as if never started",
+                    form: { data: { turbo_confirm: "Take “#{work.title}” off currently reading, as if you'd never started it?" } } %>
     </div>
   </section>
 <% elsif editions.any? %>
