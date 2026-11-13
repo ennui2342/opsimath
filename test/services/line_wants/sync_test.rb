@@ -39,6 +39,17 @@ module LineWants
       assert_equal 0, Sync.run(@line_want) # nothing new the second time
     end
 
+    test "a book the line lists twice (two printings) is added once, wanting both printings" do
+      stub_request(:get, "#{@isfdb}/pubseries/78").to_return(status: 200, body: {
+        id: 78, name: "Ace Doubles", publications: [ pub(601, "1", "The Mind of Mr. Soames", 2001), pub(602, "9", "The Mind of Mr. Soames", 2001) ]
+      }.to_json)
+
+      Sync.run(LineWant.create!(pub_series_id: 78))
+
+      soames = Work.where(title: "The Mind of Mr. Soames").sole
+      assert_equal [ 601, 602 ], soames.want.printing_override_ids.sort
+    end
+
     test "excluded numbers stay out; stopping removes only the wants the line made" do
       @line_want.update!(excluded_pub_ids: [ 501 ])
       own = Want.create!(work: Work.create!(title: "Walk to the End of the World", literary_form: "novel")) # Mark's own

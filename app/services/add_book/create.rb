@@ -63,7 +63,14 @@ module AddBook
       "Added #{work.title}: #{CatalogueEvent.edition_label(edition)}, #{held}#{read}"
     end
 
+    # A book already linked to the found work's ISFDB title is that book —
+    # never a second one (collecting a line listing a book twice, 2026-11-09,
+    # made The Mind of Mr. Soames twice).
     def self.create_work(found)
+      isfdb = Array(found["provider_works"]).select { |pw| pw["provider"] == "isfdb" }.map { |pw| pw["id"].to_s }
+      existing = Work.joins(:work_identifiers).where(work_identifiers: { id_type: "isfdb_title", value: isfdb }).order(:id).first if isfdb.any?
+      return existing if existing
+
       work = Work.create!(title: found.fetch("title"), literary_form: "novel",
                           original_publication_year: found["first_year"], field_sources: { "title" => primary_provider(found) })
       Array(found["authors"]).each_with_index do |name, i|
