@@ -8,11 +8,16 @@ class ContributorPenNamesTest < ActiveSupport::TestCase
     arkady = Contributor.create!(name: "Arkady Strugatsky",
                                  isfdb_names: { "pseudonyms" => [], "pseudonym_of" => [ { "id" => "5", "name" => "&#1040;&#1088;&#1082;&#1072;&#1076;&#1080;&#1081;" } ] })
     wyndham = Contributor.create!(name: "John Wyndham",
-                                  isfdb_names: { "pseudonyms" => [ { "id" => "13832", "name" => "John Beynon Harris" }, { "id" => "1", "name" => "Lucas Parkes" } ], "pseudonym_of" => [] })
+                                  isfdb_names: { "pseudonyms" => [ { "id" => "13832", "name" => "John Beynon Harris" }, { "id" => "1", "name" => "Lucas Parkes" },
+                                                                   { "id" => "2", "name" => "Džon Vindhem" }, { "id" => "3", "name" => "Isaac Asimov (in error)" } ],
+                                                 "pseudonym_of" => [] })
+    Contributor.create!(name: "John Beynon Harris", external_ids: { "isfdb" => "13832" }) # in the catalogue
+    work = Work.create!(title: "The Outward Urge", literary_form: "novel")
+    ProviderEdition.create!(work:, provider: "isfdb", provider_id: "9", author_names: [ "Lucas Parkes" ], author_ids: [ 1 ]) # a printing credited to it
 
     assert_equal [ webb ], north.pen_name_of.map(&:contributor)
     assert_empty banks.pen_name_of
-    assert_equal [ "Iain M. Banks" ], banks.published_as.map(&:name)
+    assert_equal [], banks.published_as.map(&:name) # nothing of his under it here
     assert_empty arkady.pen_name_of + arkady.published_as
     assert_equal [ "John Beynon Harris", "Lucas Parkes" ], wyndham.published_as.map(&:name)
   end

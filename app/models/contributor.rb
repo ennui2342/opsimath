@@ -28,9 +28,18 @@ class Contributor < ApplicationRecord
   def pen_name_of = other_names("pseudonym_of").reject { |o| same_person?(o.name) }
 
   # The author's other names, and other forms of this one (Catherine Webb:
-  # Claire North, Kate Griffin; Iain Banks: Iain M. Banks).
+  # Claire North, Kate Griffin; Iain Banks: Iain M. Banks) — those that
+  # matter here: someone in the catalogue under it, or one of its books'
+  # ISFDB printings credited to it. ISFDB records every variant ever seen
+  # (Wyndham: "Džon Vindhem", "L. Parkes"); John Beynon Harris and Lucas
+  # Parkes are the ones on his books.
   def published_as
-    (other_names("pseudonyms") + other_names("pseudonym_of").select { |o| same_person?(o.name) }).uniq(&:isfdb_id)
+    names = (other_names("pseudonyms") + other_names("pseudonym_of").select { |o| same_person?(o.name) }).uniq(&:isfdb_id)
+    return names if names.empty?
+
+    credited = ProviderEdition.where(provider: "isfdb").where("author_ids && ARRAY[?]::integer[]", names.map { |o| o.isfdb_id.to_i })
+                              .pluck(:author_ids).flatten.to_set
+    names.select { |o| o.contributor || credited.include?(o.isfdb_id.to_i) }
   end
 
   private
@@ -41,6 +50,7 @@ class Contributor < ApplicationRecord
   def other_names(key)
     rows = Array(isfdb_names&.dig(key)).map { |r| r.merge("name" => CGI.unescapeHTML(r["name"].to_s)) }
                                        .select { |r| r["name"].match?(/\A[\p{Latin}\p{Common}\p{Inherited}]+\z/) }
+                                       .reject { |r| r["name"].include?("(in error)") } # ISFDB's misattributions
     people = Contributor.where("external_ids->>'isfdb' IN (?)", rows.map { |r| r["id"].to_s }.presence || [ "" ])
                         .index_by { |c| c.external_ids["isfdb"] }
     rows.map { |r| OtherName.new(name: r["name"], isfdb_id: r["id"].to_s, contributor: people[r["id"].to_s]) }
