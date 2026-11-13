@@ -28,14 +28,15 @@ module BookLists
       replace(list, rows)
     end
 
-    # -> the BookList, from config/book_lists/<key>.yml (or `data` in its shape)
-    def curated(key, data: YAML.load_file(CURATED_DIR.join("#{key}.yml")))
+    # -> the BookList, from config/book_lists/<key>.yml (or `data` in its
+    # shape). `rematch` matches every entry afresh, not only unmatched ones.
+    def curated(key, data: YAML.load_file(CURATED_DIR.join("#{key}.yml")), rematch: false)
       list = BookList.find_or_initialize_by(key: data.fetch("key"))
       list.update!(kind: "curated", name: data.fetch("name"), short_name: list.short_name.presence || data.fetch("short_name", data["name"]),
                    source: data["source"])
-      known = list.entries.to_h { |e| [ [ e.title, e.author ], e.isfdb_title_id ] }
+      known = rematch ? {} : list.entries.to_h { |e| [ [ e.title, e.author ], e.isfdb_title_id ] }
       rows = data.fetch("entries").map do |e|
-        id = known[[ e["title"], e["author"] ]] || match(e["title"], e["author"]) # unmatched: tried again
+        id = known[[ e["title"], e["author"] ]] || match(e["title"], e["author"], e["year"]) # unmatched: tried again
         { year: e["year"], position: e["position"], status: "listed", title: e["title"], author: e["author"], isfdb_title_id: id }
       end
       replace(list, rows)
@@ -62,16 +63,23 @@ module BookLists
     # "334", "Man Plus") on the title alone; the title must agree once
     # folded — or be ISFDB's with a subtitle ("Blood: A Southern
     # Fantasy") — and an author's surname too. nil when nothing does: a
-    # trilogy listed as one entry has no one ISFDB title.
-    def match(title, author)
+    # trilogy listed as one entry has no one ISFDB title. ISFDB can hold
+    # several titles of one name by one author (The Martian Chronicles of
+    # 1950, and a later reissue with other contents): the one whose year is
+    # nearest the list's.
+    def match(title, author, year = nil)
       surname = author.to_s.split(/,| and | & /).first.to_s.split.last.to_s
       by = ->(r) { Array(r["authors"]).any? { |a| fold(a.split.last) == fold(surname) } }
-      hit = [ "#{title} #{surname}", title ].lazy.map do |q|
+      hits = [ "#{title} #{surname}", title ].lazy.map do |q|
         rows = @client.search(q, limit: 100, editions_per_title: 1).select(&by)
-        rows.find { |r| fold(r["title"]) == fold(title) } || rows.find { |r| r["title"].to_s.match?(/\A#{Regexp.escape(title)}\s*:/i) }
-      end.find(&:itself)
-      id = hit&.dig("_isfdb_title_id") or return
-      @client.title(id)&.dig("main", "id") || id
+        exact = rows.select { |r| fold(r["title"]) == fold(title) }
+        exact.any? ? exact : rows.select { |r| r["title"].to_s.match?(/\A#{Regexp.escape(title)}\s*:/i) }
+      end.find(&:any?)
+      return unless hits
+
+      mains = hits.filter_map { |r| r["_isfdb_title_id"] }.uniq.filter_map { |id| @client.title(id)&.dig("main") }.uniq { |m| m["id"] }
+      best = mains.min_by { |m| [ year && m["year"] ? (m["year"].to_i - year.to_i).abs : 9999, m["id"].to_i ] }
+      best&.dig("id") || hits.first["_isfdb_title_id"]
     rescue Isfdb::ServiceError, Net::OpenTimeout, Net::ReadTimeout => e
       Rails.logger.warn("book list match #{title}: #{e.class}: #{e.message}")
       nil

@@ -43,4 +43,14 @@ class BookListWantsSyncTest < ActiveSupport::TestCase
     assert_equal [ 2019, 2015 ], view.by_year.map(&:first)
     assert_equal "Rosewater", view.by_year.first.last.first.title
   end
+
+  test "a book is found by another of its titles when the list's ISFDB title isn't the one it's linked to" do
+    list = BookList.create!(key: "pringle_100", name: "Pringle", short_name: "Pringle 100", kind: "curated")
+    list.entries.create!(title: "The Martian Chronicles", author: "Ray Bradbury", year: 1950, position: 3, status: "listed", isfdb_title_id: 999)
+    mine = Work.create!(title: "The Silver Locusts", literary_form: "collection")
+    mine.work_contributors.create!(contributor: Contributor.create!(name: "Ray Bradbury"), role: "author")
+    mine.work_alternate_titles.create!(title: "The Martian Chronicles")
+
+    assert_equal mine, BookListView.for(list).entries.sole.work
+  end
 end

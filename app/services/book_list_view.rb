@@ -1,7 +1,8 @@
 # A list as Mark sees it on its page (docs/LISTS.md): each entry with the
-# book in the catalogue it is, if any — by ISFDB title, or for an entry
-# not matched to ISFDB, by title and author surname — and where it stands
-# for him, like SeriesVolumes.
+# book in the catalogue it is, if any — by ISFDB title, or else by title
+# (or one of the book's other titles: The Silver Locusts is The Martian
+# Chronicles) and author surname — and where it stands for him, like
+# SeriesVolumes.
 class BookListView
   Entry = Struct.new(:entry, :work, :status, keyword_init: true) do
     delegate :year, :position, :title, :author, :isfdb_title_id, :winner?, to: :entry
@@ -20,7 +21,7 @@ class BookListView
   def load(scope:, from_year:)
     rows = @list.entries.to_a.select { |e| e.in_scope?(scope) && (from_year.nil? || e.year.nil? || e.year >= from_year) }
     by_title = works_by_title_id(rows.filter_map(&:isfdb_title_id))
-    loose = works_by_name(rows.reject(&:isfdb_title_id).map { |e| name_key(e.title, e.author) })
+    loose = works_by_name(rows.reject { |e| e.isfdb_title_id && by_title[e.isfdb_title_id.to_s] }.map { |e| name_key(e.title, e.author) })
     @entries = rows.map do |e|
       work = (by_title[e.isfdb_title_id.to_s] if e.isfdb_title_id) || loose[name_key(e.title, e.author)]
       Entry.new(entry: e, work:, status: status_of(work))
@@ -51,10 +52,14 @@ class BookListView
     return {} if wanted.empty?
 
     wanted = wanted.to_set
-    keys = WorkContributor.joins(:work, :contributor).where(role: "author").pluck("works.id", "works.title", "contributors.name")
-                          .each_with_object({}) do |(id, title, name), out|
-                            k = name_key(title, name)
-                            out[k] ||= id if wanted.include?(k)
+    others = WorkAlternateTitle.pluck(:work_id, :title).group_by(&:first).transform_values { |r| r.map(&:last) }
+    keys = WorkContributor.joins(:work, :contributor).where(role: "author")
+                          .pluck("works.id", "works.title", "works.isfdb_variant_titles", "contributors.name")
+                          .each_with_object({}) do |(id, title, variants, name), out|
+                            [ title, *others[id], *Array(variants) ].each do |t|
+                              k = name_key(t, name)
+                              out[k] ||= id if wanted.include?(k)
+                            end
                           end
     works = Work.includes(WorksController::CARD_INCLUDES).where(id: keys.values.uniq).index_by(&:id)
     keys.transform_values { |id| works[id] }
