@@ -21,4 +21,16 @@ class ContributorPenNamesTest < ActiveSupport::TestCase
     assert_empty arkady.pen_name_of + arkady.published_as
     assert_equal [ "John Beynon Harris", "Lucas Parkes" ], wyndham.published_as.map(&:name)
   end
+
+  test "the same name with a title, an honorific or an initial more isn't a pen name; a respelling isn't shown" do
+    more = Contributor.create!(name: "Thomas More", isfdb_names: { "pseudonyms" => [], "pseudonym_of" => [ { "id" => "1", "name" => "Sir Thomas More" } ] })
+    drexler = Contributor.create!(name: "K. Eric Drexler", isfdb_names: { "pseudonyms" => [], "pseudonym_of" => [ { "id" => "2", "name" => "Eric Drexler" } ] })
+    le_guin = Contributor.create!(name: "Ursula K. Le Guin", isfdb_names: { "pseudonyms" => [ { "id" => "3", "name" => "Ursula Le Guin" } ], "pseudonym_of" => [] })
+    ProviderEdition.create!(work: Work.create!(title: "Orsinian Tales", literary_form: "collection"), provider: "isfdb", provider_id: "8",
+                            author_names: [ "Ursula Le Guin" ], author_ids: [ 3 ])
+
+    assert_empty more.pen_name_of
+    assert_empty drexler.pen_name_of
+    assert_empty le_guin.published_as
+  end
 end

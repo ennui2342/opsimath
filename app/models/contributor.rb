@@ -39,7 +39,9 @@ class Contributor < ApplicationRecord
 
     credited = ProviderEdition.where(provider: "isfdb").where("author_ids && ARRAY[?]::integer[]", names.map { |o| o.isfdb_id.to_i })
                               .pluck(:author_ids).flatten.to_set
-    names.select { |o| o.contributor || credited.include?(o.isfdb_id.to_i) }
+    # Another spelling of this very name ("Ursula Le Guin", ISFDB's misprint
+    # "Bruce Stirling") is only worth a link to its own page here.
+    names.select { |o| o.contributor || (credited.include?(o.isfdb_id.to_i) && !same_person?(o.name)) }
   end
 
   private
@@ -56,5 +58,16 @@ class Contributor < ApplicationRecord
     rows.map { |r| OtherName.new(name: r["name"], isfdb_id: r["id"].to_s, contributor: people[r["id"].to_s]) }
   end
 
-  def same_person?(other) = AuthorCleanup.same?(name, other)
+  HONORIFICS = /\b(sir|dr|st|m\.?\s?d|ph\.?\s?d)\b\.?,?/i
+
+  # The same name: AuthorCleanup's test, after titles and honorifics
+  # ("Sir Thomas More", "David H. Keller, M.D."), or with an initial more
+  # or less ("K. Eric Drexler").
+  def same_person?(other)
+    a, b = [ name, other ].map { |n| n.gsub(HONORIFICS, " ").squeeze(" ").strip }
+    return true if AuthorCleanup.same?(a, b)
+
+    ta, tb = AuthorCleanup.tokens(a), AuthorCleanup.tokens(b)
+    ta.last == tb.last && ((ta - tb).empty? || (tb - ta).empty?)
+  end
 end
