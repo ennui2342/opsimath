@@ -17,11 +17,37 @@
     <% end %>
   </nav>
 
+  <%= form_with url: works_path, method: :get, class: "mb-4 flex items-center gap-2 text-sm", data: { controller: "auto-submit" } do %>
+    <% if @filter %><input type="hidden" name="filter" value="<%= @filter %>"><% end %>
+    <% if q %><input type="hidden" name="q" value="<%= q %>"><% end %>
+    <label for="sort" class="text-gray-500 dark:text-gray-400">Sort</label>
+    <select id="sort" name="sort" onchange="this.form.requestSubmit()"
+            class="rounded-md border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-900">
+      <% WorksController::SORTS.each do |value, label| %>
+        <option value="<%= value %>" <%= "selected" if value == @sort %>><%= label %></option>
+      <% end %>
+    </select>
+    <span class="text-gray-500 dark:text-gray-400"><%= pluralize(@works.size, "book") %></span>
+  <% end %>
+
   <% if q && @works.empty? %>
     <p class="text-sm text-gray-600 dark:text-gray-400">
       Nothing in your catalogue matches. <%= link_to "Look it up to add it", add_book_path(q:), class: "text-green-700 hover:underline dark:text-green-400" %>
     </p>
   <% end %>
 
-  <%= render "works/book_list", works: @works %>
+  <%# In the Reading and Read views, when each was started and finished. %>
+  <% detail = case @filter
+              when "reading"
+                lambda do |w|
+                  r = w.readings.select(&:open?).max_by { |x| x.date_started || Date.new(1) }
+                  r&.date_started && "Started #{r.date_started.to_fs(:long)} · open #{pluralize((Date.current - r.date_started).to_i, 'day')}"
+                end
+              when "read"
+                lambda do |w|
+                  r = w.readings.select(&:completed?).max_by { |x| x.date_finished || Date.new(1) }
+                  r&.date_finished && [ "Finished #{r.date_finished.to_fs(:long)}", ("#{r.rating.to_i}★" if r.rating) ].compact.join(" · ")
+                end
+              end %>
+  <%= render "works/book_list", works: @works, detail: %>
 </div>

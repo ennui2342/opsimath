@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_13_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_13_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -337,6 +337,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_130000) do
     t.index ["work_id", "provider", "provider_id"], name: "idx_on_work_id_provider_provider_id_93ac77baa6", unique: true
   end
 
+  create_table "reading_goals", force: :cascade do |t|
+    t.integer "year", null: false
+    t.integer "target", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["year"], name: "index_reading_goals_on_year", unique: true
+  end
+
   create_table "readings", force: :cascade do |t|
     t.bigint "copy_id"
     t.datetime "created_at", null: false
@@ -353,6 +361,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_130000) do
     t.index ["copy_id"], name: "index_readings_on_copy_id"
     t.index ["edition_id"], name: "index_readings_on_edition_id"
     t.index ["work_id"], name: "index_readings_on_work_id"
+  end
+
+  create_table "recommendation_dismissals", force: :cascade do |t|
+    t.bigint "work_id", null: false
+    t.datetime "until"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["work_id"], name: "index_recommendation_dismissals_on_work_id", unique: true
+  end
+
+  create_table "recommendation_shows", force: :cascade do |t|
+    t.bigint "work_id", null: false
+    t.string "reason", null: false
+    t.date "shown_on", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["work_id", "shown_on"], name: "index_recommendation_shows_on_work_id_and_shown_on", unique: true
+    t.index ["work_id"], name: "index_recommendation_shows_on_work_id"
   end
 
   create_table "reviews", force: :cascade do |t|
@@ -637,6 +663,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_130000) do
   add_foreign_key "readings", "copies"
   add_foreign_key "readings", "editions"
   add_foreign_key "readings", "works"
+  add_foreign_key "recommendation_dismissals", "works", on_delete: :cascade
+  add_foreign_key "recommendation_shows", "works", on_delete: :cascade
   add_foreign_key "reviews", "readings"
   add_foreign_key "reviews", "works"
   add_foreign_key "series_arcs", "series"

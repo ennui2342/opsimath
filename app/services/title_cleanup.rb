@@ -71,6 +71,16 @@ class TitleCleanup
                           summary: "Retitled “#{from}” to #{source == 'manual' ? '' : "ISFDB's "}“#{title}”")
   end
 
+  # Linked to an ISFDB record that shares nothing with it — likely the
+  # wrong one (The Adventures of Alyx → Picnic on Paradise, one of the
+  # novels in it): nothing else should be taken from that record either.
+  def self.suspect?(work)
+    main = isfdb_title(work) or return false
+    return false if work.title == main
+
+    new.send(:kind_of, work, main) == :suspect
+  end
+
   # ISFDB's main title, once fetched (Isfdb::MainTitles).
   def self.isfdb_title(work) = work.isfdb_main_title.presence
 

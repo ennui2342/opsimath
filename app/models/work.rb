@@ -9,6 +9,8 @@ class Work < ApplicationRecord
     anthology: "anthology",
     nonfiction: "nonfiction",
     essay: "essay",
+    # ISFDB's OMNIBUS: several novels collected in one book.
+    omnibus: "omnibus",
     # A standalone magazine/periodical issue — a genuinely different
     # structural type from anthology (MARC/ONIX both distinguish serial/
     # continuing resources from monographs), not a novel or an edited

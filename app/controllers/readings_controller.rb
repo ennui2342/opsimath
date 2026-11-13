@@ -46,10 +46,16 @@ class ReadingsController < ApplicationController
       text = notice.respond_to?(:call) ? notice.call : notice
       rating = " (#{reading.rating.to_i}★)" if reading.completed? && reading.rating
       CatalogueEvent.record(kind: "reading", work: @work, summary: "#{@work.title}: #{text.to_s.chomp('.').downcase}#{rating}")
-      redirect_to work_path(@work), notice: text
+      redirect_to return_path, notice: text
     else
       redirect_to work_path(@work), alert: reading.errors.full_messages.to_sentence
     end
+  end
+
+  # Back where it was done from — the home page, the Books list — or the book.
+  def return_path
+    back = params[:return_to].to_s
+    back.start_with?("/") && !back.start_with?("//") ? back : work_path(@work)
   end
 
   def attach_review(reading)

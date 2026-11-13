@@ -5,6 +5,11 @@
 # — not a throughput screen).
 class WorksController < ApplicationController
   FILTERS = %w[owned wanted reading read dnf].freeze
+  # Orders for the Books list; a filter has its own default (Reading: most
+  # recently started first; Read: most recently finished).
+  SORTS = { "title" => "Title", "author" => "Author", "added" => "Recently added", "started" => "Recently started",
+            "finished" => "Recently finished" }.freeze
+  DEFAULT_SORT = { "reading" => "started", "read" => "finished" }.freeze
   # What a book list needs to show titles, authors and statuses
   # (works/_book_list) without a query per row.
   LIST_INCLUDES = [ :want, { work_contributors: :contributor }, :readings, { editions: :copies } ].freeze
@@ -33,6 +38,8 @@ class WorksController < ApplicationController
     @statuses = @works.to_h { |w| [ w.id, w.statuses ] }
     @counts = FILTERS.to_h { |f| [ f, @statuses.count { |_, s| s.include?(f.to_sym) } ] }
     @works.select! { |w| @statuses[w.id].include?(@filter.to_sym) } if @filter
+    @sort = params[:sort].presence_in(SORTS.keys) || DEFAULT_SORT.fetch(@filter, "title")
+    @works = sorted(@works, @sort)
   end
 
   def show
@@ -57,5 +64,17 @@ class WorksController < ApplicationController
     redirect_to(move_to ? work_path(move_to) : works_path, notice: "Removed “#{work.title}” from the catalogue.")
   rescue WorkRemoval::Refused => e
     redirect_to work_path(work), alert: e.message
+  end
+
+  # The list in `sort` order; books without the date sort last.
+  def sorted(works, sort)
+    far = Date.new(1, 1, 1)
+    case sort
+    when "author" then works.sort_by { |w| [ w.authors.first&.sort_name.presence || w.authors.first&.name.to_s, w.title.downcase ] }
+    when "added" then works.sort_by { |w| -w.created_at.to_i }
+    when "started" then works.sort_by { |w| [ -(w.readings.filter_map(&:date_started).max || far).jd, w.title.downcase ] }
+    when "finished" then works.sort_by { |w| [ -(w.readings.select(&:completed?).filter_map(&:date_finished).max || far).jd, w.title.downcase ] }
+    else works.sort_by { |w| w.title.downcase }
+    end
   end
 end

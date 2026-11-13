@@ -1,0 +1,138 @@
+<% content_for :title, "opsimath" %>
+<% h2 = "mb-2 mt-8 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400" %>
+<% list = "divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700" %>
+
+<div class="w-full max-w-3xl">
+  <h1 class="sr-only">Home</h1>
+
+  <%# 1. Currently reading %>
+  <% if @reading.any? %>
+    <h2 class="mb-2 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">Currently reading</h2>
+    <div class="<%= list %>">
+      <% @reading.each do |reading| %>
+        <div data-home="reading">
+          <%= render Ui::EditionCardComponent.new(edition: reading.edition, size: :row, work: reading.work) %>
+          <div class="flex flex-wrap items-center gap-2 px-4 pb-3 text-xs text-gray-600 dark:text-gray-400">
+            <% days = @stats.days_open(reading) %>
+            <% if days %>
+              <span>Open <%= pluralize(days, "day") %><%= " · usually about #{@stats.expected_days(reading)}" if @stats.expected_days(reading) %></span>
+            <% end %>
+            <% if @stats.dragging?(reading) %><%= render Ui::BadgeComponent.new(text: "Dragging", variant: :conflict) %><% end %>
+            <span class="ml-auto flex gap-2">
+              <%= button_to "Finished", work_reading_path(reading.work, reading), method: :patch,
+                            params: { reading: { status: "completed" }, return_to: root_path }, class: card_button_class %>
+              <%= button_to "Did not finish", work_reading_path(reading.work, reading), method: :patch,
+                            params: { reading: { status: "dnf" }, return_to: root_path }, class: card_button_class,
+                            form: { data: { turbo_confirm: "Mark “#{reading.work.title}” as not finished?" } } %>
+            </span>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# 2. The year: goal and pace %>
+  <h2 class="<%= h2 %>"><%= Date.current.year %></h2>
+  <div class="rounded-lg border border-gray-200 p-4 text-sm dark:border-gray-700" data-home="year">
+    <% if @goal %>
+      <p class="text-base font-medium text-gray-900 dark:text-gray-100"><%= @goal.done %> of <%= @goal.target %> books</p>
+      <div class="relative mt-2 h-2 rounded bg-gray-100 dark:bg-gray-800" aria-hidden="true">
+        <div class="h-2 rounded bg-green-600 dark:bg-green-500" style="width: <%= [ (100.0 * @goal.done / @goal.target), 100 ].min.round(1) %>%"></div>
+        <div class="absolute top-[-3px] h-[14px] w-0.5 bg-gray-500 dark:bg-gray-300" style="left: <%= [ (100.0 * @goal.expected / @goal.target), 100 ].min.round(1) %>%" title="Where you'd be on pace"></div>
+      </div>
+      <p class="mt-2 text-gray-700 dark:text-gray-300">
+        <% if @goal.ahead? %>
+          <%= @goal.done - @goal.expected %> ahead of where you'd be by now
+        <% else %>
+          <%= @goal.behind %> behind where you'd be by now
+        <% end %>
+        · <%= @goal.per_week %> a week to make it
+      </p>
+    <% end %>
+    <p class="mt-1 text-gray-600 dark:text-gray-400">
+      <%= @stats.pace_recent %> a week lately (last 12 weeks) · <%= @stats.pace_year %> a week over the past year
+      <% if @stats.median_days %>· about <%= pluralize(@stats.median_days, "day") %> a book<% end %>
+    </p>
+
+    <% years = @stats.by_year.select { |year, _| year >= Date.current.year - 9 } %>
+    <% if years.size > 1 %>
+      <% top = years.values.max.to_f %>
+      <div class="mt-4 flex h-20 items-end gap-1.5" aria-label="Books finished per year">
+        <% years.each do |year, n| %>
+          <div class="flex flex-1 flex-col items-center justify-end gap-1">
+            <span class="text-[10px] tabular-nums text-gray-500 dark:text-gray-400"><%= n %></span>
+            <div class="w-full rounded-t <%= year == Date.current.year ? "bg-green-600 dark:bg-green-500" : "bg-gray-300 dark:bg-gray-600" %>"
+                 style="height: <%= (48 * n / top).round %>px"></div>
+            <span class="text-[10px] tabular-nums text-gray-500 dark:text-gray-400">'<%= year.to_s[2, 2] %></span>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+
+    <details class="mt-3 text-xs">
+      <summary class="cursor-pointer text-gray-500 hover:underline dark:text-gray-400"><%= @goal ? "Change the goal" : "Set a goal for #{Date.current.year}" %></summary>
+      <%= form_with url: home_goal_path, method: :patch, class: "mt-2 flex items-center gap-2" do %>
+        <input type="number" name="target" min="1" value="<%= @goal&.target %>" class="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-900">
+        <span class="text-gray-500 dark:text-gray-400">books</span>
+        <button type="submit" class="<%= card_button_class %>">Save</button>
+      <% end %>
+    </details>
+  </div>
+
+  <%# 3. Up next %>
+  <% if @picks.any? %>
+    <h2 class="<%= h2 %>">Up next</h2>
+    <% if @quick_win %>
+      <p class="mb-2 text-sm text-gray-600 dark:text-gray-400">Things have slowed down — something short by an author you like might get you going.</p>
+    <% end %>
+    <div class="<%= list %>">
+      <% @picks.each do |pick| %>
+        <div data-home="pick" data-reason="<%= pick.reason %>">
+          <%= render Ui::EditionCardComponent.new(edition: pick.edition, size: :row, work: pick.work) %>
+          <div class="flex flex-wrap items-center gap-2 px-4 pb-3 text-xs">
+            <span class="text-gray-700 dark:text-gray-300"><%= pick.detail %></span>
+            <span class="ml-auto flex gap-3">
+              <%= button_to "Not now", home_dismiss_path, params: { work_id: pick.work.id }, class: "text-gray-500 hover:underline dark:text-gray-400" %>
+              <%= button_to "Not for me", home_dismiss_path, params: { work_id: pick.work.id, for_good: 1 }, class: "text-gray-500 hover:underline dark:text-gray-400" %>
+            </span>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# 4. Series to finish %>
+  <% if @series.any? %>
+    <h2 class="<%= h2 %>">Series to finish</h2>
+    <ul class="<%= list %>">
+      <% @series.each do |entry| %>
+        <% nxt = entry.next_entry %>
+        <li class="px-4 py-3 text-sm">
+          <%= link_to entry.series.name, series_path(entry.series), class: "font-medium text-gray-900 hover:underline dark:text-gray-100" %>
+          <span class="text-xs text-gray-500 dark:text-gray-400">· read <%= entry.read %> of <%= entry.total %><%= " · #{format('%.1f', entry.rating)}★" if entry.rating %></span>
+          <p class="text-xs text-gray-600 dark:text-gray-400">
+            Next: <%= "##{format('%g', nxt.position)} " if nxt.position %><%= nxt.work ? work_link(nxt.work) : nxt.title %>
+            — <%= case nxt.status when :owned then "on your shelf" when :wanted then "on your wishlist" when :catalogued then "in your catalogue" else "not in your catalogue" end %>
+          </p>
+        </li>
+      <% end %>
+    </ul>
+  <% end %>
+
+  <%# 5. The river: Mark's own activity %>
+  <% if @river.any? %>
+    <h2 class="<%= h2 %>">Lately</h2>
+    <div class="space-y-4" data-home="river">
+      <% @river.each do |day, events| %>
+        <div>
+          <p class="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400"><%= day == Date.current ? "Today" : (day == Date.yesterday ? "Yesterday" : day.strftime("%-d %B")) %></p>
+          <ul class="space-y-1 text-sm text-gray-700 dark:text-gray-300">
+            <% events.each do |event| %>
+              <li><%= event.work ? link_to(event.summary, work_path(event.work), class: "hover:underline") : event.summary %></li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</div>

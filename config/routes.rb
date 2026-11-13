@@ -1,5 +1,7 @@
 Rails.application.routes.draw do
-  root "pending_decisions#index"
+  root "home#show" # docs/HOME.md
+  post "home/dismiss", to: "home#dismiss", as: :home_dismiss
+  patch "home/goal", to: "home#goal", as: :home_goal
   resource :session
   resources :passwords, param: :token
 
