@@ -58,6 +58,17 @@ module Isfdb
       JSON.parse(response.body)
     end
 
+    # Printings a US mass-market UPC add-on can identify (UpcLookup), both
+    # publisher conventions — /isbn/addon, or /isbn/middle (digits 5-9
+    # only) on an adapter without it.
+    def isbns_for_addon(digits)
+      response = get("/isbn/addon/#{digits}", read_timeout: 60)
+      return isbns_with_middle(digits) if response.is_a?(Net::HTTPNotFound)
+      raise ServiceError, "isfdb-adapter returned #{response.code} for add-on #{digits}" unless response.is_a?(Net::HTTPSuccess)
+
+      JSON.parse(response.body)
+    end
+
     # Printings whose ISBN has these five digits in the middle — a US
     # mass-market UPC add-on (UpcLookup). isfdb-adapter raw printing hashes.
     def isbns_with_middle(digits)

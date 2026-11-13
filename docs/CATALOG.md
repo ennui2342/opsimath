@@ -886,7 +886,12 @@ in editions.
 **Scanning US mass-markets** (2026-11-08): many US mass-market
 paperbacks carry a retail UPC instead of an ISBN barcode. The UPC names
 only the publisher (digits 2–6) and cover price, shared by every book at
-that price; the 5-digit add-on beside it is digits 5–9 of the ISBN-10.
+that price. The 5-digit add-on beside it is, by the publisher's
+convention, ISBN-10 digits 5–9 (Tor: 0-8125-5010-2 → 55010) or the
+ISBN's title part zero-padded (DAW: 0-88677-299-0 → 00299, found
+2026-11-13 — publisher code lengths from the ISBN ranges,
+`Isbn.publisher_prefix`); isfdb-adapter `/isbn/addon/:digits` tries both,
+and UpcPrefix learns each UPC publisher's real ISBN prefix.
 Both scanners (web `barcode_scan_controller`, pocket `pocket.js`) read
 through `app/assets/mobile/scan.js` — zxing-cpp in WebAssembly (zxing-wasm
 3.1.6, served from our assets and cached for offline), because the

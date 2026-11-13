@@ -1,11 +1,13 @@
 # A US mass-market paperback's UPC + 5-digit add-on as ISBNs (docs/
 # CATALOG.md, "Scanning US mass-markets"). Many carry a retail UPC instead
 # of an ISBN barcode: the UPC names only the publisher (digits 2–6) and the
-# cover price, shared by every book at that price; the add-on is digits
-# 5–9 of the book's ISBN-10. The first four come from the publisher, and
-# there's no published table of those, so they're learnt (UpcPrefix): each
-# scan's English physical printings with that middle narrow the UPC
-# publisher's possible prefixes until one is left. Until then every
+# cover price, shared by every book at that price. The add-on is, by the
+# publisher's convention, either ISBN-10 digits 5–9 (Tor: 0-8125-5010-2 →
+# 55010) or its title part zero-padded (DAW: 0-88677-299-0 → 00299). What
+# goes in front comes from the publisher, and there's no published table
+# of UPC publisher codes, so it's learnt (UpcPrefix): each scan's
+# mass-market candidates narrow the UPC publisher's possible ISBN prefixes
+# until one is left — then the ISBN follows exactly. Until then every
 # candidate is offered and Mark picks his by its cover.
 class UpcLookup
   Result = Struct.new(:isbns, :prefix, keyword_init: true) # isbns: ISBN-13s, most likely first
@@ -29,8 +31,8 @@ class UpcLookup
   def call(upc:, add_on:)
     raise ArgumentError, "a 12-digit UPC and a 5-digit add-on" unless upc.match?(UPC) && add_on.match?(ADD_ON)
 
-    printings = @client.isbns_with_middle(add_on).select { |p| english?(p) && physical?(p) }
-    by_prefix = printings.group_by { |p| isbn10(p)&.first(4) }.except(nil)
+    printings = @client.isbns_for_addon(add_on).select { |p| english?(p) && physical?(p) }
+    by_prefix = printings.group_by { |p| prefix_for(isbn10(p), add_on) }.except(nil)
     # Learnt only from mass-market printings: a UPC with an add-on is a
     # mass-market's, and a misread add-on (25011 for 55010 on a Tor,
     # 2026-11-08) usually matches only other formats, so it teaches nothing.
@@ -56,6 +58,17 @@ class UpcLookup
     narrowed = prefixes if narrowed.empty?
     record.update!(candidates: narrowed.sort, prefix: (narrowed.first if narrowed.one?))
     record.prefix
+  end
+
+  # What stands in front of the add-on in this ISBN: its first four digits
+  # when the add-on is digits 5–9 (Tor), else its publisher prefix when the
+  # add-on is its title part (DAW).
+  def prefix_for(isbn10, add_on)
+    return unless isbn10
+    return isbn10[0, 4] if isbn10[4, 5] == add_on
+
+    prefix = Isbn.publisher_prefix(isbn10)
+    prefix if prefix && isbn10[prefix.length...9].rjust(5, "0") == add_on
   end
 
   def english?(p) = p["language"].blank? || AddBook::EditionCards::ENGLISH.include?(p["language"].downcase)

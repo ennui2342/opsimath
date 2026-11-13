@@ -187,11 +187,33 @@
     return row;
   }
 
+  // English-group ISBN-10 publisher ranges [group, low, high, code length]
+  // — Isbn::ENGLISH_PUBLISHER_RANGES's twin.
+  const PUBLISHER_RANGES = [["0", 0, 19, 2], ["0", 200, 699, 3], ["0", 7000, 8499, 4], ["0", 85000, 89999, 5],
+    ["0", 900000, 949999, 6], ["1", 0, 9, 2], ["1", 100, 399, 3], ["1", 4000, 5499, 4], ["1", 55000, 86979, 5]];
+
+  // What stands in front of the add-on in an ISBN-10's first nine digits,
+  // or null if the add-on can't be this ISBN's: its first four when the
+  // add-on is digits 5–9 (Tor: 0-8125-5010-2 → 55010), its publisher
+  // prefix when the add-on is its title part zero-padded (DAW:
+  // 0-88677-299-0 → 00299). UpcLookup#prefix_for's twin.
+  function prefixFor(first9, addOn) {
+    if (first9.slice(4) === addOn) return first9.slice(0, 4);
+    for (const [group, low, high, len] of PUBLISHER_RANGES) {
+      if (first9[0] !== group) continue;
+      const code = Number(first9.slice(1, 1 + len));
+      if (code >= low && code <= high) {
+        return first9.slice(1 + len).padStart(5, "0") === addOn ? first9.slice(0, 1 + len) : null;
+      }
+    }
+    return null;
+  }
+
   // A US mass-market's retail UPC + 5-digit add-on (docs/CATALOG.md,
-  // "Scanning US mass-markets"): the add-on is digits 5–9 of the ISBN-10,
-  // i.e. characters 8–12 of the 978 ISBN-13; the UPC's publisher code
-  // narrows to its ISBN prefix where opsimath has learnt it (upc_prefixes;
-  // absent from older snapshots). -> the matching ISBN-13s in the snapshot.
+  // "Scanning US mass-markets"): the snapshot's 978 ISBNs the add-on can
+  // stand for (prefixFor), narrowed to the UPC publisher's ISBN prefix
+  // where opsimath has learnt it (upc_prefixes; absent from older
+  // snapshots). -> the matching ISBN-13s.
   function isbnsForUpc(upc, addOn) {
     let prefix = null;
     try {
@@ -200,13 +222,13 @@
       if (p.step()) prefix = p.getAsObject().prefix;
       p.free();
     } catch (_) { /* a snapshot from before upc_prefixes */ }
-    const stmt = db.prepare(
-      "SELECT DISTINCT isbn13 FROM isbn_index WHERE substr(isbn13, 1, 3) = '978' AND substr(isbn13, 8, 5) = ?" +
-      (prefix ? " AND substr(isbn13, 4, 4) = ?" : "")
-    );
-    stmt.bind(prefix ? [addOn, prefix] : [addOn]);
+    const stmt = db.prepare("SELECT DISTINCT isbn13 FROM isbn_index WHERE substr(isbn13, 1, 3) = '978'");
     const out = [];
-    while (stmt.step()) out.push(stmt.getAsObject().isbn13);
+    while (stmt.step()) {
+      const isbn13 = stmt.getAsObject().isbn13;
+      const front = prefixFor(isbn13.slice(3, 12), addOn);
+      if (front && (!prefix || front === prefix)) out.push(isbn13);
+    }
     stmt.free();
     return out;
   }

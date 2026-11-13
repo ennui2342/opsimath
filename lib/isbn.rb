@@ -58,4 +58,25 @@ module Isbn
     ((10 - sum % 10) % 10).to_s
   end
   private_class_method :isbn13_check_digit
+
+  # English-group ISBN-10 publisher ranges: [group digit, low, high, code
+  # length] — a publisher's code length is fixed by its range.
+  ENGLISH_PUBLISHER_RANGES = [ [ "0", 0, 19, 2 ], [ "0", 200, 699, 3 ], [ "0", 7000, 8499, 4 ], [ "0", 85_000, 89_999, 5 ],
+                               [ "0", 900_000, 949_999, 6 ], [ "1", 0, 9, 2 ], [ "1", 100, 399, 3 ], [ "1", 4000, 5499, 4 ],
+                               [ "1", 55_000, 86_979, 5 ] ].freeze
+
+  # The group + publisher part of an English-group ISBN-10 ("088677" for
+  # 0-88677-299-0, "08125" for Tor's 0-8125-5010-2), or nil.
+  def publisher_prefix(isbn10)
+    first9 = isbn10.to_s[0, 9]
+    return unless first9.match?(/\A[01]\d{8}\z/)
+
+    ENGLISH_PUBLISHER_RANGES.each do |group, low, high, length|
+      next unless first9.start_with?(group)
+
+      code = first9[1, length].to_i
+      return first9[0, 1 + length] if code.between?(low, high)
+    end
+    nil
+  end
 end

@@ -16,7 +16,7 @@ class UpcLookupTest < ActiveSupport::TestCase
     { "isbn_10" => i, "isbn_13" => Isbn.to_13(i), "binding" => binding, "language" => language }
   end
 
-  def middle(digits, *pubs) = stub_request(:get, "#{@isfdb}/isbn/middle/#{digits}").to_return(status: 200, body: pubs.to_json)
+  def middle(digits, *pubs) = stub_request(:get, "#{@isfdb}/isbn/addon/#{digits}").to_return(status: 200, body: pubs.to_json)
 
   test "parses a scanned or typed UPC and add-on" do
     assert_equal %w[070999012346 57636], UpcLookup.parse("070999012346 57636")
@@ -70,5 +70,25 @@ class UpcLookupTest < ActiveSupport::TestCase
     results = AddBook::Search.run("070999012346 57636", providers: [ Providers::Isfdb.new ])
 
     assert_equal [ "Tangled Up in Blue" ], results.map(&:title)
+  end
+
+  test "DAW's add-on is the ISBN's title part zero-padded; its real prefix is learnt" do
+    smugglers = pub("088677299")                 # DAW 0-88677-299-0, add-on 00299
+    avon = pub("038000299")                      # Avon 0-380-00299-X: digits 5-9 are 00299 too
+    middle("00299", smugglers, avon)
+
+    first = UpcLookup.call(upc: "071125003504", add_on: "00299")
+    assert_equal [ smugglers["isbn_13"], avon["isbn_13"] ].sort, first.isbns.sort
+    assert_equal %w[0380 088677], UpcPrefix.find_by!(manufacturer: "71125").candidates
+
+    middle("00300", pub("088677300"), pub("044100300"))  # another DAW book
+    assert_equal "088677", UpcLookup.call(upc: "071125003511", add_on: "00300").prefix
+  end
+
+  test "the publisher prefix of an English-group ISBN-10 follows its range" do
+    assert_equal "088677", Isbn.publisher_prefix("0886772990")
+    assert_equal "08125", Isbn.publisher_prefix("0812550102")
+    assert_equal "0441", Isbn.publisher_prefix("0441576367")
+    assert_nil Isbn.publisher_prefix("2070368228")
   end
 end
