@@ -2,19 +2,29 @@
     catalogue as the compressed edition card, a book with none (wanted) as
     the not-in-catalogue card — the Books list, an author's other roles.
     `note` (optional): a lambda giving a short prefix per book ("#3",
-    "1974"); `context_author` (optional): the page's own author. %>
+    "1974"); `context_author` (optional): the page's own author; `detail`
+    (optional): a lambda giving a line under each book (when it was started
+    or finished, in the Books list's Reading and Read views). %>
 <% note = local_assigns[:note] %>
+<% detail = local_assigns[:detail] %>
 <div class="divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700 <%= "hidden" if works.empty? %>">
   <% works.each do |work| %>
     <% number = note&.call(work) %>
-    <% if work.editions.any? %>
-      <% work.editions_in_order.each do |edition| %>
-        <%= render Ui::EditionCardComponent.new(edition:, size: :row, work:, number:, context_author: local_assigns[:context_author]) %>
+    <div>
+      <div class="divide-y divide-gray-200 dark:divide-gray-700">
+        <% if work.editions.any? %>
+          <% work.editions_in_order.each do |edition| %>
+            <%= render Ui::EditionCardComponent.new(edition:, size: :row, work:, number:, context_author: local_assigns[:context_author]) %>
+          <% end %>
+        <% else %>
+          <%= render Ui::BookCandidateCardComponent.new(title: work.title, authors: work.authors.map(&:name), number:, url: work_path(work), dim: false,
+                                                        context_author: local_assigns[:context_author],
+                                                        badges: work.statuses.map { |s| ApplicationHelper::WORK_STATUS_BADGES[s] }) %>
+        <% end %>
+      </div>
+      <% if detail && (line = detail.call(work)) %>
+        <p class="px-4 pb-3 text-xs text-gray-600 dark:text-gray-400" data-book-detail><%= line %></p>
       <% end %>
-    <% else %>
-      <%= render Ui::BookCandidateCardComponent.new(title: work.title, authors: work.authors.map(&:name), number:, url: work_path(work), dim: false,
-                                                    context_author: local_assigns[:context_author],
-                                                    badges: work.statuses.map { |s| ApplicationHelper::WORK_STATUS_BADGES[s] }) %>
-    <% end %>
+    </div>
   <% end %>
 </div>

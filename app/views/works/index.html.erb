@@ -17,7 +17,7 @@
     <% end %>
   </nav>
 
-  <%= form_with url: works_path, method: :get, class: "mb-4 flex items-center gap-2 text-sm", data: { controller: "auto-submit" } do %>
+  <%= form_with url: works_path, method: :get, class: "mb-4 flex items-center gap-2 text-sm" do %>
     <% if @filter %><input type="hidden" name="filter" value="<%= @filter %>"><% end %>
     <% if q %><input type="hidden" name="q" value="<%= q %>"><% end %>
     <label for="sort" class="text-gray-500 dark:text-gray-400">Sort</label>

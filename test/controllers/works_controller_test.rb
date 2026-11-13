@@ -68,4 +68,25 @@ class WorksControllerTest < ActionDispatch::IntegrationTest
     get works_url(q: "zzzz nothing")
     assert_select "a[href=?]", add_book_path(q: "zzzz nothing")
   end
+
+  test "the Books list sorts; the Reading view lists most recently started first, with when and how long" do
+    sign_in_as users(:one)
+    older = Work.create!(title: "Aardvark", literary_form: "novel")
+    newer = Work.create!(title: "Zebra", literary_form: "novel")
+    [ [ older, 100 ], [ newer, 5 ] ].each do |work, days|
+      edition = Edition.create!
+      EditionContent.create!(work:, edition:)
+      Reading.create!(work:, edition:, status: "reading", date_started: Date.current - days)
+    end
+
+    get works_url(filter: "reading")
+
+    titles = css_select("[data-card-title]").map { |t| t.text.strip }
+    assert_operator titles.index("Zebra"), :<, titles.index("Aardvark")
+    assert_select "[data-book-detail]", text: /open 100 days/
+
+    get works_url(filter: "reading", sort: "title")
+    titles = css_select("[data-card-title]").map { |t| t.text.strip }
+    assert_operator titles.index("Aardvark"), :<, titles.index("Zebra")
+  end
 end
