@@ -45,11 +45,22 @@ module BookLists
         { "_isfdb_title_id" => 2835759, "title" => "The Martian Chronicles", "authors" => [ "Ray Bradbury" ] },
         { "_isfdb_title_id" => 21571, "title" => "The Martian Chronicles", "authors" => [ "Ray Bradbury" ] }
       ].to_json)
-      stub_request(:get, "#{ISFDB}/titles/2835759").to_return(status: 200, body: { id: 2835759, main: { id: 2835759, year: 1997 }, variants: [] }.to_json)
-      stub_request(:get, "#{ISFDB}/titles/21571").to_return(status: 200, body: { id: 21571, main: { id: 21571, year: 1950 }, variants: [] }.to_json)
+      stub_request(:get, "#{ISFDB}/titles/2835759").to_return(status: 200, body: { id: 2835759, main: { id: 2835759, title: "The Martian Chronicles", year: 1997 }, variants: [] }.to_json)
+      stub_request(:get, "#{ISFDB}/titles/21571").to_return(status: 200, body: { id: 21571, main: { id: 21571, title: "The Martian Chronicles", year: 1950 }, variants: [] }.to_json)
       data = { "key" => "pringle_100", "name" => "P", "entries" => [ { "title" => "The Martian Chronicles", "author" => "Ray Bradbury", "year" => 1950 } ] }
 
       assert_equal 21571, Import.new.curated("pringle_100", data:).entries.sole.isfdb_title_id
+    end
+  test "a main title that is the listed title wins over a nearer year" do
+      stub_request(:get, %r{#{ISFDB}/search}).to_return(status: 200, body: [
+        { "_isfdb_title_id" => 1382, "title" => "Norstrilia", "authors" => [ "Cordwainer Smith" ] },
+        { "_isfdb_title_id" => 1457, "title" => "Norstrilia", "authors" => [ "Cordwainer Smith" ] }
+      ].to_json)
+      stub_request(:get, "#{ISFDB}/titles/1382").to_return(status: 200, body: { id: 1382, main: { id: 1382, title: "The Planet Buyer", year: 1964 }, variants: [] }.to_json)
+      stub_request(:get, "#{ISFDB}/titles/1457").to_return(status: 200, body: { id: 1457, main: { id: 1457, title: "Norstrilia", year: 1975 }, variants: [] }.to_json)
+      data = { "key" => "pringle_100", "name" => "P", "entries" => [ { "title" => "Norstrilia", "author" => "Cordwainer Smith", "year" => 1965 } ] }
+
+      assert_equal 1457, Import.new.curated("pringle_100", data:).entries.sole.isfdb_title_id
     end
   end
 end

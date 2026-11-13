@@ -65,8 +65,9 @@ module BookLists
     # Fantasy") — and an author's surname too. nil when nothing does: a
     # trilogy listed as one entry has no one ISFDB title. ISFDB can hold
     # several titles of one name by one author (The Martian Chronicles of
-    # 1950, and a later reissue with other contents): the one whose year is
-    # nearest the list's.
+    # 1950, and a later reissue with other contents): one whose main title
+    # is the listed title (a printing titled "Norstrilia" can lead to The
+    # Planet Buyer), then the one whose year is nearest the list's.
     def match(title, author, year = nil)
       surname = author.to_s.split(/,| and | & /).first.to_s.split.last.to_s
       by = ->(r) { Array(r["authors"]).any? { |a| fold(a.split.last) == fold(surname) } }
@@ -78,7 +79,9 @@ module BookLists
       return unless hits
 
       mains = hits.filter_map { |r| r["_isfdb_title_id"] }.uniq.filter_map { |id| @client.title(id)&.dig("main") }.uniq { |m| m["id"] }
-      best = mains.min_by { |m| [ year && m["year"] ? (m["year"].to_i - year.to_i).abs : 9999, m["id"].to_i ] }
+      best = mains.min_by do |m|
+        [ fold(m["title"]) == fold(title) ? 0 : 1, year && m["year"] ? (m["year"].to_i - year.to_i).abs : 9999, m["id"].to_i ]
+      end
       best&.dig("id") || hits.first["_isfdb_title_id"]
     rescue Isfdb::ServiceError, Net::OpenTimeout, Net::ReadTimeout => e
       Rails.logger.warn("book list match #{title}: #{e.class}: #{e.message}")
