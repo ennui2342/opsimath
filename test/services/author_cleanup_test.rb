@@ -103,4 +103,18 @@ class AuthorCleanupTest < ActiveSupport::TestCase
     assert_equal [ [ "Arkady Strugatsky", "author" ], [ "Boris Strugatsky", "author" ] ], roles(work)
     assert_equal boris, work.reload.work_contributors.find_by(role: "author", display_order: 1).contributor
   end
+
+  test "one person under two ISFDB records, the accentless one a pseudonym of the other, is merged; two Ben Smiths aren't" do
+    lem = Contributor.create!(name: "Stanisław Lem", external_ids: { "isfdb" => "166136" },
+                              isfdb_names: { "pseudonyms" => [ { "id" => "1171", "name" => "Stanislaw Lem" } ], "pseudonym_of" => [] })
+    plain = Contributor.create!(name: "Stanislaw Lem", external_ids: { "isfdb" => "1171" },
+                                isfdb_names: { "pseudonyms" => [], "pseudonym_of" => [ { "id" => "166136", "name" => "Stanisław Lem" } ] })
+    fiasco = Work.create!(title: "Fiasco", literary_form: "novel")
+    fiasco.work_contributors.create!(contributor: plain, role: "author")
+
+    AuthorCleanup.apply
+
+    assert_not Contributor.exists?(plain.id)
+    assert_equal lem, fiasco.reload.work_contributors.sole.contributor
+  end
 end

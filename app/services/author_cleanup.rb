@@ -97,16 +97,31 @@ class AuthorCleanup
       seen = Set.new
       (groups + by_name.values).filter_map do |group|
         ids = group.filter_map { |c| c.external_ids["isfdb"].presence }.uniq
-        next if group.size < 2 || ids.size > 1 # two people, one name (Ben Smith)
+        # Two ISFDB records under one name are two people (Ben Smith) —
+        # unless ISFDB files one as the other's other name: "Stanislaw Lem"
+        # (1171) is a pseudonym record of "Stanisław Lem" (166136).
+        next if group.size < 2 || (ids.size > 1 && !one_person?(group))
 
         group = group.reject { |c| seen.include?(c.id) }
         next if group.size < 2
 
         seen.merge(group.map(&:id))
-        keep = group.min_by { |c| [ self.class.mangled?(c.name) ? 1 : 0, -c.work_contributors.size, c.id ] }
+        # The well-formed name, ISFDB's main record (not one filed as another's
+        # pseudonym), the most books.
+        keep = group.min_by { |c| [ self.class.mangled?(c.name) ? 1 : 0, Array(c.isfdb_names&.dig("pseudonym_of")).any? ? 1 : 0, -c.work_contributors.size, c.id ] }
         Merge.new(keep:, drop: group - [ keep ])
       end
     end
+  end
+
+  # Every ISFDB record in the group tied to one other by ISFDB's pseudonym
+  # links (Contributor#isfdb_names, both ways).
+  def one_person?(group)
+    ids = group.filter_map { |c| c.external_ids["isfdb"].presence }.to_set
+    linked = group.flat_map do |c|
+      %w[pseudonyms pseudonym_of].flat_map { |k| Array(c.isfdb_names&.dig(k)).map { |r| [ c.external_ids["isfdb"], r["id"].to_s ] } }
+    end
+    ids.all? { |id| linked.any? { |a, b| (a == id && ids.include?(b)) || (b == id && ids.include?(a)) } }
   end
 
   def merge!(m)
