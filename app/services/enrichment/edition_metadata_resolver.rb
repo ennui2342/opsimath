@@ -31,13 +31,20 @@ module Enrichment
     def picks_text(picks)
       Array(picks).reject(&:blank?).map do |pick|
         provider, field = pick.to_s.split(":", 2)
-        "#{field == 'cover_image' ? 'cover' : field.humanize(capitalize: false)} from #{ApplicationHelper::SOURCE_LABELS.fetch(provider, provider)}"
+        from = if provider.start_with?("printing-")
+                 p = ProviderEdition.find_by(id: provider.delete_prefix("printing-"))
+                 "another printing (#{[ ApplicationHelper::SOURCE_LABELS.fetch(p&.provider, p&.provider), p&.publisher, p&.publish_date ].compact.join(' ')})"
+        else
+                 ApplicationHelper::SOURCE_LABELS.fetch(provider, provider)
+        end
+        "#{field == 'cover_image' ? 'cover' : field.humanize(capitalize: false)} from #{from}"
       end.to_sentence
     end
 
     def apply_one(pick)
       provider, field = pick.to_s.split(":", 2)
       raise InvalidPick, "malformed pick #{pick.inspect}" if provider.blank? || field.blank?
+      return apply_from_printing(provider.delete_prefix("printing-"), field) if provider.start_with?("printing-")
 
       record = EnrichmentRecord.latest(entity: @edition, provider: provider)
       raise InvalidPick, "no #{provider} record on file for this edition" unless record
@@ -50,6 +57,26 @@ module Enrichment
       raise InvalidPick, "#{record.provider} has no #{field} on file" unless record.fields.key?(field)
 
       @edition.update!(field => record.fields[field], field_sources: @edition.field_sources.merge(field => "manual"))
+    end
+
+    # From another printing sharing the edition's ISBN (the cog's "same
+    # ISBN, another printing" cards): the value only — the edition stays
+    # anchored where it is.
+    def apply_from_printing(id, field)
+      printing = EditionMetadataCards.other_printings(@edition).find { |p| p.id.to_s == id }
+      raise InvalidPick, "that printing doesn't share this edition's ISBN" unless printing
+
+      if field == "cover_image"
+        data = HasCoverImage.fetch_image(printing.cover_url) or raise InvalidPick, "couldn't fetch that printing's cover"
+        @edition.cover_image.attach(**data)
+        @edition.update!(field_sources: @edition.field_sources.merge("cover_image" => "manual"))
+      else
+        value = EditionMetadataCards.printing_fields(printing)[field.to_sym]
+        raise InvalidPick, "that printing has no #{field}" if value.blank?
+
+        @edition.update!(field => value, field_sources: @edition.field_sources.merge(field => "manual"))
+      end
+      field
     end
 
     def apply_cover(record)
