@@ -60,8 +60,13 @@ module AddBook
       isfdb, others = shown.partition { |e| e.provider == "isfdb" }
 
       cards = []
-      isfdb.each do |e|
-        home = cards.find { |c| c.editions.any? { |o| same_cover?(e, o) } }
+      # Scanned printings first, so a card starts from its cover and a
+      # printing without one joins a card it matches; a card never holds two
+      # different scans, even through a printing without one (Women's
+      # Press Woman on the Edge of Time: 1989, unscanned, matched both
+      # 1987's cover and 1991's, and the 1987 cover was hidden, 2026-11-14).
+      isfdb.sort_by.with_index { |e, i| [ e.cover_url.present? ? 0 : 1, i ] }.each do |e|
+        home = cards.find { |c| c.editions.any? { |o| same_cover?(e, o) } && c.editions.none? { |o| different_scans?(e, o) } }
         home ? home.editions << e : cards << Card.new(editions: [ e ])
       end
       others.group_by { |e| e.isbn || "#{e.provider}:#{e.id}" }.each_value do |eds|
@@ -83,6 +88,8 @@ module AddBook
 
       a.isbn.present? && a.isbn == b.isbn && a.cover_artist.present? && a.cover_artist == b.cover_artist
     end
+
+    def self.different_scans?(a, b) = a.cover_url.present? && b.cover_url.present? && a.cover_url != b.cover_url
 
     GENERIC_PUBLISHER_WORDS = %w[books book publishing publishers press paperbacks paperback ltd inc the co].freeze
 

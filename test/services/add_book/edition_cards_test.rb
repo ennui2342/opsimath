@@ -50,6 +50,19 @@ module AddBook
       cards.each { |c| assert_equal c.primary.cover_url, c.cover_url }
     end
 
+    test "a printing without a scan never bridges two different covers into one card" do
+      args = { publisher: "The Women's Press", binding: "pb", isbn13: "9780704338371", cover_artist: "Sue Coe" }
+      unscanned = ed("isfdb", "1131336", publish_date: "1989", **args)
+      sf_cover = ed("isfdb", "55274", publish_date: "1987-05", cover_url: "https://c/bktg.jpg", **args)
+      later = ed("isfdb", "454289", publish_date: "1991", cover_url: "https://c/41wg.jpg", **args)
+
+      cards, = EditionCards.build([ unscanned, later, sf_cover ])
+
+      assert_equal 2, cards.size
+      assert_includes cards.map(&:cover_url), "https://c/bktg.jpg"
+      assert_equal 3, cards.sum { |c| c.editions.size }
+    end
+
     test "other languages are hidden unless asked for; ebooks come after physical books" do
       german = ed("openlibrary", "OL9M", publisher: "Bastei Lübbe", language: "ger")
       ebook = ed("isfdb", "5", publisher: "Gollancz", binding: "ebook", publish_date: "1960")
