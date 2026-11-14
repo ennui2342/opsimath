@@ -60,5 +60,17 @@ module Isfdb
       assert_empty change.drop # the novel's link isn't touched on the strength of a doubtful anchor
       assert_equal [ "172997" ], change.conflicts.map(&:first)
     end
+  test "a relinked omnibus loses the series number it took from a novel inside it" do
+      title(868, 868, "Wetware")
+      title(29436, 29436, "Live Robots")
+      work = book("Live Robots", links: [ 868, 29436 ], pub: 20507, own_title: 29436)
+      ProviderEdition.find_by!(provider_id: "20507").update!(series_id: 485, series_name: "Ware")
+      ware = Series.create!(name: "Ware", isfdb_series_id: 485)
+      WorkSeries.create!(work:, series: ware, position: 2)
+
+      LinkReconcile.apply
+
+      assert_nil work.work_series.sole.reload.position
+    end
   end
 end

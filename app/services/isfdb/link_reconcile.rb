@@ -58,7 +58,28 @@ module Isfdb
       works = Work.where(id: changed.map { |c| c.work.id })
       MainTitles.run(works, client: @client) if changed.any?
       TitleCleanup.apply(works) if changed.any?
+      works.includes(:provider_editions, :work_identifiers, work_series: :series).each { |w| renumber(w) }
       changed.size
+    end
+
+    # A book's place in an ISFDB series, from its own printings now its
+    # links are right: WorkSeriesSync only adds, so a number filed from a
+    # wrong link stays otherwise (Live Robots was Ware #2, from Wetware
+    # inside it; an omnibus is in its series without a number). A series
+    # its own printings don't name is left — it may be Mark's or Goodreads'.
+    def renumber(work)
+      own = work.own_isfdb_printings
+      work.work_series.each do |ws|
+        isfdb = ws.series.isfdb_series_id or next
+        named = own.select { |p| p.series_id == isfdb }
+        nums = named.map(&:series_num).uniq
+        target = named.any? ? (nums.one? ? nums.first : nil) : nil
+        next if ws.position.nil? || (named.any? && ws.position == target)
+
+        ws.update!(position: target)
+        CatalogueEvent.record(kind: "series", origin: "link_reconcile", work:,
+                              summary: "#{work.title}: in #{ws.series.name}#{target ? " ##{format('%g', target)}" : ' without a number'} (from its own printings)")
+      end
     end
 
     private
