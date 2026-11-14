@@ -5,7 +5,7 @@
   <p class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Publisher's line</p>
   <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100"><%= @line.name %></h1>
   <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-    <%= @line.owned_count %> of <%= pluralize(@line.entries.size, "printing") %> yours
+    <%= @line.owned_count %> of <%= pluralize(@line.entries.size, "book") %> yours
     · <%= link_to "ISFDB", "https://www.isfdb.org/cgi-bin/pubseries.cgi?#{@line.id}", target: "_blank", rel: "noopener", class: "hover:underline" %>
   </p>
   <div class="mt-3 flex flex-wrap items-center gap-3 text-sm">
@@ -32,7 +32,7 @@
       <% if e.status == :yours && (edition = @line.edition_for(e)) %>
         <%= render Ui::EditionCardComponent.new(edition:, size: :tile, work: e.work, number:) %>
       <% else %>
-        <% excluded = @line_want&.excluded?(e.pub_id) %>
+        <% excluded = @line_want&.excluded?(e.pub_ids) %>
         <% text, variant = labels.fetch(e.status) %>
         <%= render Ui::BookCandidateCardComponent.new(
               size: :tile, title: e.title, authors: e.authors.first(1), number:, cover_url: e.cover_url, url: (work_path(e.work) if e.work),
@@ -43,7 +43,7 @@
           <% end %>
           <% if @line_want %>
             <%= button_to excluded ? "Collect again" : "Not this one", (excluded ? include_line_path(@line.id) : exclude_line_path(@line.id)),
-                          params: { pub_id: e.pub_id }, class: "text-[11px] text-gray-500 hover:underline dark:text-gray-400" %>
+                          params: { pub_ids: e.pub_ids.join(",") }, class: "text-[11px] text-gray-500 hover:underline dark:text-gray-400" %>
           <% end %>
         <% end %>
       <% end %>

@@ -34,7 +34,7 @@ class LinesControllerTest < ActionDispatch::IntegrationTest
     get line_url(77)
 
     assert_select "h1", "The Women's Press Science Fiction"
-    assert_match "1 of 2 printings yours", response.body
+    assert_match "1 of 2 books yours", response.body
     assert_select "[data-card=edition] [data-card-number]", text: "#2" # Mark's own edition of #2
     assert_select "[data-card=candidate]", count: 1 do
       assert_select "a", text: "Add"

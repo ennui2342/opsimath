@@ -22,10 +22,10 @@ class LinesController < ApplicationController
   # "Not this one": the number stays out, and a want the line made for it goes.
   def exclude
     line_want = LineWant.find_by!(pub_series_id: Integer(params[:id]))
-    pub_id = Integer(params[:pub_id])
-    line_want.update!(excluded_pub_ids: line_want.excluded_pub_ids | [ pub_id ])
-    line_want.wants.select { |w| Array(w.printing_override_ids).include?(pub_id) }.each do |w|
-      rest = w.printing_override_ids - [ pub_id ]
+    ids = pub_ids
+    line_want.update!(excluded_pub_ids: line_want.excluded_pub_ids | ids)
+    line_want.wants.select { |w| Array(w.printing_override_ids).intersect?(ids) }.each do |w|
+      rest = w.printing_override_ids - ids
       rest.empty? ? w.retire! : w.update!(printing_override_ids: rest)
     end
     redirect_to line_path(params[:id])
@@ -33,8 +33,13 @@ class LinesController < ApplicationController
 
   def include
     line_want = LineWant.find_by!(pub_series_id: Integer(params[:id]))
-    line_want.update!(excluded_pub_ids: line_want.excluded_pub_ids - [ Integer(params[:pub_id]) ])
+    line_want.update!(excluded_pub_ids: line_want.excluded_pub_ids - pub_ids)
     LineWantsJob.perform_later(line_want.id)
     redirect_to line_path(params[:id])
   end
+
+  private
+
+  # The book's printings in the line ("1,2"), or one printing.
+  def pub_ids = params[:pub_ids].to_s.split(",").filter_map { |id| Integer(id, exception: false) }.presence || [ Integer(params[:pub_id]) ]
 end

@@ -5,9 +5,16 @@
 # the printings opsimath already knows in that line.
 class PublicationLine
   Entry = Struct.new(:pub_id, :title_id, :number, :title, :authors, :publisher, :year, :cover_url, :cover_artist, :work, :status,
-                     keyword_init: true)
-  # status: :yours (an edition of his is this printing) | :other_edition (he has the book, another printing)
-  #         | :wanted (on the wishlist) | :missing
+                     :pub_ids, keyword_init: true)
+  # One per book: ISFDB can file several printings of a book in a line (The
+  # Women's Press Woman on the Edge of Time, 1987 and 1989), and having any
+  # of them is having the book in the line. `pub_ids` are all of them;
+  # `pub_id` is the one shown — his, else one with a cover, else the
+  # earliest.
+  # status: :yours (an edition of his is one of the line's printings) |
+  #         :other_edition (he has the book, another printing) | :wanted (on
+  #         the wishlist) | :missing
+  STATUS_ORDER = %i[yours other_edition wanted missing].freeze
 
   attr_reader :id, :name, :entries, :complete
 
@@ -22,22 +29,37 @@ class PublicationLine
     @complete = data.present?
     rows = data ? data["publications"].map { |p| from_adapter(p) } : known_rows
     @name = data&.dig("name").presence || known.filter_map(&:pub_series_name).first || "ISFDB line #{@id}"
-    @entries = rows.uniq { |e| e.pub_id }.each { |e| e.status = status_of(e) }
+    @entries = by_book(rows.uniq { |e| e.pub_id }.each { |e| e.status = status_of(e) })
     self
   rescue ::Isfdb::ServiceError, Net::OpenTimeout, Net::ReadTimeout => e
     Rails.logger.warn("publication line #{@id}: #{e.class}: #{e.message}")
     @complete = false
-    @entries = known_rows.each { |x| x.status = status_of(x) }
+    @entries = by_book(known_rows.each { |x| x.status = status_of(x) })
     @name = known.filter_map(&:pub_series_name).first || "ISFDB line #{@id}"
     self
   end
 
   def owned_count = entries.count { |e| e.status == :yours }
 
+  # A printing among an entry's that Mark has (to show his edition).
+  def owned_pub_id(entry) = entry.pub_ids.find { |id| owned_pub_ids.include?(id.to_s) }
+
   # Mark's own edition of a printing in the line (an entry that's :yours).
-  def edition_for(entry) = owned_editions[entry.pub_id.to_s]
+  def edition_for(entry) = owned_editions[(owned_pub_id(entry) || entry.pub_id).to_s]
 
   private
+
+  # Printings of one book merged into its first entry's place.
+  def by_book(rows)
+    rows.group_by { |e| e.work ? "work:#{e.work.id}" : (e.title_id ? "title:#{e.title_id}" : "pub:#{e.pub_id}") }.values.map do |group|
+      shown = group.min_by { |e| [ STATUS_ORDER.index(e.status), e.cover_url.present? ? 0 : 1, e.year || 9999 ] }
+      shown.dup.tap do |e|
+        e.pub_ids = group.map(&:pub_id)
+        e.number ||= group.filter_map(&:number).first
+        e.status = group.map(&:status).min_by { |s| STATUS_ORDER.index(s) }
+      end
+    end
+  end
 
   def known = @known ||= ProviderEdition.where(provider: "isfdb", pub_series_id: @id).includes(:work).to_a
 

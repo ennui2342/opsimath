@@ -8,7 +8,8 @@ class LineWant < ApplicationRecord
 
   validates :pub_series_id, presence: true, uniqueness: true
 
-  def excluded?(pub_id) = excluded_pub_ids.include?(pub_id.to_i)
+  # Any of a book's printings in the line (an entry's pub_ids) excluded.
+  def excluded?(pub_ids) = Array(pub_ids).any? { |id| excluded_pub_ids.include?(id.to_i) }
 
   # Stop collecting: the wants this line created go (a book Mark wanted
   # anyway keeps its want).

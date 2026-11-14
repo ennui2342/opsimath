@@ -50,6 +50,34 @@ module LineWants
       assert_equal [ 601, 602 ], soames.want.printing_override_ids.sort
     end
 
+    test "a book the line holds in two printings is one entry: having either is having it, and it's never wanted again" do
+      stub_request(:get, "#{@isfdb}/pubseries/79").to_return(status: 200, body: {
+        id: 79, name: "The Women's Press Science Fiction",
+        publications: [ pub(55274, nil, "Woman on the Edge of Time", 4321).merge("publish_date" => "1987", "cover_url" => "https://c/sf.jpg"),
+                        pub(1131336, nil, "Woman on the Edge of Time", 4321).merge("publish_date" => "1989") ]
+      }.to_json)
+      mine = book("Woman on the Edge of Time", pub_ids: %w[55274], owned: true)
+      WorkIdentifier.create!(work: mine, id_type: "isfdb_title", value: "4321")
+
+      line = PublicationLine.find(79)
+      entry = line.entries.sole
+      assert_equal [ :yours, [ 55274, 1131336 ] ], [ entry.status, entry.pub_ids ]
+      assert_equal 0, Sync.run(LineWant.create!(pub_series_id: 79))
+      assert_nil mine.reload.want
+    end
+
+    test "a book not yet had shows the printing with a cover; collecting wants any of its line printings" do
+      stub_request(:get, "#{@isfdb}/pubseries/80").to_return(status: 200, body: {
+        id: 80, name: "Line", publications: [ pub(2, nil, "Other Book", 77).merge("publish_date" => "1989"),
+                                              pub(1, nil, "Other Book", 77).merge("publish_date" => "1987", "cover_url" => "https://c/x.jpg") ]
+      }.to_json)
+
+      entry = PublicationLine.find(80).entries.sole
+      assert_equal 1, entry.pub_id # the one with a cover
+      Sync.run(LineWant.create!(pub_series_id: 80))
+      assert_equal [ 1, 2 ], Work.find_by!(title: "Other Book").want.printing_override_ids.sort
+    end
+
     test "excluded numbers stay out; stopping removes only the wants the line made" do
       @line_want.update!(excluded_pub_ids: [ 501 ])
       own = Want.create!(work: Work.create!(title: "Walk to the End of the World", literary_form: "novel")) # Mark's own

@@ -21,7 +21,7 @@ module LineWants
       return 0 unless line.complete
 
       @line_want.update!(name: line.name)
-      added = line.entries.reject { |e| e.status == :yours || @line_want.excluded?(e.pub_id) }.count { |e| want(e, line) }
+      added = line.entries.reject { |e| e.status == :yours || @line_want.excluded?(e.pub_ids) }.count { |e| want(e, line) }
       @line_want.update!(synced_at: Time.current)
       added
     end
@@ -32,12 +32,12 @@ module LineWants
       work = entry.work || create_work(entry) or return false
       want = work.want || work.create_want!(line_want: @line_want).tap { WantPrintingsJob.perform_later(it.id) }
       ids = Array(want.printing_override_ids)
-      return false if ids.include?(entry.pub_id)
+      return false if (entry.pub_ids - ids).empty?
 
       # A want of Mark's own that hunts by the collecting rule keeps those
       # covers and gains this printing.
       base = want.printing_override_ids.nil? && want.line_want_id.nil? ? CollectingProfile.current.verdict(want).wanted.map(&:isfdb_pub_id) : ids
-      want.update!(printing_override_ids: (base | [ entry.pub_id ]))
+      want.update!(printing_override_ids: (base | entry.pub_ids)) # any of the book's printings in the line
       CatalogueEvent.record(kind: "wanted", origin: "line_wants", work:,
                             summary: "Collecting #{line.name}: wanted #{"##{entry.number} " if entry.number}#{work.title} (#{[ entry.publisher, entry.year ].compact.join(' ')})")
       true
