@@ -13,13 +13,14 @@ module Enrichment
       @ol = ProviderEdition.create!(work: @work, provider: "openlibrary", provider_id: "OL832401M", isbn13: "9780140441659",
                                     publisher: "Penguin Books", publish_date: "1965", page_count: 154, cover_url: "https://covers.test/ol.jpg")
       ProviderEdition.create!(work: @work, provider: "openlibrary", provider_id: "OL999M", isbn13: "9780000000000", publisher: "Other")
+      @ol10 = ProviderEdition.create!(work: @work, provider: "openlibrary", provider_id: "OL7355133M", isbn10: "0140441654", publisher: "Penguin Classics")
     end
 
     test "the cog offers the book's other printings with this ISBN, not the edition's own source nor other ISBNs" do
-      assert_equal [ @ol ], EditionMetadataCards.other_printings(@edition)
+      assert_equal [ @ol, @ol10 ].map(&:id).sort, EditionMetadataCards.other_printings(@edition).map(&:id).sort # by ISBN-10 too
       @edition.enrichment_records.delete_all # anchored before its record exists: still not "another printing"
-      assert_equal [ @ol ], EditionMetadataCards.other_printings(@edition.reload)
-      card = EditionMetadataCards.build(@edition)[:sources].last
+      assert_equal 2, EditionMetadataCards.other_printings(@edition.reload).size
+      card = EditionMetadataCards.build(@edition)[:sources].find { |c| c.label.include?("another printing") }
       assert_match "same ISBN, another printing", card.label
       assert card.cover_selectable
     end

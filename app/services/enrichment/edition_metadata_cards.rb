@@ -39,7 +39,9 @@ module Enrichment
       # `openlibrary` identifier) even before that has a source record.
       sources = (edition.enrichment_records.map { |r| [ r.provider, r.external_id.to_s ] } +
                  edition.edition_identifiers.select { |i| %w[isfdb openlibrary].include?(i.id_type) }.map { |i| [ i.id_type, i.value ] }).to_set
-      ProviderEdition.where(work_id: edition.works.select(:id), isbn13: isbns).order(:provider, :publish_date)
+      isbn10s = isbns.filter_map { |i| Isbn.to_10(i) }
+      ProviderEdition.where(work_id: edition.works.select(:id)).where("isbn13 IN (?) OR isbn10 IN (?)", isbns, isbn10s.presence || [ "" ])
+                     .order(:provider, :publish_date)
                      .reject { |p| sources.include?([ p.provider, p.provider_id.to_s ]) }.uniq { |p| [ p.provider, p.provider_id ] }
     end
 
