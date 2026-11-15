@@ -180,7 +180,7 @@ module Isfdb
 
         nums = named.map(&:series_num).uniq
         target = if isfdb && named.any? then nums.one? ? nums.first : nil
-                 elsif isfdb then nil
+        elsif isfdb then nil
         elsif work.literary_form == "omnibus" then nil
         else ws.position
         end
