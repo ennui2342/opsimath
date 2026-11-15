@@ -31,6 +31,13 @@ class AuthorCleanup
 
   def self.apply(...) = new(...).apply
 
+  # One work's authors against its ISFDB title record now (the cascade,
+  # Isfdb::WorkLinks) — no merging of people across the catalogue.
+  def self.sync_work(work, client: Isfdb::Client.new)
+    cleanup = new(works: Work.where(id: work.id), client:)
+    cleanup.send(:changes).count { |c| cleanup.send(:change!, c) }
+  end
+
   def initialize(works: nil, client: Isfdb::Client.new)
     @works = works
     @client = client

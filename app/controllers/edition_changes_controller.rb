@@ -5,8 +5,19 @@
 class EditionChangesController < ApplicationController
   before_action :set_edition
 
+  # `q`: searched for, as Add a book searches, instead of the book's known
+  # printings — for when its ISFDB link is to the wrong book and the right
+  # printing isn't among them (New Worlds 4, linked to Garnett's 1994
+  # anthology rather than Moorcock's New Worlds Quarterly 4, 2026-11-15).
+  SEARCH_RESULTS = 3
+
   def edit
-    editions = AddBook::EditionSource.for_work(@work) + decision_candidates
+    @query = params[:q].to_s.strip.presence
+    editions = if @query
+                 AddBook::Search.run(@query).first(SEARCH_RESULTS).flat_map { |r| AddBook::EditionSource.for_found(r.to_payload) }
+    else
+                 AddBook::EditionSource.for_work(@work) + decision_candidates
+    end
     @cards, @hidden = AddBook::EditionCards.build(editions.uniq { |e| [ e.provider, e.id ] }, all_languages: params[:all_languages].present?)
     @isbn = @edition.edition_identifiers.find { |i| i.id_type == "isbn13" }&.value
     @current = @edition.edition_identifiers.select { |i| EditionChange::PROVIDERS.include?(i.id_type) }.map { |i| [ i.id_type, i.value ] }

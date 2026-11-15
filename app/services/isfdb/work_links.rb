@@ -114,13 +114,16 @@ module Isfdb
     end
 
     # The work's details from its new titles, at once: form, year, language
-    # (MainTitles), its title by the rule (TitleCleanup), its series and
+    # (MainTitles), its title by the rule (TitleCleanup), its authors
+    # (AuthorCleanup — New Worlds 4 kept Garnett's name after relinking to
+    # Moorcock's, 2026-11-15), its series and
     # number (WorkSeriesSync, after resetting numbers its printings no
     # longer give).
     def cascade(work)
       one = Work.where(id: work.id)
       MainTitles.run(one, client: @client)
       TitleCleanup.apply(one)
+      AuthorCleanup.sync_work(work, client: @client)
       renumber(work.reload)
       WorkSeriesSync.run(one)
     end

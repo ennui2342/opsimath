@@ -53,4 +53,15 @@ class EditionChangesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :not_found
   end
+
+  test "not among its printings: the picker searches, as Add a book does" do
+    stub_request(:get, %r{/search}).to_return(status: 200, body: "[]")
+    stub_request(:get, %r{openlibrary\.org/search\.json}).to_return(status: 200, body: { docs: [] }.to_json)
+
+    get edit_work_edition_change_url(@work, @edition, q: "New Worlds Quarterly 4")
+
+    assert_response :success
+    assert_select "input[name=q][value='New Worlds Quarterly 4']"
+    assert_match "Nothing found for that search.", response.body
+  end
 end

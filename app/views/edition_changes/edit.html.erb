@@ -16,13 +16,27 @@
     <% end %>
   </p>
 
+  <% if @query %>
+    <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">
+      Printings of books matching “<%= @query %>” —
+      <%= link_to "back to this book's own printings", edit_work_edition_change_path(@work, @edition), class: "hover:underline" %>
+    </p>
+  <% end %>
   <% if @cards.empty? %>
-    <p class="text-sm text-gray-600 dark:text-gray-400">Neither ISFDB nor Open Library lists editions for this book yet.</p>
+    <p class="text-sm text-gray-600 dark:text-gray-400"><%= @query ? "Nothing found for that search." : "Neither ISFDB nor Open Library lists editions for this book yet." %></p>
   <% else %>
     <%= form_with url: work_edition_change_path(@work, @edition), method: :patch do %>
       <%= render "add_books/edition_grid", cards: @cards, title: @work.title, notes: method(:notes_for) %>
       <button type="submit" class="mb-6 rounded-md bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600">This is my edition</button>
     <% end %>
+  <% end %>
+
+  <%= form_with url: edit_work_edition_change_path(@work, @edition), method: :get, class: "mb-6 rounded-lg border border-gray-200 p-3 text-sm dark:border-gray-700" do %>
+    <label for="q" class="mb-1 block text-gray-700 dark:text-gray-300">Not here? Search ISFDB and Open Library — choosing a printing from another book moves this one to it.</label>
+    <div class="flex gap-2">
+      <input id="q" type="search" name="q" value="<%= @query || @work.title %>" class="min-w-0 flex-1 rounded-md border border-gray-300 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900">
+      <button type="submit" class="rounded-md bg-gray-200 px-3 py-1.5 font-medium text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">Search</button>
+    </div>
   <% end %>
 
   <%= link_to "Back", work_path(@work), class: "text-sm text-gray-500 hover:underline dark:text-gray-400" %>

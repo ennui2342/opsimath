@@ -36,7 +36,10 @@ class EditionChange
                               summary: "#{CatalogueEvent.title(work)}: now the #{CatalogueEvent.edition_label(filled)} printing (was #{was})")
       end
     end
-    filled.works.each { |work| BookAddedJob.perform_later(work.id) }
+    filled.works.each do |work|
+      remember_printings(work, card)
+      BookAddedJob.perform_later(work.id)
+    end
     filled
   end
 
@@ -51,6 +54,21 @@ class EditionChange
     decisions(edition).each do |d|
       d.update!(status: d.kind == "enrichment_printing_choice" ? "accepted" : "rejected", resolved_at: Time.current)
       d.candidate_covers.purge_later
+    end
+  end
+
+  # The chosen card's printings stored with the work, each with its own
+  # title record (provider_work_id), so the cascade can relink the work to
+  # it even when the printing came from a search, not the work's known
+  # printings (Isfdb::WorkLinks).
+  def self.remember_printings(work, card)
+    Array(card).each do |raw|
+      e = raw.respond_to?(:to_h) ? raw.to_h.stringify_keys : raw
+      next unless PROVIDERS.include?(e["provider"]) && e["id"].present?
+
+      row = ProviderEdition.find_or_initialize_by(work:, provider: e["provider"], provider_id: e["id"].to_s)
+      row.update!(e.slice(*%w[isbn13 isbn10 title publisher binding publish_date language page_count cover_url cover_artist])
+                   .merge("provider_work_id" => e["work_id"].presence&.to_s || row.provider_work_id))
     end
   end
 end

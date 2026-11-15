@@ -54,4 +54,11 @@ class EditionChangeTest < ActiveSupport::TestCase
     assert_equal %w[accepted rejected pending pending], [ choice, conflict, goodreads, other ].map { |d| d.reload.status }
     assert choice.resolved_at
   end
+
+  test "the chosen printing is kept with the work, with its own title record, for the cascade to relink to" do
+    EditionChange.run(@edition, [ @card.first.merge("work_id" => "36323") ])
+
+    row = @work.provider_editions.find_by!(provider: "isfdb", provider_id: "222")
+    assert_equal [ "36323", "Triad Grafton" ], [ row.provider_work_id, row.publisher ]
+  end
 end

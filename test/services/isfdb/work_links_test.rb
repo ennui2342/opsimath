@@ -67,5 +67,21 @@ module Isfdb
 
       assert_equal [ "1911" ], work.reload.work_identifiers.where(id_type: "isfdb_title").pluck(:value)
     end
+  test "relinked to another title record, the work takes its authors too" do
+      stub_request(:get, "#{ISFDB}/titles/36323").to_return(status: 200, body: {
+        id: 36323, title: "New Worlds Quarterly 4", type: "ANTHOLOGY", variants: [],
+        main: { id: 36323, title: "New Worlds Quarterly 4", type: "ANTHOLOGY", year: 1972, language: "eng",
+                authors: [ { id: "34", name: "Michael Moorcock" } ], author_aliases: [] }
+      }.to_json)
+      title(33373, "New Worlds 4", "ANTHOLOGY")
+      work = work_with_edition("New Worlds 4", links: [ [ 33373, "isbn_lookup" ] ], anchor: 5, printings: { 5 => [ 36323, "New Worlds Quarterly 4" ] })
+      work.work_contributors.create!(contributor: Contributor.create!(name: "David Garnett"), role: "author")
+      work.work_contributors.create!(contributor: Contributor.create!(name: "Michael Moorcock"), role: "contributor")
+
+      WorkLinks.sync(work)
+
+      roles = work.reload.work_contributors.includes(:contributor).to_h { |wc| [ wc.contributor.name, wc.role ] }
+      assert_equal({ "David Garnett" => "contributor", "Michael Moorcock" => "author" }, roles)
+    end
   end
 end
