@@ -129,4 +129,12 @@ class AuthorCleanupTest < ActiveSupport::TestCase
     assert_not Contributor.exists?(slug.id)
     assert_equal delany, beta.reload.work_contributors.sole.contributor
   end
+
+  test "adding a book finds the author already in the catalogue under another spelling" do
+    van_vogt = Contributor.create!(name: "A.E. van Vogt", external_ids: { "isfdb" => "58" })
+
+    assert_equal van_vogt, Contributor.for_name!("A. E. van Vogt")
+    assert_equal van_vogt, Contributor.for_name!("Van Vogt A. E.")
+    assert_equal "Joanna Russ", Contributor.for_name!("Joanna Russ").name # a new one when there's none
+  end
 end

@@ -110,6 +110,8 @@ class AuthorCleanup
         # The well-formed name, ISFDB's main record (not one filed as another's
         # pseudonym), the most books.
         keep = group.min_by { |c| [ self.class.mangled?(c.name) ? 1 : 0, Array(c.isfdb_names&.dig("pseudonym_of")).any? ? 1 : 0, -c.work_contributors.size, c.id ] }
+        next if self.class.mangled?(keep.name) # no good name among them to keep
+
         Merge.new(keep:, drop: group - [ keep ])
       end
     end

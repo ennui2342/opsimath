@@ -74,7 +74,7 @@ module AddBook
       work = Work.create!(title: found.fetch("title"), literary_form: "novel",
                           original_publication_year: found["first_year"], field_sources: { "title" => primary_provider(found) })
       Array(found["authors"]).each_with_index do |name, i|
-        contributor = Contributor.where("lower(name) = lower(?)", name).order(:id).first || Contributor.create!(name:)
+        contributor = Contributor.for_name!(name)
         work.work_contributors.create!(contributor:, role: "author", display_order: i)
       end
       Array(found["provider_works"]).each do |pw|

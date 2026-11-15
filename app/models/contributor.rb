@@ -9,6 +9,17 @@ class Contributor < ApplicationRecord
 
   validates :name, presence: true
 
+  # The person already in the catalogue under this name — the same name
+  # once case, spacing, punctuation, accents and word order are set aside
+  # ("A. E. van Vogt" is "A.E. van Vogt"), and not a mangled one — else a
+  # new one. Adding a book from ISFDB made a second van Vogt and a second
+  # James S. A. Corey by matching the exact spelling only (2026-11-15).
+  def self.for_name!(name)
+    where("lower(name) = lower(?)", name).order(:id).first ||
+      (key = AuthorCleanup.tokens(name).sort).presence && order(:id).find_each.find { |c| AuthorCleanup.tokens(c.name).sort == key && !AuthorCleanup.mangled?(c.name) } ||
+      create!(name:)
+  end
+
   # :living / :dead from the ISFDB author record (ContributorLifeRefresh),
   # :unknown when it couldn't be identified — CollectingProfile's buy-new
   # rule treats unknown as living. died_date is EDTF.

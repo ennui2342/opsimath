@@ -27,7 +27,7 @@ class Want < ApplicationRecord
     transaction do
       work = Work.create!(title:, literary_form:, field_sources: { "title" => external_ids["goodreads"] ? "goodreads" : "manual" })
       if author_name.present?
-        contributor = Contributor.where("lower(name) = lower(?)", author_name).order(:id).first || Contributor.create!(name: author_name)
+        contributor = Contributor.for_name!(author_name)
         work.work_contributors.create!(contributor:, role: "author", display_order: 0)
       end
       work.work_series.create!(series:) if series
