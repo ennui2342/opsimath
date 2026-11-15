@@ -17,17 +17,16 @@ module AddBook
     # Searched the way Add a book searches (its apostrophe and number forms,
     # AddBook::Search.variants), with the author and then — when an
     # author's other books crowd the results — without (The Year's Best
-    # Science Fiction 2, among Aldiss's own collections, 2026-11-15).
+    # Science Fiction 2, among Aldiss's own collections, 2026-11-15) —
+    # stopping at the first search that finds the book: each takes seconds,
+    # and all of them together left the page hanging (Machines & Men).
     def self.by_title(work)
       author = work.authors.first&.name
       queries = AddBook::Search.variants(WorkMatcher.plain(work.title))
+      attempts = [ author, nil ].uniq.flat_map { |a| queries.map { |q| [ q, a ] } }
       Providers.with(:search_works).flat_map do |provider|
-        found = queries.flat_map { |q| provider.search_works(title: q, author:, complete: true) }
-        matches = WorkMatcher.match(found, title: work.title, author:)
-        if matches.empty?
-          found = queries.flat_map { |q| provider.search_works(title: q, complete: true) }
-          matches = WorkMatcher.match(found, title: work.title, author:)
-        end
+        matches = attempts.lazy.map { |q, a| WorkMatcher.match(provider.search_works(title: q, author: a, complete: true), title: work.title, author:) }
+                          .find(&:any?) || []
         editions = matches.flat_map { |m| Array(m.editions) }
         editions = matches.flat_map { |m| provider.known_editions(isbns: [], work_ids: [ m.id ]).editions } if editions.empty?
         editions

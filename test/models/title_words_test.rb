@@ -9,6 +9,7 @@ class TitleWordsTest < ActiveSupport::TestCase
     assert_equal "i robot", TitleWords.fold("I, Robot")
     assert_equal "the past through tomorrow 2", TitleWords.fold("The Past Through Tomorrow: Vol. 2")
     assert_equal "no blade of grass", TitleWords.fold("No Blade of Grass") # "No" only before a number
+    assert_equal TitleWords.fold("Machines and Men"), TitleWords.fold("Machines & Men")
   end
 
   test "the matcher behind the edition picker and the nightly lookups uses it" do

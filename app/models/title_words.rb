@@ -5,7 +5,8 @@
 # (Mark: "is the search shared between different systems that do title
 # match?" — it wasn't).
 #
-# Folded: accents and case gone; apostrophes dropped, not spaced ("Year's"
+# Folded: accents and case gone; "&" is "and" (Machines & Men is ISFDB's
+# Machines and Men); apostrophes dropped, not spaced ("Year's"
 # is "years", as typed); numbers as digits, whether written as words or
 # Roman numerals ("Two", "II" are "2"; a lone "I" stays a word: I, Robot);
 # and a volume word before a number dropped ("No. 2", "Vol. 2", "Book 2"
@@ -17,7 +18,7 @@ module TitleWords
   VOLUME_WORDS = %w[no number vol volume book].freeze
 
   def self.fold(text)
-    words = I18n.transliterate(text.to_s.tr("’‘", "''")).downcase.delete("'").gsub(/[^a-z0-9]+/, " ").split
+    words = I18n.transliterate(text.to_s.tr("’‘", "''")).downcase.gsub("&", " and ").delete("'").gsub(/[^a-z0-9]+/, " ").split
     words = words.map { |w| (n = number(w)) ? n.to_s : w }
     words.each_with_index.reject { |w, i| VOLUME_WORDS.include?(w) && words[i + 1]&.match?(/\A\d+\z/) }.map(&:first).join(" ")
   end

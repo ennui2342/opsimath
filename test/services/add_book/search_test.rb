@@ -61,7 +61,7 @@ module AddBook
         end
       end.new
 
-      results = Search.new(providers: [ apostrophe_only ]).run("harrison years best")
+      results = Search.new(providers: [ apostrophe_only ]).run("harrison years best science fiction")
 
       assert_equal [ "The Year's Best Science Fiction No. 1" ], results.map(&:title)
       assert_equal "Year's Best Stars", Search.apostrophised("Years Best Stars").sub("Star's", "Stars")

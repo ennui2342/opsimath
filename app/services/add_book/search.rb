@@ -67,10 +67,24 @@ module AddBook
     # "year's" — "Harrison years best" never found The Year's Best Science
     # Fiction No. 1), and a number as digits or words ("best 2" / "best
     # two" — anthologies vary, Mark, 2026-11-15).
+    #
+    # The other forms only when the words as typed find no title that holds
+    # them all — each search costs seconds (Machines & Men took four, and
+    # "Machine's" was no help).
     def search(query)
-      self.class.variants(query)
-          .flat_map { |q| Providers.search_works(title: q, providers: @providers) }
-          .uniq { |w| [ w.provider, w.id ] }
+      works = Providers.search_works(title: query, providers: @providers)
+      return works if works.any? { |w| self.class.title_holds?(w.title, query) }
+
+      (works + self.class.variants(query).drop(1).flat_map { |q| Providers.search_works(title: q, providers: @providers) })
+        .uniq { |w| [ w.provider, w.id ] }
+    end
+
+    # Every word typed (bar an author's) is in the title — a word typed
+    # that isn't, an author's name say, doesn't count against it.
+    def self.title_holds?(title, query)
+      held = " #{TitleWords.fold(title)} "
+      words = TitleWords.fold(query).split
+      words.count { |w| held.include?(" #{w} ") } >= [ words.size - 2, 1 ].max
     end
 
     def self.variants(query)
