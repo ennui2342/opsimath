@@ -115,7 +115,10 @@ module Ebay
         buying_options: Array(summary["buyingOptions"]),
         auction_ends_at: summary["itemEndDate"],
         bid_count: summary["bidCount"],
-        seller_country: summary.dig("itemLocation", "country")
+        seller_country: summary.dig("itemLocation", "country"),
+        seller: summary.dig("seller", "username"),
+        seller_feedback_score: summary.dig("seller", "feedbackScore"),
+        seller_feedback_percentage: summary.dig("seller", "feedbackPercentage")
       }
     end
 

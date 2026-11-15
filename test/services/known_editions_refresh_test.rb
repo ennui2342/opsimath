@@ -131,7 +131,9 @@ class KnownEditionsRefreshTest < ActiveSupport::TestCase
     @work.provider_editions.create!(provider: "isfdb", provider_id: "1")
     provider = FakeProvider.new
 
-    refresh(provider)
+    # A day after the fallback improved: both refreshes are within the week
+    # (it failed once that week had passed, 2026-11-15).
+    travel_to(KnownEditionsRefresh::TITLE_FALLBACK_SINCE + 1.day) { refresh(provider) }
 
     assert_equal 1, provider.calls.size # only Found Nothing
     assert_equal [], provider.calls.sole[:isbns]

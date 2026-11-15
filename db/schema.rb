@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_13_200000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_15_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -199,6 +199,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_200000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "work_id", null: false
+    t.string "seller"
+    t.integer "seller_feedback_score"
+    t.string "seller_feedback_percentage"
     t.index ["wishlist_item_id", "ebay_item_id"], name: "index_ebay_listings_on_wishlist_item_id_and_ebay_item_id", unique: true
     t.index ["work_id", "ebay_item_id"], name: "index_ebay_listings_on_work_id_and_ebay_item_id", unique: true
   end

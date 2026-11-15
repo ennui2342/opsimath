@@ -32,5 +32,13 @@ module Ui
 
       assert_text "At or under your £9.00 target"
     end
+  test "the seller, linked to their eBay profile, and how many more finds are theirs" do
+      @listing.update!(seller: "bookfinder_uk", seller_feedback_percentage: "99.8", seller_feedback_score: 1234)
+
+      render_inline(FindCardComponent.new(find: find, same_seller: 2))
+
+      assert_selector "[data-seller] a[href='https://www.ebay.co.uk/usr/bookfinder_uk']", text: "bookfinder_uk"
+      assert_text "(99.8%, 1,234) · 2 more finds from this seller"
+    end
   end
 end

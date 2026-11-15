@@ -23,6 +23,7 @@ module Ebay
       { "itemId" => id, "title" => title, "itemWebUrl" => "https://www.ebay.co.uk/itm/#{id}",
         "price" => { "value" => price, "currency" => "GBP" }, "buyingOptions" => [ "FIXED_PRICE" ],
         "condition" => "Good", "itemLocation" => { "country" => "GB" },
+        "seller" => { "username" => "bookfinder_uk", "feedbackPercentage" => "99.8", "feedbackScore" => 1234 },
         "shippingOptions" => [ { "shippingCostType" => "FIXED", "shippingCost" => { "value" => "2.70" } } ] }.merge(extra)
     end
 
@@ -46,6 +47,7 @@ module Ebay
       assert_equal %w[1 4], @item.work.ebay_listings.order(:ebay_item_id).pluck(:ebay_item_id)
       listing = @item.work.ebay_listings.find_by(ebay_item_id: "1")
       assert_equal [ 499, 270, "keyword", 769 ], [ listing.price, listing.shipping, listing.found_by, listing.total ]
+      assert_equal [ "bookfinder_uk", 1234, "99.8" ], [ listing.seller, listing.seller_feedback_score, listing.seller_feedback_percentage ]
       assert_equal "gtin", @item.work.ebay_listings.find_by(ebay_item_id: "4").found_by
       assert_equal 2, result.created
     end

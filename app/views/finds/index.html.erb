@@ -6,11 +6,30 @@
     Listings of covers you want, under your target or well below what that cover usually goes for.
   </p>
   <% if @finds.any? %>
-    <div class="space-y-3">
-      <% @finds.each do |find| %>
-        <%= render Ui::FindCardComponent.new(find:) %>
+    <% pill = "rounded-full px-3 py-1 text-sm" %>
+    <% on = "#{pill} bg-conflict-100 text-conflict-800 dark:bg-conflict-900 dark:text-conflict-200" %>
+    <% off = "#{pill} bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700" %>
+    <nav class="mb-4 flex gap-2" aria-label="Order finds">
+      <%= link_to "Best first", finds_path, class: @by_seller ? off : on %>
+      <%= link_to "By seller", finds_path(by: "seller"), class: @by_seller ? on : off %>
+    </nav>
+    <% same = ->(f) { [ @seller_counts[f.listing.seller].to_i - 1, 0 ].max } %>
+    <% if @by_seller %>
+      <% @groups.each do |seller, finds| %>
+        <h2 class="mb-2 mt-6 text-sm font-semibold text-gray-700 dark:text-gray-300" data-seller-group>
+          <%= seller || "Seller not known yet" %> <span class="font-normal text-gray-500 dark:text-gray-400">· <%= pluralize(finds.size, "find") %></span>
+        </h2>
+        <div class="space-y-3">
+          <% finds.each do |find| %><%= render Ui::FindCardComponent.new(find:, same_seller: same.(find)) %><% end %>
+        </div>
       <% end %>
-    </div>
+    <% else %>
+      <div class="space-y-3">
+        <% @finds.each do |find| %>
+          <%= render Ui::FindCardComponent.new(find:, same_seller: same.(find)) %>
+        <% end %>
+      </div>
+    <% end %>
   <% else %>
     <div class="rounded-lg border border-dashed border-gray-300 p-8 text-center dark:border-gray-700">
       <p class="text-lg font-medium">Nothing right now</p>

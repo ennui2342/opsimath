@@ -9,8 +9,10 @@ module Ui
   #
   # Takes a Finds::Find.
   class FindCardComponent < ApplicationComponent
-    def initialize(find:)
+    # `same_seller`: how many other finds on the page are from this seller.
+    def initialize(find:, same_seller: 0)
       @find = find
+      @same_seller = same_seller
     end
 
     attr_reader :find
@@ -33,6 +35,18 @@ module Ui
       else
         "#{(find.ratio * 100).round}% of the #{price(find.median.round)} median across #{find.count} listings of this cover"
       end
+    end
+
+    # "Seller: bookfinder_uk (99.8%, 1,234)" and how many more finds are
+    # theirs — Mark combines purchases from one seller for postage.
+    def seller_line
+      return unless listing.seller
+
+      feedback = [ ("#{listing.seller_feedback_percentage}%" if listing.seller_feedback_percentage),
+                   (helpers.number_with_delimiter(listing.seller_feedback_score) if listing.seller_feedback_score) ].compact.join(", ")
+      safe_join([ "Seller: ", link_to(listing.seller, "https://www.ebay.co.uk/usr/#{ERB::Util.url_encode(listing.seller)}", target: "_blank", rel: "noopener", class: "hover:underline"),
+                  (" (#{feedback})" if feedback.present?),
+                  (" · #{@same_seller} more #{'find'.pluralize(@same_seller)} from this seller" if @same_seller.positive?) ].compact)
     end
 
     def artist_line = find.cover.artists.any? ? find.cover.artists.join(", ") : "Artist unknown"
