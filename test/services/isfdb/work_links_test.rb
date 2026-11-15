@@ -83,5 +83,32 @@ module Isfdb
       roles = work.reload.work_contributors.includes(:contributor).to_h { |wc| [ wc.contributor.name, wc.role ] }
       assert_equal({ "David Garnett" => "contributor", "Michael Moorcock" => "author" }, roles)
     end
+  test "relinked from a printing chosen in a search: leaves the old record's ISFDB series, keeps the new one's number" do
+      title(36323, "New Worlds Quarterly 4", "ANTHOLOGY")
+      title(33373, "New Worlds 4", "ANTHOLOGY")
+      work = work_with_edition("New Worlds 4", links: [ [ 33373, "isbn_lookup" ] ], anchor: 23811)
+      edition = work.editions.first
+      EnrichmentRecord.create!(entity: edition, provider: "isfdb", external_id: "23811", fetched_at: Time.current, fields: {},
+                               raw_payload: { "work_id" => "36323" })
+      ProviderEdition.create!(work:, provider: "isfdb", provider_id: "1", title: "New Worlds Quarterly 4", provider_work_id: "36323",
+                              series_id: 24354, series_name: "New Worlds Quarterly", series_num: 4)
+      garnett = WorkSeries.create!(work:, series: Series.create!(name: "New Worlds (Garnett)", isfdb_series_id: 8228), position: 4)
+      quarterly = WorkSeries.create!(work:, series: Series.create!(name: "New Worlds Quarterly", isfdb_series_id: 24354), position: 4)
+
+      WorkLinks.sync(work)
+
+      assert_equal [ "36323" ], work.reload.work_identifiers.where(id_type: "isfdb_title").pluck(:value)
+      assert_not WorkSeries.exists?(garnett.id)
+      assert_equal 4, quarterly.reload.position
+    end
+
+    test "an omnibus has no number in a series its printings don't number, relinked or not" do
+      work = Work.create!(title: "1Q84", literary_form: "omnibus")
+      filing = WorkSeries.create!(work:, series: Series.create!(name: "1Q84"), position: 3)
+
+      WorkLinks.sync(work)
+
+      assert_nil filing.reload.position
+    end
   end
 end
