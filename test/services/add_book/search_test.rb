@@ -68,6 +68,26 @@ module AddBook
       assert_nil Search.apostrophised("The Boss")
     end
 
+    test "a number as digits, words or Roman numerals finds and ranks the same book" do
+      words_only = Class.new do
+        def name = "isfdb"
+        def capabilities = %i[search_works]
+        def search_works(title:, author: nil)
+          return [] unless title.include?("two")
+
+          [ Providers::Work.new(provider: "isfdb", id: "1", title: "Best SF Two", authors: [ "Edmund Crispin" ]),
+            Providers::Work.new(provider: "isfdb", id: "2", title: "Best SF Three", authors: [ "Edmund Crispin" ]) ]
+        end
+      end.new
+
+      results = Search.new(providers: [ words_only ]).run("best sf 2")
+
+      assert_equal "Best SF Two", results.first.title
+      assert_equal [ "best sf 2", "best sf two" ], Search.variants("best sf 2")
+      assert_equal "Dangerous Visions 2", Search.numbers_as("Dangerous Visions II", :digits)
+      assert_nil Search.numbers_as("I, Robot", :digits)
+    end
+
     test "an ISBN is looked up rather than searched" do
       provider = FakeProvider.new("isfdb", [], [ work("isfdb", "1911", "Crossfire", [ "Nancy Kress" ]) ])
 
