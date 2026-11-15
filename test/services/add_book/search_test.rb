@@ -50,6 +50,24 @@ module AddBook
       assert_equal [ "8" ], results.first.provider_works.map(&:id)
     end
 
+    test "a possessive typed without its apostrophe still finds the book" do
+      apostrophe_only = Class.new do
+        def name = "isfdb"
+        def capabilities = %i[search_works]
+        def search_works(title:, author: nil)
+          return [] unless title.include?("year's")
+
+          [ Providers::Work.new(provider: "isfdb", id: "36241", title: "The Year's Best Science Fiction No. 1", authors: [ "Harry Harrison", "Brian W. Aldiss" ]) ]
+        end
+      end.new
+
+      results = Search.new(providers: [ apostrophe_only ]).run("harrison years best")
+
+      assert_equal [ "The Year's Best Science Fiction No. 1" ], results.map(&:title)
+      assert_equal "Year's Best Stars", Search.apostrophised("Years Best Stars").sub("Star's", "Stars")
+      assert_nil Search.apostrophised("The Boss")
+    end
+
     test "an ISBN is looked up rather than searched" do
       provider = FakeProvider.new("isfdb", [], [ work("isfdb", "1911", "Crossfire", [ "Nancy Kress" ]) ])
 

@@ -55,12 +55,27 @@ module AddBook
       end
 
       isbn = Isbn.normalize(query)
-      works = isbn ? isbn_works(isbn) : Providers.search_works(title: query, providers: @providers)
+      works = isbn ? isbn_works(isbn) : search(query)
       results = group(works.reject { |w| foreign_only?(w) })
       isbn ? results : rank(results, query).first(MAX_RESULTS)
     end
 
     private
+
+    # The words as typed, and — when a word could be a possessive typed
+    # without its apostrophe — with it: ISFDB's word search takes "years"
+    # and "year's" for different words ("Harrison years best" never found
+    # The Year's Best Science Fiction No. 1, 2026-11-15).
+    def search(query)
+      [ query, self.class.apostrophised(query) ].compact.uniq
+        .flat_map { |q| Providers.search_works(title: q, providers: @providers) }
+        .uniq { |w| [ w.provider, w.id ] }
+    end
+
+    def self.apostrophised(query)
+      alt = query.gsub(/\b([A-Za-z]{3,}[^s'’])s\b/) { "#{Regexp.last_match(1)}'s" }
+      alt == query ? nil : alt
+    end
 
     # A US mass-market's UPC + add-on: its candidate ISBNs (UpcLookup).
     def upc_isbns(upc, add_on)
@@ -123,6 +138,7 @@ module AddBook
 
     def short(title) = title.to_s.split(/[:(]/).first.to_s
 
-    def fold(text) = I18n.transliterate(text.to_s).downcase.gsub(/[^a-z0-9]+/, " ").strip
+    # Apostrophes dropped, not spaced: "Year's" is "years", as typed.
+    def fold(text) = I18n.transliterate(text.to_s).downcase.gsub(/['’]/, "").gsub(/[^a-z0-9]+/, " ").strip
   end
 end
