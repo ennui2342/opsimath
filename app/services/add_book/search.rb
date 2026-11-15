@@ -73,11 +73,6 @@ module AddBook
           .uniq { |w| [ w.provider, w.id ] }
     end
 
-    NUMBER_WORDS = %w[zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen
-                      sixteen seventeen eighteen nineteen twenty].freeze
-    # II–XX: a lone "I" is more often the word than the numeral (I, Robot).
-    ROMAN = %w[ii iii iv v vi vii viii ix x xi xii xiii xiv xv xvi xvii xviii xix xx].each_with_index.to_h { |r, i| [ r, i + 2 ] }.freeze
-
     def self.variants(query)
       base = [ query, apostrophised(query) ].compact.uniq
       (base + base.flat_map { |q| [ numbers_as(q, :words), numbers_as(q, :digits) ] }).compact.uniq
@@ -88,8 +83,8 @@ module AddBook
     def self.numbers_as(query, form)
       alt = query.gsub(/[[:alnum:]]+/) do |word|
         down = word.downcase
-        if form == :words && word.match?(/\A\d+\z/) && word.to_i <= 20 then NUMBER_WORDS[word.to_i]
-        elsif form == :digits && (n = NUMBER_WORDS.index(down) || (word.size > 1 && ROMAN[down])) then n.to_s
+        if form == :words && word.match?(/\A\d+\z/) && word.to_i <= 20 then TitleWords::NUMBER_WORDS[word.to_i]
+        elsif form == :digits && !word.match?(/\A\d+\z/) && (n = TitleWords.number(down)) then n.to_s
         else word
         end
       end
@@ -162,11 +157,6 @@ module AddBook
 
     def short(title) = title.to_s.split(/[:(]/).first.to_s
 
-    # Apostrophes dropped, not spaced ("Year's" is "years", as typed), and
-    # numbers as digits ("Two", "II" are "2").
-    def fold(text)
-      words = I18n.transliterate(text.to_s).downcase.gsub(/['’]/, "").gsub(/[^a-z0-9]+/, " ").split
-      words.map { |w| (n = NUMBER_WORDS.index(w) || (w.size > 1 && ROMAN[w])) ? n.to_s : w }.join(" ")
-    end
+    def fold(text) = TitleWords.fold(text)
   end
 end

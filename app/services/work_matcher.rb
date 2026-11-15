@@ -42,9 +42,10 @@ module WorkMatcher
   # "Kurt Vonnegut, Jr." -> "vonnegut"; "Ursula K. Le Guin" -> "guin".
   def self.surname(name) = (fold(name).split - SUFFIXES).last
 
-  # A title for comparison: folded, without a leading article ("The
-  # Futurological Congress" is Lem's "Futurological Congress").
-  def self.key(title) = fold(title).sub(/\A(the|a|an) /, "")
+  # A title for comparison: folded by the shared rule (TitleWords), without
+  # a leading article ("The Futurological Congress" is Lem's
+  # "Futurological Congress"; "The Year's Best Science Fiction 2" is "No. 2").
+  def self.key(title) = TitleWords.fold(title).sub(/\A(the|a|an) /, "")
 
   def self.short(text) = text.to_s.split(/[:(]/).first.to_s
 

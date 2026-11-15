@@ -14,10 +14,20 @@ module AddBook
     # The Syndic, 2026-11-10): its printings found live by title and author,
     # the matching rule the nightly lookup uses (WorkMatcher), so "Add
     # another edition" / "Choose the right printing" have something to offer.
+    # Searched the way Add a book searches (its apostrophe and number forms,
+    # AddBook::Search.variants), with the author and then — when an
+    # author's other books crowd the results — without (The Year's Best
+    # Science Fiction 2, among Aldiss's own collections, 2026-11-15).
     def self.by_title(work)
       author = work.authors.first&.name
+      queries = AddBook::Search.variants(WorkMatcher.plain(work.title))
       Providers.with(:search_works).flat_map do |provider|
-        matches = WorkMatcher.match(provider.search_works(title: WorkMatcher.plain(work.title), author:, complete: true), title: work.title, author:)
+        found = queries.flat_map { |q| provider.search_works(title: q, author:, complete: true) }
+        matches = WorkMatcher.match(found, title: work.title, author:)
+        if matches.empty?
+          found = queries.flat_map { |q| provider.search_works(title: q, complete: true) }
+          matches = WorkMatcher.match(found, title: work.title, author:)
+        end
         editions = matches.flat_map { |m| Array(m.editions) }
         editions = matches.flat_map { |m| provider.known_editions(isbns: [], work_ids: [ m.id ]).editions } if editions.empty?
         editions

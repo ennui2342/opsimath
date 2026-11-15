@@ -30,10 +30,6 @@ module CatalogueSearch
                  *work.authors.map(&:name), *work.series.map(&:name) ].compact.join(" ")) + " "
   end
 
-  # Numbers as digits too: "Best SF Two", "Best SF 2" and "Best SF II"
-  # are the same title (AddBook::Search's words).
-  def self.fold(text)
-    words = I18n.transliterate(text.to_s.tr("’‘", "''")).downcase.delete("'").gsub(/[^a-z0-9]+/, " ").split
-    words.map { |w| (n = AddBook::Search::NUMBER_WORDS.index(w) || (w.size > 1 && AddBook::Search::ROMAN[w])) ? n.to_s : w }.join(" ")
-  end
+  # The shared title rule (TitleWords): apostrophes, numbers, volume words.
+  def self.fold(text) = TitleWords.fold(text)
 end
