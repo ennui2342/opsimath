@@ -63,6 +63,16 @@ module AddBook
       assert_equal 3, cards.sum { |c| c.editions.size }
     end
 
+    test "a hardback and a paperback with the same scan are two cards: a card shows one format" do
+      args = { publisher: "Legend / Century", publish_date: "1990-09", cover_url: "https://c/heads.jpg", cover_artist: "Fred Gambino" }
+      hardback = ed("isfdb", "185381", binding: "hc", isbn13: "9780712636780", **args)
+      paperback = ed("isfdb", "16601", binding: "tp", isbn13: "9780712621748", **args)
+
+      cards, = EditionCards.build([ hardback, paperback ])
+
+      assert_equal [ "Hardback", "Trade paperback" ], cards.map(&:format_label).sort
+    end
+
     test "other languages are hidden unless asked for; ebooks come after physical books" do
       german = ed("openlibrary", "OL9M", publisher: "Bastei Lübbe", language: "ger")
       ebook = ed("isfdb", "5", publisher: "Gollancz", binding: "ebook", publish_date: "1960")

@@ -82,8 +82,13 @@ module AddBook
     # and a Jurassic Park reissue — and one card showed one and saved the
     # other (2026-11-11). Two scans of one cover then show as two cards,
     # the harmless way round. A printing without an image still joins.
+    #
+    # Nor are two formats: a card shows one (Legend's 1990 Heads trade
+    # paperback shares the hardback's scan, and was hidden in the hardback's
+    # card, 2026-11-15). A printing whose format isn't known still joins.
     def self.same_cover?(a, b)
       return false unless publisher_core(a.publisher) == publisher_core(b.publisher)
+      return false if a.binding.present? && b.binding.present? && a.binding.to_s.downcase != b.binding.to_s.downcase
       return a.cover_url == b.cover_url if a.cover_url.present? && b.cover_url.present?
 
       a.isbn.present? && a.isbn == b.isbn && a.cover_artist.present? && a.cover_artist == b.cover_artist
