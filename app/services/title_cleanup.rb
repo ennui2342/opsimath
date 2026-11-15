@@ -69,13 +69,13 @@ class TitleCleanup
     return if from == title
 
     before = if restored then "its ISFDB link was corrected"
-             elsif source == "manual" then "Mark set it"
-             else "ISFDB's"
-             end
+    elsif source == "manual" then "Mark set it"
+    else "ISFDB's"
+    end
     work.work_alternate_titles.create!(title: from, note: "its title before #{before}") unless work.work_alternate_titles.exists?(title: from)
     summary = if restored then "Retitled “#{from}” back to its own “#{title}” (ISFDB link corrected)"
-              else "Retitled “#{from}” to #{source == 'manual' ? '' : "ISFDB's "}“#{title}”"
-              end
+    else "Retitled “#{from}” to #{source == 'manual' ? '' : "ISFDB's "}“#{title}”"
+    end
     CatalogueEvent.record(kind: "retitled", origin: (restored ? "link_reconcile" : (source == "manual" ? nil : "title_cleanup")), work:, summary:)
   end
 
