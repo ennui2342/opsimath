@@ -28,7 +28,9 @@ module AddBook
     def self.by_title(work, deadline: DEADLINE, providers: Providers.with(:search_works))
       author = work.authors.first&.name
       queries = AddBook::Search.variants(WorkMatcher.plain(work.title))
-      attempts = [ author, nil ].uniq.flat_map { |a| queries.map { |q| [ q, a ] } }
+      # The title as written first, with the author and without; then its
+      # other forms.
+      attempts = queries.flat_map { |q| [ author, nil ].uniq.map { |a| [ q, a ] } }
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       futures = providers.map do |provider|
         Concurrent::Promises.future do

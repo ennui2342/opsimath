@@ -9,8 +9,10 @@
 # Machines and Men); apostrophes dropped, not spaced ("Year's"
 # is "years", as typed); numbers as digits, whether written as words or
 # Roman numerals ("Two", "II" are "2"; a lone "I" stays a word: I, Robot);
-# and a volume word before a number dropped ("No. 2", "Vol. 2", "Book 2"
-# are "2") — anthologies and series write them every way.
+# a volume word before a number dropped ("No. 2", "Vol. 2", "Book 2" are
+# "2") — anthologies and series write them every way; and an abbreviation
+# spelt out letter by letter is one word ("S.F.", "S-F" and "SF" are "sf":
+# ISFDB's New Writings in S-F 10 is Goodreads' New Writings in SF-10).
 module TitleWords
   NUMBER_WORDS = %w[zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen
                     sixteen seventeen eighteen nineteen twenty].freeze
@@ -19,8 +21,15 @@ module TitleWords
 
   def self.fold(text)
     words = I18n.transliterate(text.to_s.tr("’‘", "''")).downcase.gsub("&", " and ").delete("'").gsub(/[^a-z0-9]+/, " ").split
-    words = words.map { |w| (n = number(w)) ? n.to_s : w }
+    words = initialisms(words).map { |w| (n = number(w)) ? n.to_s : w }
     words.each_with_index.reject { |w, i| VOLUME_WORDS.include?(w) && words[i + 1]&.match?(/\A\d+\z/) }.map(&:first).join(" ")
+  end
+
+  # Runs of two or more single letters joined: "s f" is "sf". A lone
+  # letter stays ("I, Robot", "A Wizard of Earthsea").
+  def self.initialisms(words)
+    words.chunk_while { |a, b| a.match?(/\A[a-z]\z/) && b.match?(/\A[a-z]\z/) }
+         .map { |run| run.size > 1 && run.first.match?(/\A[a-z]\z/) ? run.join : run }.flatten
   end
 
   # A word as a number: digits, a number word, or a Roman numeral II–XX.
