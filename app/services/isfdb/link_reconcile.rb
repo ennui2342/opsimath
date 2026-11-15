@@ -15,8 +15,9 @@ module Isfdb
   #     was rejected before: a conflict for Mark, and the book is left as
   #     it is;
   #   - a title taken from a dropped link ("The Forever War") goes back to
-  #     the book's own title before ISFDB's, for the right record to set
-  #     again (Isfdb::MainTitles, TitleCleanup).
+  #     the book's own title before ISFDB's, and stays: the new link's
+  #     main title isn't applied over it (Mark, 2026-11-15: "The Eye of the
+  #     Heron and Other Stories" was right, "Millennial Women" wasn't).
   # `plan` is a dry run.
   class LinkReconcile
     REJECTED = "isfdb_title_rejected".freeze
@@ -49,7 +50,7 @@ module Isfdb
             c.work.work_identifiers.find_or_create_by!(id_type: REJECTED, value: id) { |i| i.source = "editions" }
           end
           c.add.each { |id, _| c.work.work_identifiers.find_or_create_by!(id_type: "isfdb_title", value: id) { |i| i.source = "editions" } }
-          TitleCleanup.retitle(c.work, c.restore_title, source: "editions") if c.restore_title
+          TitleCleanup.retitle(c.work, c.restore_title, source: "manual", restored: true) if c.restore_title
           CatalogueEvent.record(kind: "relinked", origin: "link_reconcile", work: c.work,
                                 summary: "#{c.work.title}: ISFDB link corrected from its editions" \
                                          "#{" (was #{c.drop.map(&:last).join(', ')})" if c.drop.any?}")

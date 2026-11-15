@@ -59,16 +59,24 @@ class TitleCleanup
 
   # Set a book's title, with where it came from, and say so. The title it
   # replaces stays findable, as an alternate title.
-  def self.retitle(work, title, source:)
+  # `restored:` — the book's own title put back after a wrong ISFDB link
+  # (Isfdb::LinkReconcile): sourced "manual", so this cleanup doesn't
+  # rename it straight after to the new link's main title (The Eye of the
+  # Heron and Other Stories → Millennial Women, 2026-11-14).
+  def self.retitle(work, title, source:, restored: false)
     from = work.title
     work.update!(title:, field_sources: work.field_sources.merge("title" => source))
     return if from == title
 
-    unless work.work_alternate_titles.exists?(title: from)
-      work.work_alternate_titles.create!(title: from, note: "its title before #{source == 'manual' ? 'Mark set it' : "ISFDB's"}")
-    end
-    CatalogueEvent.record(kind: "retitled", origin: (source == "manual" ? nil : "title_cleanup"), work:,
-                          summary: "Retitled “#{from}” to #{source == 'manual' ? '' : "ISFDB's "}“#{title}”")
+    before = if restored then "its ISFDB link was corrected"
+             elsif source == "manual" then "Mark set it"
+             else "ISFDB's"
+             end
+    work.work_alternate_titles.create!(title: from, note: "its title before #{before}") unless work.work_alternate_titles.exists?(title: from)
+    summary = if restored then "Retitled “#{from}” back to its own “#{title}” (ISFDB link corrected)"
+              else "Retitled “#{from}” to #{source == 'manual' ? '' : "ISFDB's "}“#{title}”"
+              end
+    CatalogueEvent.record(kind: "retitled", origin: (restored ? "link_reconcile" : (source == "manual" ? nil : "title_cleanup")), work:, summary:)
   end
 
   # Linked to an ISFDB record that shares nothing with it — likely the

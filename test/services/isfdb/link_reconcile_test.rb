@@ -36,6 +36,7 @@ module Isfdb
       assert_equal [ "5000" ], work.work_identifiers.where(id_type: "isfdb_title").pluck(:value)
       assert work.work_identifiers.exists?(id_type: "isfdb_title_rejected", value: "1911")
       assert_equal "Peace and War", work.title
+      assert_equal "manual", work.field_sources["title"] # stays: not renamed to the new link's main title
     end
 
     test "a variant of the same book is the same: no change; a book not yet refetched isn't judged" do
