@@ -102,6 +102,20 @@ module Isfdb
       assert_equal 4, quarterly.reload.position
     end
 
+    test "a relinked omnibus stays in an ISFDB series its printings don't name, without a number" do
+      title(500, "The Book of Morgaine", "OMNIBUS")
+      title(501, "Gate of Ivrel", "NOVEL")
+      work = work_with_edition("The Book of Morgaine", links: [ [ 501, "isbn_lookup" ] ], anchor: 9001)
+      work.update!(literary_form: "omnibus")
+      ProviderEdition.create!(work:, provider: "isfdb", provider_id: "9001", title: "The Book of Morgaine", provider_work_id: "500")
+      filing = WorkSeries.create!(work:, series: Series.create!(name: "Morgaine", isfdb_series_id: 77), position: 1)
+
+      WorkLinks.sync(work)
+
+      assert WorkSeries.exists?(filing.id)
+      assert_nil filing.reload.position
+    end
+
     test "an omnibus has no number in a series its printings don't number, relinked or not" do
       work = Work.create!(title: "1Q84", literary_form: "omnibus")
       filing = WorkSeries.create!(work:, series: Series.create!(name: "1Q84"), position: 3)
