@@ -1,10 +1,16 @@
 namespace :works do
   # Books in the catalogue twice: sharing an ISFDB title link.
   desc "List books that share an ISFDB title"
+  # By the ISFDB title records their editions' publications belong to —
+  # not shared ISFDB links, which led to merging Peace and War (an omnibus)
+  # into The Forever War (2026-11-13).
   task duplicates: :environment do
-    WorkIdentifier.where(id_type: "isfdb_title").group(:value).having("count(DISTINCT work_id) > 1").pluck(:value).each do |value|
-      works = Work.joins(:work_identifiers).where(work_identifiers: { id_type: "isfdb_title", value: }).includes(:want, :readings, editions: :copies).distinct
-      puts "ISFDB #{value}: " + works.map { |w|
+    by_record = Work.where(id: EditionContent.select(:work_id)).find_each.each_with_object(Hash.new { |h, k| h[k] = [] }) do |w, out|
+      WorkMerge.edition_titles(w).each { |id| out[id] << w.id }
+    end
+    by_record.select { |_, ids| ids.uniq.size > 1 }.each do |value, ids|
+      works = Work.where(id: ids.uniq).includes(:want, :readings, editions: :copies)
+      puts "ISFDB title record #{value}: " + works.map { |w|
         "##{w.id} #{w.title} (#{w.editions.size} ed#{', owned' if w.editions.any? { |e| e.copies.any?(&:owned?) }}, #{w.readings.size} reads#{', wanted' if w.want})"
       }.join(" | ")
     end

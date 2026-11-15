@@ -44,17 +44,13 @@ class TitleCleanup
     fixes.size
   end
 
-  # One pending decision per suspect book ("ISFDB's record is titled
-  # something else entirely — wrong link?"); a question no longer suspect
-  # (the link fixed, the title changed) is closed. -> number of new questions.
-  def self.ask(works = Work.all)
-    suspects = plan(works).select { |f| f.kind == :suspect }.index_by { |f| f.work.id }
-    open = PendingDecision.pending.where(kind: QUESTION).to_a
-    open.reject { |d| suspects.key?(d.payload["entity_id"].to_i) }.each { |d| d.update!(status: "rejected", resolved_at: Time.current) }
-    asked = open.map { |d| d.payload["entity_id"].to_i }.to_set
-    suspects.reject { |id, _| asked.include?(id) }.count do |id, fix|
-      PendingDecision.create!(kind: QUESTION, payload: { entity_type: "Work", entity_id: id, title: fix.from, isfdb_title: fix.to })
-    end
+  # "Wrong ISFDB link?" questions are no longer asked (Mark, 2026-11-15):
+  # a work's ISFDB title record follows its editions' publications
+  # (Isfdb::WorkLinks), and he's setting every edition to its right
+  # publication — a mismatch is his to see there, not a decision queued
+  # for later out of context. Any still pending are closed. -> number closed
+  def self.close_questions
+    PendingDecision.pending.where(kind: QUESTION).update_all(status: "rejected", resolved_at: Time.current)
   end
 
   # Set a book's title, with where it came from, and say so. The title it

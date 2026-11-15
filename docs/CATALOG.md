@@ -811,6 +811,14 @@ day; the fix:
 4. **Merging** refuses two books whose editions are printings of different
    title records (WorkMerge), whatever links they share.
 
+5. **No "Wrong ISFDB link?" decisions** (Mark, 2026-11-15): he's setting
+   every edition to its right publication, so a mismatch shows there;
+   pending ones are closed nightly (TitleCleanup.close_questions), and a
+   suspect-looking work title is left as it is rather than renamed.
+   Still to go, once the cascade has run over everything: the rules for
+   choosing among several title records on one work
+   (Isfdb::MainTitles.ordered) and the suspect classification itself.
+
 Words (Mark, 2026-11-15): **ISFDB title record** for ISFDB's record of a
 book; **the work's title** and **the edition's title** for names. "Title"
 alone is ambiguous here.

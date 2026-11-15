@@ -114,38 +114,16 @@ class CataloguePagesTest < ActionDispatch::IntegrationTest
     assert hrefs.none? { |h| h.include?("pocket") }, hrefs.inspect
   end
 
-  test "a book whose ISFDB title shares nothing with its own is a pending decision: keep mine, or take ISFDB's" do
+  test "a work whose ISFDB title record shares nothing with its title isn't asked about, nor renamed; old questions are closed" do
     work = @books.first
     work.update!(isfdb_main_title: "The Sprawl Trilogy")
+    old = PendingDecision.create!(kind: TitleCleanup::QUESTION, payload: { entity_type: "Work", entity_id: work.id, title: work.title, isfdb_title: "The Sprawl Trilogy" })
 
-    assert_equal 1, TitleCleanup.ask
-    assert_equal 0, TitleCleanup.ask # asked once
-    decision = PendingDecision.pending.find_by!(kind: TitleCleanup::QUESTION)
-    assert_equal "Neuromancer", decision.display_title
+    assert_equal 0, TitleCleanup.apply(Work.where(id: work.id))
+    assert_equal 1, TitleCleanup.close_questions
 
-    get pending_decision_url(decision)
-    assert_select "span", text: "Wrong ISFDB link?"
-    assert_match "The Sprawl Trilogy", response.body
-
-    post reject_pending_decision_url(decision)
-    assert_equal [ "Neuromancer", "manual" ], [ work.reload.title, work.field_sources["title"] ]
-    assert_equal 0, TitleCleanup.ask # Mark's title now: never asked again
-  end
-
-  test "a title question no longer suspect is closed; accepting takes ISFDB's title" do
-    work = @books.first
-    work.update!(isfdb_main_title: "The Sprawl Trilogy")
-    TitleCleanup.ask
-    decision = PendingDecision.pending.find_by!(kind: TitleCleanup::QUESTION)
-
-    post accept_pending_decision_url(decision)
-    assert_equal "The Sprawl Trilogy", work.reload.title
-
-    other = @books.second
-    other.update!(isfdb_main_title: "Burning Chrome Stories")
-    TitleCleanup.ask
-    other.update!(isfdb_main_title: other.title) # its link fixed
-    TitleCleanup.ask
+    assert_equal "Neuromancer", work.reload.title
+    assert_equal "rejected", old.reload.status
     assert_equal 0, PendingDecision.pending.where(kind: TitleCleanup::QUESTION).count
   end
 
