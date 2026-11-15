@@ -17,23 +17,35 @@ module AddBook
     # Searched the way Add a book searches (its apostrophe and number forms,
     # AddBook::Search.variants), with the author and then — when an
     # author's other books crowd the results — without (The Year's Best
-    # Science Fiction 2, among Aldiss's own collections, 2026-11-15) —
-    # stopping at the first search that finds the book: each takes seconds,
-    # and all of them together left the page hanging (Machines & Men).
-    def self.by_title(work)
+    # Science Fiction 2, among Aldiss's own collections), stopping at the
+    # first search that finds the book. A quick search finds it; only the
+    # match's printings are then fetched in full. The providers are asked
+    # side by side, and the page gets whatever is back within DEADLINE: a
+    # book ISFDB doesn't have (The Wealth of Nations) ran every search there
+    # while Open Library was down, and the page timed out (2026-11-15).
+    DEADLINE = 20 # seconds
+
+    def self.by_title(work, deadline: DEADLINE, providers: Providers.with(:search_works))
       author = work.authors.first&.name
       queries = AddBook::Search.variants(WorkMatcher.plain(work.title))
       attempts = [ author, nil ].uniq.flat_map { |a| queries.map { |q| [ q, a ] } }
-      Providers.with(:search_works).flat_map do |provider|
-        matches = attempts.lazy.map { |q, a| WorkMatcher.match(provider.search_works(title: q, author: a, complete: true), title: work.title, author:) }
-                          .find(&:any?) || []
-        editions = matches.flat_map { |m| Array(m.editions) }
-        editions = matches.flat_map { |m| provider.known_editions(isbns: [], work_ids: [ m.id ]).editions } if editions.empty?
-        editions
-      rescue StandardError => e
-        Rails.logger.warn("edition picker: #{provider.name} title search — #{e.class}: #{e.message}")
-        []
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      futures = providers.map do |provider|
+        Concurrent::Promises.future do
+          Rails.application.executor.wrap { printings_by_title(provider, work, author, attempts, started + deadline) }
+        end
       end
+      futures.flat_map { |f| f.value(deadline) || [] }
+    end
+
+    def self.printings_by_title(provider, work, author, attempts, give_up_at)
+      matches = attempts.lazy.take_while { Process.clock_gettime(Process::CLOCK_MONOTONIC) < give_up_at }
+                        .map { |q, a| WorkMatcher.match(provider.search_works(title: q, author: a), title: work.title, author:) }
+                        .find(&:any?) || []
+      matches.flat_map { |m| provider.known_editions(isbns: [], work_ids: [ m.id ]).editions }
+    rescue StandardError => e
+      Rails.logger.warn("edition picker: #{provider.name} title search — #{e.class}: #{e.message}")
+      []
     end
 
     def self.for_found(found) = fetch(found["provider_works"])
