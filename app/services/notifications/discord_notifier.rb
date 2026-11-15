@@ -31,19 +31,37 @@ module Notifications
       channel_id = event.channel ? @channels[event.channel] : @channel_id
       return if channel_id.blank?
 
+      messages = event.embeds.present? ? self.class.pack(event.embeds) : [ [ embed_for(event) ] ]
+      messages.each { |embeds| post(channel_id, embeds) }
+    end
+
+    # Discord: at most 10 embeds and 6000 characters to a message.
+    MAX_EMBEDS = 10
+    MAX_MESSAGE_CHARS = 5800
+
+    # Embeds into as few messages as Discord's limits allow, in order.
+    def self.pack(embeds)
+      size = ->(list) { list.sum { |e| e[:title].to_s.size + e[:description].to_s.size } }
+      embeds.each_with_object([ [] ]) do |embed, messages|
+        messages << [] if messages.last.size >= MAX_EMBEDS || (messages.last.any? && size.(messages.last + [ embed ]) > MAX_MESSAGE_CHARS)
+        messages.last << embed.compact
+      end
+    end
+
+    private
+
+    def post(channel_id, embeds)
       uri = URI("https://discord.com/api/v10/channels/#{channel_id}/messages")
       request = Net::HTTP::Post.new(uri)
       request["Authorization"] = "Bot #{@bot_token}"
       request["Content-Type"] = "application/json"
-      request.body = { embeds: [ embed_for(event) ] }.to_json
+      request.body = { embeds: }.to_json
 
       response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 5, read_timeout: 10) do |http|
         http.request(request)
       end
       raise ServiceError, "discord returned #{response.code}: #{response.body}" unless response.is_a?(Net::HTTPSuccess)
     end
-
-    private
 
     # Discord caps an embed description at 4096 characters.
     DESCRIPTION_LIMIT = 4096

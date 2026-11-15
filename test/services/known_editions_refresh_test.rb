@@ -151,7 +151,7 @@ class KnownEditionsRefreshTest < ActiveSupport::TestCase
 
     event = CatalogueEvent.find_by!(kind: "new_printings")
     assert_equal 1, event.details["count"]
-    assert_match(/1 new printing in ISFDB \(Tor #{recent}\)/, event.summary)
+    assert_match(/1 new edition known in ISFDB \(Tor #{recent}\)/, event.summary)
   end
 
   test "printings fetched before refetch_before are fetched again" do

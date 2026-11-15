@@ -1,4 +1,6 @@
 class ApplicationJob < ActiveJob::Base
+  around_perform { |_job, block| Current.set(job: true) { block.call } }
+
   # Automatically retry jobs that encountered a deadlock
   # retry_on ActiveRecord::Deadlocked
 

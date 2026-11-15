@@ -50,5 +50,20 @@ module Notifications
 
       assert_raises(DiscordNotifier::ServiceError) { notifier.notify(event) }
     end
+  test "a report in sections goes out as embeds, in as many messages as Discord's limits need" do
+      bodies = []
+      stub_request(:post, "https://discord.com/api/v10/channels/888/messages").to_return do |request|
+        bodies << JSON.parse(request.body)
+        { status: 200, body: "{}" }
+      end
+      embeds = 12.times.map { |n| { title: "Section #{n}", description: "x" * 900, color: 1 } }
+
+      DiscordNotifier.new(bot_token: "t", channel_id: "999", channels: { catalogue: "888" })
+                     .notify(Event.new(kind: :catalogue, level: :info, title: "Catalogue", channel: :catalogue, embeds:))
+
+      assert_operator bodies.size, :>, 1
+      assert_equal 12, bodies.sum { |b| b["embeds"].size }
+      assert bodies.all? { |b| b["embeds"].size <= 10 && b["embeds"].sum { |e| e["description"].size + e["title"].size } <= 6000 }
+    end
   end
 end

@@ -6,6 +6,7 @@ module Notifications
     def notify(event)
       Rails.logger.info("[notify:#{event.level}] #{event.title} #{event.fields}#{" #{event.url}" if event.url}")
       Rails.logger.info(event.description) if event.description.present?
+      Array(event.embeds).each { |e| Rails.logger.info("## #{e[:title]}\n#{e[:description]}") }
     end
   end
 end

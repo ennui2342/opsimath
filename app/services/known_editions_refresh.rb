@@ -223,7 +223,7 @@ class KnownEditionsRefresh
     CatalogueEvent.record(kind: "new_printings", origin: "known_editions", work:,
                           details: { provider: @provider.name, wanted:, count: new_rows.size, printings:,
                                      provider_ids: new_rows.map { |r| r[:provider_id] } },
-                          summary: "#{work.title}: #{new_rows.size} new #{'printing'.pluralize(new_rows.size)} in #{label} (#{printings.first(3).join(', ')})")
+                          summary: "#{work.title}: #{new_rows.size} new #{'edition'.pluralize(new_rows.size)} known in #{label} (#{printings.join(', ')})")
   end
 
   def row(work, edition, now)

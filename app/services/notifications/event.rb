@@ -6,5 +6,7 @@ module Notifications
   # are optional — a digest that's a list rather than a few fields.
   # `channel` picks a Discord channel other than the default — :catalogue
   # for #catalogue (CatalogueReport).
-  Event = Struct.new(:kind, :level, :title, :fields, :description, :url, :channel, keyword_init: true)
+  # `embeds` ([{ title:, description:, color: }]) sends a report in several
+  # sections (CatalogueReport) — as many messages as Discord's limits need.
+  Event = Struct.new(:kind, :level, :title, :fields, :description, :url, :channel, :embeds, keyword_init: true)
 end
