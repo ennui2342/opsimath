@@ -4,10 +4,19 @@ module Isfdb
   class WorkLinksTest < ActiveSupport::TestCase
     ISFDB = ENV.fetch("ISFDB_ADAPTER_URL")
 
-    def title(id, name, type)
+    def title(id, name, type, main: id)
       stub_request(:get, "#{ISFDB}/titles/#{id}").to_return(status: 200, body: {
-        id:, title: name, type:, variants: [], main: { id:, title: name, type:, year: 1994, language: "eng", authors: [], author_aliases: [] }
+        id:, title: name, type:, variants: [], main: { id: main, title: name, type:, year: 1994, language: "eng", authors: [], author_aliases: [] }
       }.to_json)
+    end
+
+    test "an edition's publication of a variant title record leaves the work's link to the main one alone" do
+      title(1500, "Ubik", "NOVEL")
+      title(1501, "Ubik", "NOVEL", main: 1500) # a reissue's variant
+      work = work_with_edition("Ubik", links: [ [ 1500, "isbn_lookup" ] ], anchor: 7, printings: { 7 => [ 1501, "Ubik" ] })
+
+      assert_nil WorkLinks.sync(work)
+      assert_equal [ "1500" ], work.reload.work_identifiers.where(id_type: "isfdb_title").pluck(:value)
     end
 
     def work_with_edition(name, links: [], anchor: nil, printings: {}, isbn: nil)
@@ -23,6 +32,7 @@ module Isfdb
 
     test "an omnibus edition's work takes the omnibus's title in place of a novel's, and its type follows at once" do
       title(29436, "Live Robots", "OMNIBUS")
+      title(868, "Wetware", "NOVEL")
       work = work_with_edition("Live Robots", links: [ [ 868, "isbn_lookup" ] ], anchor: 20507, printings: { 20507 => [ 29436, "Live Robots" ] })
 
       change = WorkLinks.sync(work)
@@ -48,6 +58,7 @@ module Isfdb
 
     test "an edition not yet anchored goes by its ISBN's printings, less a title rejected for the work" do
       title(1911, "The Forever War", "NOVEL")
+      title(5000, "Peace and War", "OMNIBUS")
       work = work_with_edition("The Forever War", isbn: "9780860078821",
                                                   printings: { 1 => [ 1911, "The Forever War", "9780860078821" ], 2 => [ 5000, "Peace and War", "9780860078821" ] })
       work.work_identifiers.create!(id_type: "isfdb_title_rejected", value: "5000")

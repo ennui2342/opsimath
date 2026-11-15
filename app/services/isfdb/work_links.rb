@@ -42,11 +42,17 @@ module Isfdb
     def sync(work, apply: true)
       wanted = title_records(work) or return
       links = work.work_identifiers.select { |i| i.id_type == ID_TYPE }
-      keep = links.select { |i| i.source == "manual" }.map(&:value)
-      target = (wanted + keep).uniq
       current = links.map(&:value)
-      add = target - current
-      drop = current - target
+      keep = links.select { |i| i.source == "manual" }.map(&:value)
+      return if (wanted - current).empty? && (current - wanted - keep).empty? # already so: no ISFDB calls
+
+      # Compared by main title record: an edition's publication often
+      # belongs to a variant title record (a reissue, a retitling) of the
+      # one the work is linked to — the same book, nothing to change.
+      mains = wanted.map { |id| main_id(id) }
+      return if mains.any?(&:nil?) # ISFDB unreadable: changed on a later run
+      add = wanted.reject { |id| current.any? { |c| main_id(c) == main_id(id) } }.uniq { |id| main_id(id) }
+      drop = (current - keep).reject { |c| mains.include?(main_id(c)) || main_id(c).nil? }
       return if add.empty? && drop.empty?
 
       change = Change.new(work:, add: labelled(work, add), drop: labelled(work, drop))
@@ -79,6 +85,13 @@ module Isfdb
     end
 
     private
+
+    def main_id(id)
+      @mains ||= {}
+      @mains.fetch(id.to_s) { @mains[id.to_s] = @client.title(id)&.dig("main", "id")&.to_s }
+    rescue Isfdb::ServiceError, Net::OpenTimeout, Net::ReadTimeout
+      nil
+    end
 
     # Each title record with the name its printings give it.
     def labelled(work, ids)
