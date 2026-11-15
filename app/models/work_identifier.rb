@@ -8,8 +8,9 @@
 # Not unique per (id_type, value): until isfdb-adapter's 2026-11-14 fix an
 # omnibus printing was credited to a novel in it, so an omnibus and the
 # novel could share a title id (Peace and War / The Forever War) —
-# Isfdb::LinkReconcile corrects those. "isfdb_title_rejected" records a
-# link found wrong, which the lookups don't put back.
+# Isfdb::WorkLinks keeps a work's titles to its editions' printings'.
+# "isfdb_title_rejected" records a title found wrong for a work, which an
+# ISBN lookup doesn't put back.
 class WorkIdentifier < ApplicationRecord
   belongs_to :work
 

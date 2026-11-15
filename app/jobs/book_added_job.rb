@@ -1,4 +1,6 @@
-# A book just added: its printings fetched (KnownEditionsRefresh), its
+# A book just added, or one of its editions set to another printing
+# (EditionChange): its printings fetched (KnownEditionsRefresh — which
+# sets the work's ISFDB titles from its editions, Isfdb::WorkLinks), its
 # ISFDB main title, form, year and language (Isfdb::MainTitles), its
 # series filed from them (WorkSeriesSync) and its editions brought up to
 # date from them (AnchoredRefresh) now, rather

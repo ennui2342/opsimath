@@ -10,6 +10,9 @@ class WorkKnownEditionsRefreshJob < ApplicationJob
   def perform
     results = KnownEditionsRefresh.run_all
     results.each { |r| Rails.logger.info("known editions refresh: #{r}") }
+    # Every work's ISFDB titles from its editions' printings — those whose
+    # editions were anchored since (AnchoredRefresh) included.
+    Rails.logger.info("works relinked from their editions: #{Isfdb::WorkLinks.run_all.size}")
     # Books into their ISFDB series, from the printings just fetched — Mark
     # saw the dry run (443 books, 2026-11-09) and asked for it nightly.
     Rails.logger.info("series from ISFDB: #{WorkSeriesSync.run} books filed")

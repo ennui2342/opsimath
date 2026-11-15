@@ -169,41 +169,34 @@ class KnownEditionsRefresh
     rows = known.editions.map { |e| row(work, e, now) }.uniq { |r| r[:provider_id] }
     had_ids = work.provider_editions.where(provider: @provider.name).pluck(:provider_id)
     had_links = work.work_identifiers.where(id_type: @id_type).pluck(:value)
-    rejected = work.work_identifiers.where(id_type: "#{@id_type}_rejected").pluck(:value) # Isfdb::LinkReconcile
-    links = links_from_editions(work, rows).presence || known.work_ids
-
+    rejected = work.work_identifiers.where(id_type: "#{@id_type}_rejected").pluck(:value)
     ProviderEdition.transaction do
       if rows.any?
         ProviderEdition.upsert_all(rows, unique_by: [ :work_id, :provider, :provider_id ],
                                          update_only: UPDATED_COLUMNS, record_timestamps: false)
       end
       work.provider_editions.where(provider: @provider.name).where.not(provider_id: rows.map { |r| r[:provider_id] }).delete_all
-      (links - rejected).each do |value|
-        work.work_identifiers.find_or_create_by!(id_type: @id_type, value:) { |i| i.source = "isbn_lookup" }
-      end
       ProviderEditionRefresh.upsert({ work_id: work.id, provider: @provider.name, refreshed_at: now, queried_isbns: isbns },
                                     unique_by: [ :work_id, :provider ])
     end
-    record_events(work, links - had_links - rejected, had_ids.empty? ? [] : rows.reject { |r| had_ids.include?(r[:provider_id]) })
+    links = link(work.reload, known, rejected)
+    # "Found": the work's first link to the provider — not another title
+    # added to one it had (Mark, 2026-11-15: 17 of 18 "found in ISFDB" were).
+    record_events(work, had_links.empty? ? links - rejected : [], had_ids.empty? ? [] : rows.reject { |r| had_ids.include?(r[:provider_id]) })
   end
 
-  # The provider's titles for this book, from its editions (docs/CATALOG.md,
-  # "ISFDB links from editions"): an edition anchored to one of the
-  # provider's printings is a printing of that printing's own title; an
-  # edition not yet anchored, of the title of a printing with its ISBN (an
-  # ISBN can be reused: anchoring settles which). A wanted book with no
-  # editions goes by the ISBNs it's wanted under. Empty when no printing
-  # is the book's (the provider's title search found it): its matches
-  # stand.
-  def links_from_editions(work, rows)
-    editions = work.editions.includes(:edition_identifiers).to_a
-    anchors = editions.flat_map(&:edition_identifiers).select { |i| i.id_type == @provider.name }.map(&:value).to_set
-    loose = editions.reject { |e| e.edition_identifiers.any? { |i| i.id_type == @provider.name } }
-                    .flat_map(&:edition_identifiers).select { |i| %w[isbn13 isbn10].include?(i.id_type) }
-                    .filter_map { |i| i.id_type == "isbn10" ? Isbn.to_13(i.value) : i.value }
-    loose += Array(work.want&.seed_isbns) if editions.empty?
-    rows.select { |r| anchors.include?(r[:provider_id].to_s) || (r[:isbn13] && loose.include?(r[:isbn13])) }
-        .filter_map { |r| r[:provider_work_id].presence&.to_s }.uniq
+  # The work's links to the provider, now its printings are stored. ISFDB:
+  # its title records are its editions' printings' (Isfdb::WorkLinks) —
+  # the lookup's own answer only when the editions can't say (a wanted
+  # book, or one found by title search with no ISBN). Other providers: the
+  # lookup's, added to what's there.
+  def link(work, known, rejected)
+    if @id_type == Isfdb::WorkLinks::ID_TYPE && Isfdb::WorkLinks.new(client: nil).title_records(work).present?
+      Isfdb::WorkLinks.sync(work)
+    else
+      (known.work_ids - rejected).each { |value| work.work_identifiers.find_or_create_by!(id_type: @id_type, value:) { |i| i.source = "isbn_lookup" } }
+    end
+    work.work_identifiers.where(id_type: @id_type).pluck(:value)
   end
 
   # For #catalogue's morning digest: a book newly linked to this provider,

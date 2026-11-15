@@ -787,23 +787,33 @@ day; the fix:
 2. **Each printing keeps its own title** (`provider_editions.provider_work_id`),
    so a book's own printings are exact (`Work#own_isfdb_printings`, used
    by AuthorLinks and WorkSeriesSync), not judged by title.
-3. **Links come from editions** (KnownEditionsRefresh): an anchored
-   edition gives its printing's title; an edition not yet anchored, its
-   ISBN's (an ISBN can be reused — anchoring settles which). The
-   provider's own title search stands only when no printing is the book's.
-4. **Existing links reconciled** (Isfdb::LinkReconcile, `rake
-   isfdb:reconcile_links`, dry run first): links no edition supports are
-   dropped and remembered as `isfdb_title_rejected`; missing ones added;
-   a title taken from a dropped link goes back to the book's own. An
-   edition whose title was rejected before is a conflict for Mark — the
-   anchor may be the wrong one — and nothing changes on it. Replaces
-   TitleLinkPrune.
-5. **Merging** refuses two books whose editions are printings of different
-   titles (WorkMerge), whatever links they share.
+3. **The cascade** (Isfdb::WorkLinks; Mark, 2026-11-15). Mark cleans the
+   catalogue by setting each edition to its right ISFDB printing, and
+   everything follows from that, at once:
 
-Left until the reconciliation has run: simplifying Isfdb::MainTitles'
-choice among several links (chapbook last, container first, …), which
-only books not yet anchored should need.
+   > edition's printing → the work's ISFDB title record(s) → the work's
+   > type, first-publication year, language, title (by the main-title
+   > rule) and series
+
+   The work's ISFDB title records are *replaced* by the ones its editions'
+   printings belong to — an anchored edition's printing's, an edition not
+   yet anchored by its ISBN's printings (less any rejected for the work) —
+   and the work's details are worked out again from them straight away.
+   Nothing is copied from the edition into the work. A link Mark made
+   himself stays; a work with nothing to go on (wanted, or found by title
+   search with no ISBN) keeps the lookup's answer. It runs when a printing
+   is changed (EditionChange → BookAddedJob), when a book is added, and
+   nightly for every work (`rake isfdb:work_links` is the dry run).
+   Replaced the first attempt — links added nightly, removed later by a
+   reconciliation Mark approved as a list — which left works half-changed
+   and their details stale, and took the decision away from the moment he
+   had the context.
+4. **Merging** refuses two books whose editions are printings of different
+   title records (WorkMerge), whatever links they share.
+
+Words (Mark, 2026-11-15): **ISFDB title record** for ISFDB's record of a
+book; **the work's title** and **the edition's title** for names. "Title"
+alone is ambiguous here.
 
 ## Author, series and publisher pages (2026-11-08)
 

@@ -16,9 +16,13 @@ class EditionChange
   PROVIDERS = %w[isfdb openlibrary].freeze
   IDENTIFIERS = %w[isbn13 isbn10] + PROVIDERS
 
+  # Then the cascade, at once (Isfdb::WorkLinks via BookAddedJob): the
+  # work's ISFDB title becomes the new printing's, and its form, year,
+  # language, title and series follow — Mark's way of cleaning the
+  # catalogue is setting each edition to its right printing.
   def self.run(edition, card)
     was = CatalogueEvent.edition_label(edition)
-    Edition.transaction do
+    filled = Edition.transaction do
       settle_decisions(edition) # first: re-filling would close a stale conflict as "accepted"
       edition.update!(PendingDecision::EDITION_FIELD_ORDER.index_with(nil)
                         .merge("field_sources" => edition.field_sources.except(*PendingDecision::EDITION_FIELD_ORDER, "cover_image")))
@@ -32,6 +36,8 @@ class EditionChange
                               summary: "#{CatalogueEvent.title(work)}: now the #{CatalogueEvent.edition_label(filled)} printing (was #{was})")
       end
     end
+    filled.works.each { |work| BookAddedJob.perform_later(work.id) }
+    filled
   end
 
   # The pending decisions about this edition's printing.
