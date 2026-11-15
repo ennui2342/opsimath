@@ -91,9 +91,10 @@ class AuthorCleanup
   def merges
     @merges ||= begin
       people = Contributor.all.to_a
-      groups = people.group_by { |c| c.external_ids["isfdb"].presence || "name:#{self.class.tokens(c.name).join(' ')}" }.values
+      # Words in any order: a Goodreads slug is surname first ("delany-samuel-r").
+      groups = people.group_by { |c| c.external_ids["isfdb"].presence || "name:#{self.class.tokens(c.name).sort.join(' ')}" }.values
       # Same name, no ISFDB id, joins a group with one.
-      by_name = people.group_by { |c| self.class.tokens(c.name).join(" ") }
+      by_name = people.group_by { |c| self.class.tokens(c.name).sort.join(" ") }
       seen = Set.new
       (groups + by_name.values).filter_map do |group|
         ids = group.filter_map { |c| c.external_ids["isfdb"].presence }.uniq

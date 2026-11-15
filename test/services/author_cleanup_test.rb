@@ -117,4 +117,16 @@ class AuthorCleanupTest < ActiveSupport::TestCase
     assert_not Contributor.exists?(plain.id)
     assert_equal lem, fiasco.reload.work_contributors.sole.contributor
   end
+
+  test "a surname-first slug from Goodreads is the same person: delany-samuel-r is Samuel R. Delany" do
+    delany = Contributor.create!(name: "Samuel R. Delany", external_ids: { "isfdb" => "22" })
+    slug = Contributor.create!(name: "delany-samuel-r")
+    beta = Work.create!(title: "The Ballad of Beta-2", literary_form: "omnibus")
+    beta.work_contributors.create!(contributor: slug, role: "author")
+
+    AuthorCleanup.apply
+
+    assert_not Contributor.exists?(slug.id)
+    assert_equal delany, beta.reload.work_contributors.sole.contributor
+  end
 end
