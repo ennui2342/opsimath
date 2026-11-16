@@ -114,6 +114,23 @@ module Isfdb
       assert_equal 4, quarterly.reload.position
     end
 
+    test "a relinked work whose printings name no series stays in its series" do
+      title(1328103, "New Writings in S-F 7", "ANTHOLOGY")
+      title(1328104, "New Writings in SF 7", "ANTHOLOGY")
+      work = work_with_edition("New Writings in SF 7", links: [ [ 1328104, "isbn_lookup" ] ], anchor: 295401)
+      stub_request(:get, "#{ISFDB}/titles/1328103/editions").to_return(status: 200, body: [
+        { "_isfdb_pub_id" => 295401, "_isfdb_title_id" => 1328103, "title" => "New Writings in S.F.—7", "publisher" => "Corgi", "publish_date" => "1966" }
+      ].to_json)
+      EnrichmentRecord.create!(entity: work.editions.first, provider: "isfdb", external_id: "295401", fetched_at: Time.current, fields: {},
+                               raw_payload: { "work_id" => "1328103" })
+      filing = WorkSeries.create!(work:, series: Series.create!(name: "New Writings in SF", isfdb_series_id: 8484), position: 7)
+
+      WorkLinks.sync(work)
+
+      assert_equal [ "1328103" ], work.reload.work_identifiers.where(id_type: "isfdb_title").pluck(:value)
+      assert_equal 7, filing.reload.position
+    end
+
     test "a relinked omnibus stays in an ISFDB series its printings don't name, without a number" do
       title(500, "The Book of Morgaine", "OMNIBUS")
       title(501, "Gate of Ivrel", "NOVEL")

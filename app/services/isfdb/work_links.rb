@@ -176,8 +176,10 @@ module Isfdb
     # the old title record gave stays otherwise:
     # - in an ISFDB series its own printings name: their number (Live
     #   Robots was Ware #2, from Wetware inside it);
-    # - in an ISFDB series they don't name: out — it came from the old
-    #   record (New Worlds 4 in Garnett's New Worlds, Mark, 2026-11-15) —
+    # - in an ISFDB series they don't name, when they name another: out —
+    #   it came from the old record (New Worlds 4 in Garnett's New Worlds,
+    #   Mark, 2026-11-15); printings naming no series say nothing (Corgi's
+    #   New Writings in SF 7, 2026-11-16) —
     #   except an omnibus, which stays without a number (ISFDB rarely files
     #   an omnibus in its series: The Book of Morgaine);
     # - an omnibus in any other series: no number — it isn't one volume
@@ -190,7 +192,7 @@ module Isfdb
       work.work_series.includes(:series).each do |ws|
         isfdb = ws.series.isfdb_series_id
         named = isfdb ? own.select { |p| p.series_id == isfdb } : []
-        if isfdb && named.empty? && work.literary_form != "omnibus"
+        if isfdb && named.empty? && own.any?(&:series_id) && work.literary_form != "omnibus"
           CatalogueEvent.record(kind: "series", origin: "work_links", work:,
                                 summary: "#{work.title}: out of #{ws.series.name} (it came from the work's old ISFDB title record)")
           ws.destroy!
@@ -199,7 +201,6 @@ module Isfdb
 
         nums = named.map(&:series_num).uniq
         target = if isfdb && named.any? then nums.one? ? nums.first : nil
-        elsif isfdb then nil
         elsif work.literary_form == "omnibus" then nil
         else ws.position
         end
