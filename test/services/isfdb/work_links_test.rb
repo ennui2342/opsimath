@@ -98,6 +98,7 @@ module Isfdb
       WorkLinks.sync(work)
 
       assert_equal [ "36323" ], work.reload.work_identifiers.where(id_type: "isfdb_title").pluck(:value)
+      assert_includes CatalogueEvent.where(kind: "relinked").sole.summary, "“New Worlds Quarterly 4”" # its own name, not its number
       assert_not WorkSeries.exists?(garnett.id)
       assert_equal 4, quarterly.reload.position
     end

@@ -111,17 +111,20 @@ module Isfdb
                       &.raw_payload&.then { |raw| (raw["work_id"] || raw["_isfdb_title_id"]).presence&.to_s }
     end
 
-    def main_id(id)
-      @mains ||= {}
-      @mains.fetch(id.to_s) { @mains[id.to_s] = @client.title(id)&.dig("main", "id")&.to_s }
+    def main_id(id) = record(id)&.dig("main", "id")&.to_s
+
+    def record(id)
+      @records ||= {}
+      @records.fetch(id.to_s) { @records[id.to_s] = @client.title(id) }
     rescue Isfdb::ServiceError, Net::OpenTimeout, Net::ReadTimeout
       nil
     end
 
-    # Each title record with the name its printings give it.
+    # Each title record with the name its printings give it, else its own
+    # (a record new to the work: New Writings in SF 7's, 2026-11-16).
     def labelled(work, ids)
       names = work.provider_editions.select { |p| p.provider == "isfdb" && p.provider_work_id }.to_h { |p| [ p.provider_work_id, p.title ] }
-      ids.map { |id| [ id, names[id] || "ISFDB title record #{id}" ] }
+      ids.map { |id| [ id, names[id] || CGI.unescapeHTML(record(id)&.dig("title").to_s).presence || "ISFDB title record #{id}" ] }
     end
 
     def apply!(change)
@@ -140,7 +143,18 @@ module Isfdb
                                            "which none of its editions' printings is"
                                        end)
       end
+      refresh_printings(work) if change.add.any?
       cascade(work.reload)
+    end
+
+    # The new record's printings, now: the cascade's series check goes by
+    # them (New Worlds 4 stayed in Garnett's New Worlds with none fetched).
+    def refresh_printings(work)
+      KnownEditionsRefresh.new(provider: "isfdb").refresh_one(
+        Work.includes(:want, :provider_editions, { work_contributors: :contributor }, editions: :edition_identifiers).find(work.id)
+      )
+    rescue StandardError => e
+      Rails.logger.warn("ISFDB links: printings of work ##{work.id} not fetched — #{e.class}: #{e.message}")
     end
 
     # The work's details from its new titles, at once: form, year, language
