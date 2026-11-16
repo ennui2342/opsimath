@@ -88,13 +88,18 @@ class TitleCleanup
     new.send(:kind_of, work, main) == :suspect
   end
 
-  # A link to the title record of a printing an edition is set to.
+  # Linked only to the title record of the printing its editions are set
+  # to: one record, every edition set, all to printings of it. Not a work
+  # still linked to others too (Cities in Flight, to The Triumph of Time as
+  # well as the omnibus), nor a volume whose number differs (Dangerous
+  # Visions 1, linked to the whole book) — those stay suspect.
   def self.from_printing?(work)
-    links = work.work_identifiers.select { |i| i.id_type == "isfdb_title" }.map(&:value)
-    anchors = work.editions.flat_map(&:edition_identifiers).select { |i| i.id_type == "isfdb" }.map(&:value)
-    return false if links.empty? || anchors.empty?
+    links = work.work_identifiers.select { |i| i.id_type == "isfdb_title" }.map(&:value).uniq
+    anchors = work.editions.map { |e| e.edition_identifiers.find { |i| i.id_type == "isfdb" }&.value }
+    return false unless links.one? && anchors.any? && anchors.all?
+    return false if new.send(:numbers_differ?, work.title, isfdb_title(work).to_s)
 
-    ProviderEdition.where(provider: "isfdb", provider_id: anchors).pluck(:provider_work_id).intersect?(links)
+    ProviderEdition.where(provider: "isfdb", provider_id: anchors).pluck(:provider_work_id).uniq == links
   end
 
   # ISFDB's main title, once fetched (Isfdb::MainTitles).

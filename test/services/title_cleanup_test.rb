@@ -73,4 +73,18 @@ class TitleCleanupTest < ActiveSupport::TestCase
     assert_equal 1, TitleCleanup.apply(Work.where(id: work.id))
     assert_equal "The Devil's Day", work.reload.title # the title follows the link, as any other
   end
+
+  test "still suspect: a work linked to other records too, or a volume whose number differs" do
+    cities = book("Cities in Flight", main: "The Triumph of Time")
+    split = book("Dangerous Visions 2", main: "Dangerous Visions")
+    [ [ cities, %w[100 101] ], [ split, %w[200] ] ].each do |work, links|
+      links.each { |l| work.work_identifiers.create!(id_type: "isfdb_title", value: l, source: "isbn_lookup") }
+      edition = work.editions.create!(publisher: "Arrow", publish_date: "1981")
+      edition.edition_identifiers.create!(id_type: "isfdb", value: "p#{work.id}")
+      ProviderEdition.create!(work:, provider: "isfdb", provider_id: "p#{work.id}", title: work.title, provider_work_id: links.first)
+    end
+
+    assert TitleCleanup.suspect?(Work.find(cities.id))
+    assert TitleCleanup.suspect?(Work.find(split.id))
+  end
 end
