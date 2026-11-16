@@ -70,5 +70,7 @@ class TitleCleanupTest < ActiveSupport::TestCase
     ProviderEdition.create!(work:, provider: "isfdb", provider_id: "353524", title: "Black Easter / The Day After Judgment", provider_work_id: "688417")
 
     assert_not TitleCleanup.suspect?(Work.find(work.id))
+    assert_equal 1, TitleCleanup.apply(Work.where(id: work.id))
+    assert_equal "The Devil's Day", work.reload.title # the title follows the link, as any other
   end
 end

@@ -18,12 +18,15 @@
 #                the link, never retitled here — a pending decision instead
 #                (#ask), resolved by taking ISFDB's title, keeping Mark's, or
 #                choosing the right printing.
+#   :printing  — would be suspect, but the link is from the printing Mark
+#                set an edition to: the title follows it like any other
+#                (Black Easter → The Devil's Day, Mark, 2026-11-16).
 # AUTOMATIC kinds are applied nightly. A title Mark set himself
 # (field_sources "manual" — the cog, or "Keep mine") is never touched.
 class TitleCleanup
   Fix = Struct.new(:work, :from, :to, :kind, keyword_init: true)
 
-  AUTOMATIC = %i[brackets cosmetic variant reworded].freeze # Mark, 2026-11-10: all but suspect
+  AUTOMATIC = %i[brackets cosmetic variant reworded printing].freeze # Mark, 2026-11-10: all but suspect
   QUESTION = "title_link_question"
   BRACKETED = /\s*\([^()]+\)\s*\z/
   STOP = %w[the a an of and in on to for with by at from or s].freeze
@@ -107,7 +110,9 @@ class TitleCleanup
     main = self.class.isfdb_title(work) or return
     return if work.title == main || !main.match?(/[[:alpha:]]/) # ISFDB's title "/" (Slant)
 
-    Fix.new(work:, from: work.title, to: main, kind: kind_of(work, main))
+    kind = kind_of(work, main)
+    kind = :printing if kind == :suspect && self.class.from_printing?(work)
+    Fix.new(work:, from: work.title, to: main, kind:)
   end
 
   def kind_of(work, main)
