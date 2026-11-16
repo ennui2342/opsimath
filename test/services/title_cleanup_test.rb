@@ -59,4 +59,16 @@ class TitleCleanupTest < ActiveSupport::TestCase
     assert_not TitleCleanup.suspect?(kept)
     assert_empty TitleCleanup.plan.select { |f| [ split.id, kept.id ].include?(f.work.id) }
   end
+
+  test "a link from the printing an edition is set to isn't suspect" do
+    work = book("Black Easter", main: "The Devil's Day")
+    work.work_identifiers.create!(id_type: "isfdb_title", value: "688417", source: "isbn_lookup")
+    assert TitleCleanup.suspect?(work.reload)
+
+    edition = work.editions.create!(publisher: "Arrow Books", publish_date: "1981")
+    edition.edition_identifiers.create!(id_type: "isfdb", value: "353524")
+    ProviderEdition.create!(work:, provider: "isfdb", provider_id: "353524", title: "Black Easter / The Day After Judgment", provider_work_id: "688417")
+
+    assert_not TitleCleanup.suspect?(Work.find(work.id))
+  end
 end

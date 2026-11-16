@@ -132,8 +132,13 @@ module Isfdb
         was = change.drop.map(&:last).join(", ")
         CatalogueEvent.record(kind: "relinked", origin: "work_links", work:,
                               details: { added: change.add, dropped: change.drop },
-                              summary: "#{work.title}: work now linked to ISFDB title record “#{change.add.map(&:last).join('”, “').presence || '—'}”" \
-                                       "#{" (was “#{was}”)" if was.present?}, from its editions' printings")
+                              summary: if change.add.any?
+                                         "#{work.title}: work now linked to ISFDB title record “#{change.add.map(&:last).join('”, “')}”" \
+                                           "#{" (was “#{was}”)" if was.present?}, from its editions' printings"
+                                       else
+                                         "#{work.title}: work no longer linked to ISFDB title record “#{was}”, " \
+                                           "which none of its editions' printings is"
+                                       end)
       end
       cascade(work.reload)
     end

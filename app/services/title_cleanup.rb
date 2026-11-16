@@ -72,13 +72,26 @@ class TitleCleanup
   #
   # Not a book whose title Mark set ("Keep mine" says the link is right)
   # or whose link he made himself — a UK split volume linked to the whole
-  # book, "A Dance with Dragons 1", differs by a number on purpose.
+  # book, "A Dance with Dragons 1", differs by a number on purpose — nor
+  # one linked from the printing he set an edition to (Black Easter, set
+  # to Arrow's Black Easter / The Day After Judgment: The Devil's Day,
+  # 2026-11-16).
   def self.suspect?(work)
     main = isfdb_title(work) or return false
     return false if work.title == main || work.field_sources["title"] == "manual"
     return false if work.work_identifiers.any? { |i| i.id_type == "isfdb_title" && i.source == "manual" }
+    return false if from_printing?(work)
 
     new.send(:kind_of, work, main) == :suspect
+  end
+
+  # A link to the title record of a printing an edition is set to.
+  def self.from_printing?(work)
+    links = work.work_identifiers.select { |i| i.id_type == "isfdb_title" }.map(&:value)
+    anchors = work.editions.flat_map(&:edition_identifiers).select { |i| i.id_type == "isfdb" }.map(&:value)
+    return false if links.empty? || anchors.empty?
+
+    ProviderEdition.where(provider: "isfdb", provider_id: anchors).pluck(:provider_work_id).intersect?(links)
   end
 
   # ISFDB's main title, once fetched (Isfdb::MainTitles).
