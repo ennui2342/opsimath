@@ -4,10 +4,18 @@ module Isfdb
   class WorkLinksTest < ActiveSupport::TestCase
     ISFDB = ENV.fetch("ISFDB_ADAPTER_URL")
 
+    # A relinked work's printings are fetched (by ISBN, title record and
+    # title): none found in these tests unless a test says otherwise.
+    setup do
+      stub_request(:get, %r{\A#{ISFDB}/(isbn/.*|search\?.*|titles/\d+/editions)\z}).to_return(status: 200, body: [].to_json)
+    end
+
     def title(id, name, type, main: id)
       stub_request(:get, "#{ISFDB}/titles/#{id}").to_return(status: 200, body: {
         id:, title: name, type:, variants: [], main: { id: main, title: name, type:, year: 1994, language: "eng", authors: [], author_aliases: [] }
       }.to_json)
+      # its printings, fetched as a work relinks to it: none in these tests
+      stub_request(:get, "#{ISFDB}/titles/#{id}/editions").to_return(status: 200, body: [].to_json)
     end
 
     test "an edition's publication of a variant title record leaves the work's link to the main one alone" do
@@ -90,8 +98,11 @@ module Isfdb
       edition = work.editions.first
       EnrichmentRecord.create!(entity: edition, provider: "isfdb", external_id: "23811", fetched_at: Time.current, fields: {},
                                raw_payload: { "work_id" => "36323" })
-      ProviderEdition.create!(work:, provider: "isfdb", provider_id: "1", title: "New Worlds Quarterly 4", provider_work_id: "36323",
-                              series_id: 24354, series_name: "New Worlds Quarterly", series_num: 4)
+      # the new record's printing, fetched as the work relinks
+      stub_request(:get, "#{ISFDB}/titles/36323/editions").to_return(status: 200, body: [
+        { "_isfdb_pub_id" => 23811, "_isfdb_title_id" => 36323, "title" => "New Worlds Quarterly 4", "publisher" => "Sphere",
+          "publish_date" => "1972-09", "binding" => "pb", "_isfdb_series_id" => 24354, "series" => "New Worlds Quarterly", "_isfdb_series_num" => "4" }
+      ].to_json)
       garnett = WorkSeries.create!(work:, series: Series.create!(name: "New Worlds (Garnett)", isfdb_series_id: 8228), position: 4)
       quarterly = WorkSeries.create!(work:, series: Series.create!(name: "New Worlds Quarterly", isfdb_series_id: 24354), position: 4)
 

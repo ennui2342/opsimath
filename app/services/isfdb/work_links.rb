@@ -150,10 +150,10 @@ module Isfdb
     # The new record's printings, now: the cascade's series check goes by
     # them (New Worlds 4 stayed in Garnett's New Worlds with none fetched).
     def refresh_printings(work)
-      KnownEditionsRefresh.new(provider: "isfdb").refresh_one(
+      KnownEditionsRefresh.new(provider: Providers.find("isfdb")).refresh_one(
         Work.includes(:want, :provider_editions, { work_contributors: :contributor }, editions: :edition_identifiers).find(work.id)
       )
-    rescue StandardError => e
+    rescue Isfdb::ServiceError, Net::OpenTimeout, Net::ReadTimeout => e
       Rails.logger.warn("ISFDB links: printings of work ##{work.id} not fetched — #{e.class}: #{e.message}")
     end
 
