@@ -9,7 +9,7 @@
 # app's own multi-stage Dockerfile there's no compiler/build-only tooling
 # to discard afterward.
 
-FROM python:3.12-slim
+FROM python:3.15-slim
 
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1
