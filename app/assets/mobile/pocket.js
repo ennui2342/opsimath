@@ -111,7 +111,9 @@
     const auth = { Authorization: "Bearer " + (await token()) };
     try {
       setStatus("checking…", "busy");
-      const vres = await fetch(cfg.versionUrl, { headers: auth, cache: "no-store" });
+      // Not waiting long: with signal but no route to the server, the
+      // status would sit at "checking…".
+      const vres = await fetch(cfg.versionUrl, { headers: auth, cache: "no-store", signal: AbortSignal.timeout(8000) });
       if (vres.status === 401) return needsRelink();
       if (vres.status === 404) return setStatus("no snapshot published yet", "error");
       if (!vres.ok) throw new Error("version " + vres.status);

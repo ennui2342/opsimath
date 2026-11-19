@@ -24,16 +24,37 @@ self.addEventListener("install", (event) => {
 
 const SHELL_PAGE = <%= mobile_app_path.to_json.html_safe %>;
 
+// Older versions' caches go only once this version has its own shell
+// page: until then the old shell (and the assets it names, still in its
+// cache) is what opens the app offline. Deleting them first left nothing
+// to open when the warm-up below failed — a deploy while the phone
+// couldn't reach the server (Mark, 2026-11-19).
+const dropOldCaches = () =>
+  caches.keys().then((keys) => Promise.all(keys.filter((k) => k.startsWith("pocket-") && k !== CACHE).map((k) => caches.delete(k))));
+
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
-      .then(() => self.clients.claim())
+    self.clients.claim()
       // Warm the shell so a fresh install can open offline. Safe: /mobile
       // only issues a new token when there isn't one to reuse.
-      .then(() => caches.open(CACHE).then((c) => c.add(SHELL_PAGE).catch(() => {})))
+      .then(() => caches.open(CACHE))
+      .then((c) => c.add(SHELL_PAGE).then(dropOldCaches))
+      .catch(() => {})
   );
 });
+
+// The shell page cached by this version, else by an older one still kept.
+const cachedShell = () =>
+  caches.open(CACHE).then((c) => c.match(SHELL_PAGE)).then((hit) => hit || caches.match(SHELL_PAGE));
+
+// The network, given up after a few seconds: a phone with signal but no
+// route to the server would otherwise wait out the browser's own timeout.
+const NETWORK_WAIT_MS = 4000;
+const fetchQuickly = (request) =>
+  new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("network too slow")), NETWORK_WAIT_MS);
+    fetch(request).then((res) => { clearTimeout(timer); resolve(res); }, (err) => { clearTimeout(timer); reject(err); });
+  });
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
@@ -44,12 +65,18 @@ self.addEventListener("fetch", (event) => {
   // SW would defeat updates.
   if (url.pathname.startsWith("/mobile/snapshot") || url.pathname === <%= mobile_service_worker_path.to_json.html_safe %>) return;
 
-  // Shell page: fresh when online, cached when not.
+  // Shell page: fresh when the server answers within a few seconds, else
+  // the cached one.
   if (url.pathname === SHELL_PAGE || url.pathname === SHELL_PAGE + "/") {
     event.respondWith(
-      fetch(event.request)
-        .then((res) => { caches.open(CACHE).then((c) => c.put(SHELL_PAGE, res.clone())); return res; })
-        .catch(() => caches.match(SHELL_PAGE))
+      fetchQuickly(event.request)
+        .then((res) => {
+          if (!res.ok) return cachedShell().then((hit) => hit || res);
+          const copy = res.clone();
+          event.waitUntil(caches.open(CACHE).then((c) => c.put(SHELL_PAGE, copy)).then(dropOldCaches));
+          return res;
+        })
+        .catch(() => cachedShell().then((hit) => hit || Response.error()))
     );
     return;
   }
