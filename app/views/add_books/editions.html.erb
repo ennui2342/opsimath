@@ -12,6 +12,8 @@
     <% end %>
   </p>
 
+  <%= render "add_books/missed", missed: @missed %>
+
   <% if @cards.empty? %>
     <p class="text-sm text-gray-600 dark:text-gray-400">Neither ISFDB nor Open Library lists editions for this book yet.</p>
     <% unless @work %>

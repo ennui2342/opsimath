@@ -33,6 +33,15 @@ class AddBooksControllerTest < ActionDispatch::IntegrationTest
     assert_select "form[data-barcode-scan-autostart-value=true]"
   end
 
+  test "a source that didn't answer is named on the page, not taken for an empty result" do
+    stub_request(:get, "#{ENV.fetch("ISFDB_ADAPTER_URL")}/search").with(query: hash_including({})).to_return(status: 503)
+
+    get add_book_url(q: "the second trip")
+
+    assert_select "p[role=status]", text: /ISFDB didn't answer in time/
+    assert_select "p", text: /\ANothing found for/
+  end
+
   test "search shows each work with choose-edition and want-it" do
     get add_book_url(q: "crossfire kress")
 

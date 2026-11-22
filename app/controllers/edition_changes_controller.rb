@@ -13,8 +13,12 @@ class EditionChangesController < ApplicationController
 
   def edit
     @query = params[:q].to_s.strip.presence
+    @missed = []
     editions = if @query
-                 AddBook::Search.run(@query).first(SEARCH_RESULTS).flat_map { |r| AddBook::EditionSource.for_found(r.to_payload) }
+                 search = AddBook::Search.new
+                 found = search.run(@query).first(SEARCH_RESULTS).flat_map { |r| AddBook::EditionSource.for_found(r.to_payload, missed: @missed) }
+                 @missed.concat(search.missed)
+                 found
     else
                  AddBook::EditionSource.for_work(@work) + decision_candidates
     end

@@ -1,0 +1,9 @@
+<%# A source that failed or didn't answer in time: its results are missing,
+    not absent — said so, so a gap isn't read as "it hasn't this book". %>
+<% if missed.present? %>
+  <% names = missed.uniq.map { |m| Ui::EditionChoiceCardComponent::PROVIDER_LABELS.fetch(m, m) } %>
+  <p role="status" class="mb-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+    <%= names.to_sentence %> didn't answer in time, so <%= names.one? ? "its" : "their" %> results are missing here —
+    <%= link_to "try again", request.fullpath, class: "font-medium underline" %>.
+  </p>
+<% end %>

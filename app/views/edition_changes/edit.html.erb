@@ -22,6 +22,8 @@
       <%= link_to "back to this book's own printings", edit_work_edition_change_path(@work, @edition), class: "hover:underline" %>
     </p>
   <% end %>
+  <%= render "add_books/missed", missed: @missed %>
+
   <% if @cards.empty? %>
     <p class="text-sm text-gray-600 dark:text-gray-400"><%= @query ? "Nothing found for that search." : "Neither ISFDB nor Open Library lists editions for this book yet." %></p>
   <% else %>

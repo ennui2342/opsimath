@@ -42,8 +42,12 @@ module AddBook
 
     def self.run(query, **) = new(**).run(query)
 
+    # Providers that failed or didn't answer in time, by name.
+    def missed = @missed.uniq
+
     def initialize(providers: Providers.with(:search_works))
       @providers = providers
+      @missed = []
     end
 
     def run(query)
@@ -72,10 +76,10 @@ module AddBook
     # them all — each search costs seconds (Machines & Men took four, and
     # "Machine's" was no help).
     def search(query)
-      works = Providers.search_works(title: query, providers: @providers)
+      works = Providers.search_works(title: query, providers: @providers, missed: @missed)
       return works if works.any? { |w| self.class.title_holds?(w.title, query) }
 
-      (works + self.class.variants(query).drop(1).flat_map { |q| Providers.search_works(title: q, providers: @providers) })
+      (works + self.class.variants(query).drop(1).flat_map { |q| Providers.search_works(title: q, providers: @providers, missed: @missed) })
         .uniq { |w| [ w.provider, w.id ] }
     end
 
@@ -123,6 +127,7 @@ module AddBook
         provider.respond_to?(:works_for_isbn) ? provider.works_for_isbn(isbn) : []
       rescue StandardError => e
         Rails.logger.warn("add book: #{provider.name} ISBN #{isbn} — #{e.class}: #{e.message}")
+        @missed << provider.name
         []
       end
     end

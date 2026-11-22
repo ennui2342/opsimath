@@ -50,7 +50,7 @@ module AddBook
       []
     end
 
-    def self.for_found(found) = fetch(found["provider_works"])
+    def self.for_found(found, missed: []) = fetch(found["provider_works"], missed:)
 
     # A catalogued work as provider works: ISFDB by the ISBNs it's known by
     # (its editions' and its want's), Open Library by each stored work id —
@@ -62,7 +62,7 @@ module AddBook
       [ { "provider" => "isfdb", "isbns" => isbns } ] + ol_ids.map { |id| { "provider" => "openlibrary", "id" => id } }
     end
 
-    def self.fetch(provider_works)
+    def self.fetch(provider_works, missed: [])
       Array(provider_works).flat_map do |pw|
         case pw["provider"]
         when "isfdb"
@@ -74,6 +74,7 @@ module AddBook
         end
       rescue StandardError => e
         Rails.logger.warn("edition picker: #{pw["provider"]} editions — #{e.class}: #{e.message}")
+        missed << pw["provider"]
         []
       end
     end

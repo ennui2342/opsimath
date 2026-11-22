@@ -44,19 +44,29 @@ module Providers
 
   # Every provider's works for a title + author, searched in parallel. A
   # provider that fails or runs over the time limit contributes nothing
-  # rather than failing the search.
-  def self.search_works(title:, author: nil, providers: with(:search_works))
+  # rather than failing the search — and its name goes into `missed`, so
+  # the page can say its results are missing rather than look as if it
+  # has no such book (The Second Trip, 2026-11-21).
+  def self.search_works(title:, author: nil, providers: with(:search_works), missed: [], timeout: SEARCH_TIMEOUT)
     threads = providers.map do |provider|
       Thread.new do
-        provider.search_works(title:, author:)
+        [ provider.search_works(title:, author:), true ]
       rescue StandardError => e
         Rails.logger.warn("provider search: #{provider.name} — #{e.class}: #{e.message}")
-        []
+        [ [], false ]
       end
     end
-    deadline = SEARCH_TIMEOUT.from_now
-    threads.flat_map do |t|
-      t.join([ deadline - Time.current, 0 ].max) ? t.value : (t.kill && [])
+    deadline = timeout.from_now
+    threads.zip(providers).flat_map do |t, provider|
+      unless t.join([ deadline - Time.current, 0 ].max)
+        t.kill
+        Rails.logger.warn("provider search: #{provider.name} — no answer within #{timeout.inspect}")
+        missed << provider.name
+        next []
+      end
+      works, answered = t.value
+      missed << provider.name unless answered
+      works
     end
   end
 end

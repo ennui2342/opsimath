@@ -29,6 +29,8 @@
     </p>
   <% end %>
 
+  <%= render "add_books/missed", missed: @missed %>
+
   <% if @query.match?(/\A\d{12}\z/) %>
     <p class="mb-3 text-sm text-gray-700 dark:text-gray-300">
       That's a US retail UPC — it names the publisher and price, not the book. Add the five digits printed
@@ -40,7 +42,7 @@
       printed over the small barcode beside the UPC — a scan can misread them — and search again with the right ones.
     </p>
   <% elsif @query.present? && @results.empty? %>
-    <p class="text-sm text-gray-500 dark:text-gray-400">Nothing found in ISFDB or Open Library for “<%= @query %>”. Try fewer words, or the author's surname with a title word.</p>
+    <p class="text-sm text-gray-500 dark:text-gray-400">Nothing found<%= " in ISFDB or Open Library" if @missed.empty? %> for “<%= @query %>”. Try fewer words, or the author's surname with a title word.</p>
   <% end %>
 
   <ul class="divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800 <%= "hidden" if @results.empty? %>">

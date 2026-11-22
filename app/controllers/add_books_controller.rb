@@ -11,7 +11,9 @@ class AddBooksController < ApplicationController
 
   def new
     @query = params[:q].to_s.strip
-    @results = @query.present? ? AddBook::Search.run(@query) : []
+    search = AddBook::Search.new
+    @results = @query.present? ? search.run(@query) : []
+    @missed = search.missed
   end
 
   def editions
@@ -20,7 +22,8 @@ class AddBooksController < ApplicationController
     return redirect_to(add_book_path, alert: "That search result has expired — search again.") unless @work || @found
 
     @title = @work&.title || @found["title"]
-    editions = @work ? AddBook::EditionSource.for_work(@work) : AddBook::EditionSource.for_found(@found)
+    @missed = []
+    editions = @work ? AddBook::EditionSource.for_work(@work) : AddBook::EditionSource.for_found(@found, missed: @missed)
     @cards, @hidden = AddBook::EditionCards.build(editions, all_languages: params[:all_languages].present?)
   end
 
