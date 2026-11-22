@@ -8,7 +8,7 @@
   <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
     <%= @title %><%= " — wanted" if @work&.want %>
     <% if @hidden.positive? %>
-      · <%= link_to "#{@hidden} other-language #{'edition'.pluralize(@hidden)} hidden", add_book_editions_path(here.merge(all_languages: 1)), class: "hover:underline" %>
+      · <%= link_to "#{@hidden} other-language #{'edition'.pluralize(@hidden)} hidden", add_book_editions_path(here.merge(all_languages: 1, isbn: params[:isbn].presence)), class: "hover:underline" %>
     <% end %>
   </p>
 
@@ -23,7 +23,7 @@
   <% else %>
     <%= form_with url: add_book_path, method: :post do %>
       <% here.each do |k, v| %><input type="hidden" name="<%= k %>" value="<%= v %>"><% end %>
-      <%= render "add_books/edition_grid", cards: @cards, title: @title %>
+      <%= render "add_books/edition_grid", cards: @cards, title: @title, notes: ->(card) { your_isbn?(card) ? [ "Your ISBN" ] : [] } %>
 
       <%# What the edition is to Mark — the same choices as the Goodreads
           edition-reconciliation decision: alongside, replaces, or not mine. %>

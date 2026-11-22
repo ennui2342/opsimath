@@ -42,6 +42,26 @@ class AddBooksControllerTest < ActionDispatch::IntegrationTest
     assert_select "p", text: /\ANothing found for/
   end
 
+  test "searched by ISBN: the printings with it come first, marked as yours" do
+    isfdb = ENV.fetch("ISFDB_ADAPTER_URL")
+    other = { "_isfdb_pub_id" => 54, "_isfdb_title_id" => 1911, "title" => "Crossfire", "authors" => [ "Nancy Kress" ],
+              "publisher" => "Tor", "publish_date" => "2003-01", "binding" => "tp", "isbn_13" => "9780765300000", "cover_url" => "https://covers.test/54.png" }
+    ours = { "_isfdb_pub_id" => 55, "_isfdb_title_id" => 1911, "title" => "Crossfire", "authors" => [ "Nancy Kress" ],
+             "publisher" => "Tor", "publish_date" => "2003-12", "binding" => "hc", "isbn_13" => "9780765304674", "cover_url" => "https://covers.test/55.png" }
+    stub_request(:get, "#{isfdb}/isbn/0765304678").with(query: hash_including({})).to_return(status: 200, body: [ ours ].to_json)
+    stub_request(:get, "#{isfdb}/isbn/9780765304674/editions").to_return(status: 200, body: [ other, ours ].to_json)
+    stub_request(:get, %r{openlibrary\.org/(isbn|api|search)}).to_return(status: 404)
+
+    get add_book_url(q: "0765304678")
+    link = css_select("a").map { |a| a["href"] }.find { |h| h.to_s.include?("found=") }
+    assert_includes link, "isbn=0765304678"
+
+    get link
+    first_card = css_select("label").first
+    assert_includes first_card.text, "Your ISBN"
+    assert_includes first_card.text, "9780765304674"
+  end
+
   test "search shows each work with choose-edition and want-it" do
     get add_book_url(q: "crossfire kress")
 

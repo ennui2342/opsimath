@@ -2,6 +2,8 @@
 <% secondary = "rounded-md bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600" %>
 <% primary = "rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600" %>
 <% provider_labels = Ui::EditionChoiceCardComponent::PROVIDER_LABELS %>
+<%# An ISBN searched for goes on to the edition list, which puts its printings first. %>
+<% searched_isbn = Isbn.normalize(@query) %>
 
 <div class="w-full max-w-3xl">
   <h1 class="mb-4 text-2xl font-bold">Add a book</h1>
@@ -63,9 +65,9 @@
               <% wanted_only = result.work.want && result.work.editions.empty? %>
               <%= render Ui::BadgeComponent.new(text: wanted_only ? "On your wishlist" : "In your catalogue", variant: wanted_only ? :default : :success) %>
               <%= link_to "Open", work_path(result.work), class: "text-sm text-green-700 hover:underline dark:text-green-400" %>
-              <%= link_to wanted_only ? "I've got it" : "Add an edition", add_book_editions_path(work_id: result.work.id), class: secondary %>
+              <%= link_to wanted_only ? "I've got it" : "Add an edition", add_book_editions_path(work_id: result.work.id, isbn: searched_isbn), class: secondary %>
             <% else %>
-              <%= link_to "Choose edition", add_book_editions_path(found: token), class: primary %>
+              <%= link_to "Choose edition", add_book_editions_path(found: token, isbn: searched_isbn), class: primary %>
               <%= button_to "Want it", add_book_path, params: { found: token, intent: "want" }, class: secondary %>
             <% end %>
           </div>

@@ -25,7 +25,13 @@ class AddBooksController < ApplicationController
     @missed = []
     editions = @work ? AddBook::EditionSource.for_work(@work) : AddBook::EditionSource.for_found(@found, missed: @missed)
     @cards, @hidden = AddBook::EditionCards.build(editions, all_languages: params[:all_languages].present?)
+    # Searched by ISBN: its printings first, marked — several can share
+    # one, among dozens of cards (Mythago Wood's 0586065857: five
+    # printings in 30 cards, 2026-11-22).
+    @isbn = Isbn.normalize(params[:isbn].to_s)&.then { |i| Isbn.to_13(i) }
+    @cards = @cards.sort_by.with_index { |card, i| [ your_isbn?(card) ? 0 : 1, i ] } if @isbn
   end
+
 
   def create
     work = Work.find(params[:work_id]) if params[:work_id].present?
@@ -51,6 +57,9 @@ class AddBooksController < ApplicationController
   def sign(payload) = verifier.generate(payload, expires_in: TOKEN_TTL)
 
   private
+
+  # A card holding the ISBN searched for.
+  helper_method def your_isbn?(card) = @isbn.present? && card.isbns.include?(@isbn)
 
   def verifier = Rails.application.message_verifier(:add_book)
 
