@@ -28,7 +28,7 @@ module Notifications
 
   def self.default_notifiers
     list = [ LogNotifier.new ]
-    list << DiscordNotifier.new if Rails.application.credentials.dig(:discord, :bot_token).present?
+    list << DiscordNotifier.new if DiscordNotifier.configured?
     list
   end
 end

@@ -1050,8 +1050,9 @@ starred), decisions the sweep closed, the phone app rebuilt. Recorded
 where things change: add a book, want/unwant, printing changed, status
 and purchase details, edition deleted, readings, review-screen and
 metadata-cog decisions; KnownEditionsRefresh, the sweep, the snapshot
-job. Posts go to `credentials.discord.catalogue_channel_id` only — never
-#general — and wait (recorded, unposted) until it's set.
+job. Posts go to the `DISCORD_WEBHOOK` incoming webhook, #opsimath (the
+channel was #catalogue until 2026-11-25, when opsimath's other notifications
+moved there too and it was renamed).
 
 ## Pending decisions stay live (2026-11-02)
 

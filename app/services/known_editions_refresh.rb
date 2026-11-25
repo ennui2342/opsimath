@@ -199,7 +199,7 @@ class KnownEditionsRefresh
     work.work_identifiers.where(id_type: @id_type).pluck(:value)
   end
 
-  # For #catalogue's morning digest: a book newly linked to this provider,
+  # For the catalogue morning digest: a book newly linked to this provider,
   # and new printings of a book it already knew — not a first fill, which
   # the link already says. Only printings worth hearing about: for a wanted
   # book, any physical, non-book-club printing (a new cover to hunt); for

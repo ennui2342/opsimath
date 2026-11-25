@@ -940,14 +940,15 @@ replacement for it.
 
 `app/services/notifications.rb` + `app/services/notifications/` — a
 small, deliberately generic subsystem (`Notifications.notify(event)`,
-one `LogNotifier` always active, one `DiscordNotifier` that joins when a
-Discord bot token credential is configured), *not* Goodreads-specific,
-so any future job can reuse it. Posts via the Discord bot REST API
-(`POST /channels/{id}/messages`, `Authorization: Bot {token}`) using the
-real bot token/channel id the existing `~/projects/aswarm` Goodreads
-pipelines already use (`DISCORD_BOT_TOKEN`/`DISCORD_CHANNEL_ID` in that
-project's `.env`) — the same mechanism their own `discord.py` connector
-wraps, not a separate incoming webhook.
+one `LogNotifier` always active, one `DiscordNotifier` that joins when
+`DISCORD_WEBHOOK` is set), *not* Goodreads-specific, so any future job can
+reuse it. Posts to that Discord incoming webhook (#opsimath; in k8s it's in
+`opsimath-secrets`, locally in the gitignored `.env`). Until 2026-11-25 it
+used the bot REST API with the aswarm Goodreads pipelines' bot token and a
+channel id per channel (#general, #catalogue); switched because this only
+ever posts, and a webhook URL can do nothing but post to its one channel,
+whereas a bot token can act anywhere the bot can. All notifications now go
+to the one channel.
 
 `GoodreadsSyncJob` is the only place this feature calls it — deliberately
 not `Syncer`/`ShelfSync`, which stay pure/testable. Per event, one

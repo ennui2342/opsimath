@@ -26,7 +26,7 @@ class CatalogueReportTest < ActiveSupport::TestCase
 
     assert_equal 2, CatalogueReport.post_edits
     event = @capture.events.sole
-    assert_equal [ :catalogue, "Catalogue: 2 changes" ], [ event.channel, event.title ]
+    assert_equal "Catalogue: 2 changes", event.title
     assert_equal [ "Your changes — 1", "Corrections (run by hand) — 1" ], titles(event)
     assert_equal "• Added The Birthgrave: Orbit 1979, owned", event.embeds.first[:description]
     assert_nil fresh.reload.reported_at # still settling
@@ -62,12 +62,6 @@ class CatalogueReportTest < ActiveSupport::TestCase
     assert_equal "Works' series — 120 (1 of #{embeds.size})", embeds.first[:title]
     assert embeds.all? { |e| e[:description].size <= CatalogueReport::DESCRIPTION_CHARS }
     assert_equal 120, embeds.sum { |e| e[:description].lines.size }
-  end
-
-  test "a #catalogue post never lands in the default channel when #catalogue isn't configured" do
-    notifier = Notifications::DiscordNotifier.new(bot_token: "t", channel_id: "default", channels: { catalogue: nil })
-
-    assert_nil notifier.notify(Notifications::Event.new(kind: :catalogue, level: :info, title: "x", channel: :catalogue))
   end
 
   test "a change made outside a job and off the web — run by hand — is a correction" do

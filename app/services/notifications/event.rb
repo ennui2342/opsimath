@@ -4,9 +4,7 @@ module Notifications
   # detail (e.g. title/isbn/shelf) by whichever notifier renders it.
   # `description` (Markdown, several lines) and `url` (the title's link)
   # are optional — a digest that's a list rather than a few fields.
-  # `channel` picks a Discord channel other than the default — :catalogue
-  # for #catalogue (CatalogueReport).
   # `embeds` ([{ title:, description:, color: }]) sends a report in several
   # sections (CatalogueReport) — as many messages as Discord's limits need.
-  Event = Struct.new(:kind, :level, :title, :fields, :description, :url, :channel, :embeds, keyword_init: true)
+  Event = Struct.new(:kind, :level, :title, :fields, :description, :url, :embeds, keyword_init: true)
 end

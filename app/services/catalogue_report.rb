@@ -1,4 +1,4 @@
-# What changed in the catalogue, to Discord's #catalogue (Mark,
+# What changed in the catalogue, to Discord's #opsimath (Mark,
 # 2026-11-07; redesigned 2026-11-15). Built from CatalogueEvent; each event
 # is posted once.
 #
@@ -87,7 +87,7 @@ module CatalogueReport
   end
 
   def self.notify(title:, sections:)
-    Notifications.notify(Notifications::Event.new(kind: :catalogue, level: :info, title:, channel: :catalogue, fields: {},
+    Notifications.notify(Notifications::Event.new(kind: :catalogue, level: :info, title:, fields: {},
                                                   url: "#{Rails.application.config.x.public_url}/works", embeds: embeds(sections)))
   end
 

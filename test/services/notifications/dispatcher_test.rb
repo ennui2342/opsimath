@@ -44,18 +44,16 @@ module Notifications
       assert_equal [ event ], recorder.events
     end
 
-    test "LogNotifier is always in the default list; DiscordNotifier joins iff a bot_token credential is present" do
-      classes = Notifications.default_notifiers.map(&:class)
+    test "LogNotifier is always in the default list; DiscordNotifier joins iff DISCORD_WEBHOOK is set" do
+      original = ENV["DISCORD_WEBHOOK"]
 
-      assert_includes classes, LogNotifier
-      # Tests the conditional itself, not a specific environment's real
-      # credential state — CI has no RAILS_MASTER_KEY at all, so this
-      # must hold either way, not assume a bot_token is configured.
-      if Rails.application.credentials.dig(:discord, :bot_token).present?
-        assert_includes classes, DiscordNotifier
-      else
-        assert_not_includes classes, DiscordNotifier
-      end
+      ENV["DISCORD_WEBHOOK"] = "https://discord.test/api/webhooks/1/t"
+      assert_equal [ LogNotifier, DiscordNotifier ], Notifications.default_notifiers.map(&:class)
+
+      ENV.delete("DISCORD_WEBHOOK")
+      assert_equal [ LogNotifier ], Notifications.default_notifiers.map(&:class)
+    ensure
+      ENV["DISCORD_WEBHOOK"] = original
     end
   end
 end

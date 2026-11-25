@@ -2,37 +2,31 @@ require "net/http"
 require "json"
 
 module Notifications
-  # Posts to a Discord channel via the bot REST API
-  # (`POST /channels/{id}/messages`, `Authorization: Bot {token}`) — the
-  # same mechanism the existing aswarm Goodreads pipelines already use
-  # (`~/projects/aswarm/src/aswarm/connectors/discord.py`'s `_send_channel`,
-  # itself a thin wrapper over this exact endpoint), reusing their real
-  # bot token/channel id rather than setting up a separate incoming
-  # webhook. Hand-rolled `Net::HTTP`, matching `Isfdb::Client`/
-  # `Goodreads::RssClient`'s existing style — one POST doesn't warrant a
-  # Discord gem dependency.
+  # Posts to a Discord incoming webhook (DISCORD_WEBHOOK, #opsimath).
+  # Was the bot REST API until 2026-11-25, reusing the aswarm pipelines'
+  # bot token; switched because this only ever posts, and a webhook URL
+  # can do nothing but post to its one channel, whereas a bot token can act
+  # anywhere the bot can. Hand-rolled `Net::HTTP`, matching
+  # `Isfdb::Client`/`Goodreads::RssClient`'s existing style — one POST
+  # doesn't warrant a Discord gem dependency.
   class DiscordNotifier
     class ServiceError < StandardError; end
 
     COLOR_BY_LEVEL = { info: 0x5865F2, warn: 0xFAA61A, error: 0xED4245 }.freeze
 
-    def initialize(bot_token: Rails.application.credentials.dig(:discord, :bot_token),
-                    channel_id: Rails.application.credentials.dig(:discord, :channel_id),
-                    channels: { catalogue: Rails.application.credentials.dig(:discord, :catalogue_channel_id) })
-      @bot_token = bot_token
-      @channel_id = channel_id
-      @channels = channels
+    def self.configured?
+      ENV["DISCORD_WEBHOOK"].present?
     end
 
-    # An event for a named channel (#catalogue) goes only there — never
-    # into the default channel instead; with that channel not configured,
-    # it's logged (LogNotifier) and not posted.
+    def initialize(webhook_url: ENV["DISCORD_WEBHOOK"])
+      @webhook_url = webhook_url
+    end
+
     def notify(event)
-      channel_id = event.channel ? @channels[event.channel] : @channel_id
-      return if channel_id.blank?
+      return if @webhook_url.blank?
 
       messages = event.embeds.present? ? self.class.pack(event.embeds) : [ [ embed_for(event) ] ]
-      messages.each { |embeds| post(channel_id, embeds) }
+      messages.each { |embeds| post(embeds) }
     end
 
     # Discord: at most 10 embeds and 6000 characters to a message.
@@ -50,14 +44,15 @@ module Notifications
 
     private
 
-    def post(channel_id, embeds)
-      uri = URI("https://discord.com/api/v10/channels/#{channel_id}/messages")
+    # The error never includes the URL: the webhook URL is the credential,
+    # and Notifications.notify logs the message.
+    def post(embeds)
+      uri = URI(@webhook_url)
       request = Net::HTTP::Post.new(uri)
-      request["Authorization"] = "Bot #{@bot_token}"
       request["Content-Type"] = "application/json"
       request.body = { embeds: }.to_json
 
-      response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 5, read_timeout: 10) do |http|
+      response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", open_timeout: 5, read_timeout: 10) do |http|
         http.request(request)
       end
       raise ServiceError, "discord returned #{response.code}: #{response.body}" unless response.is_a?(Net::HTTPSuccess)

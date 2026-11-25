@@ -30,7 +30,7 @@
 # `plan` is a dry run; `apply` does it (nightly, AnchoredRefreshJob): the
 # anchor recorded on an edition anchored by ISBN, the fields written with
 # the provider as their source, the cover downloaded, the provider's record
-# of the edition kept current, and one #catalogue event per edition.
+# of the edition kept current, and one catalogue event per edition.
 class AnchoredRefresh
   FieldPlan = Struct.new(:field, :action, :current, :proposed, :source, keyword_init: true)
   EditionPlan = Struct.new(:edition, :work, :anchor_status, :anchor, :fields, :secondary, keyword_init: true)

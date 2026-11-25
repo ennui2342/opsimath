@@ -1,6 +1,6 @@
 # One readable line about something that changed in the catalogue — "Added
 # The Days of Glory: Five Star (UK) 1973, owned", "3 new printings of The
-# Birthgrave" — posted to Discord's #catalogue by CatalogueReport. Recorded
+# Birthgrave" — posted to Discord's #opsimath by CatalogueReport. Recorded
 # explicitly where the change happens (paper_trail keeps only each record's
 # previous state, not what changed, so it can't be read back as a story).
 #
