@@ -53,8 +53,8 @@ gem "csv"
 # converts Goodreads' HTML on ingestion, kramdown renders it back to HTML
 # for display — kramdown is also Jekyll's parser, so scifipraxis renders
 # the same stored text identically.
-gem "reverse_markdown", "~> 3.0"
-gem "kramdown", "~> 2.5"
+gem "reverse_markdown", "~> 3.1"
+gem "kramdown", "~> 2.6"
 gem "kramdown-parser-gfm", "~> 1.1" # GFM input, matching Jekyll's default
 
 # Postgres is the app database; sqlite3 is only used to build the
