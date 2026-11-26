@@ -900,7 +900,7 @@ only): a cover in the cache (HasCoverImage, storage/cover_cache on the
 volume web and worker share — the 2026-09-05 rebuild's cache, never
 switched on for the running app until now) is served from disk with a
 year's caching; a miss sends the browser to the provider as before while
-CoverCacheFetchJob fetches it in the background. CoverCacheWarmJob (05:00)
+CoverCacheFetchJob fetches it in the background. CoverCacheWarmJob (04:40 UK time)
 fetches up to 300 a night, one at a time, of the covers of books Mark owns
 or wants — never in bulk: ISFDB is volunteer-run.
 

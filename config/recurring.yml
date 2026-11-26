@@ -9,6 +9,11 @@
 #     priority: 2
 #     schedule: at 5am every day
 
+# Nightly times are UK time (Europe/London), not the pods' UTC: from the
+# last Sunday in March they'd otherwise run an hour later, the 4:30 digest
+# inside the cluster's 05:10-05:55 maintenance window (node reboots — k8s
+# CLAUDE.md "Nightly schedule", tm 15f1e314). Everything finishes before
+# 05:10: the eBay sweep takes ~15 minutes, the cover warm-up ~9.
 production:
   clear_solid_queue_finished_jobs:
     command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
@@ -23,32 +28,32 @@ production:
   cover_cache_warm:
     class: CoverCacheWarmJob
     queue: default
-    schedule: every day at 5:00am
+    schedule: every day at 4:40am Europe/London
   line_wants:
     class: LineWantsJob
     queue: default
-    schedule: every day at 2:30am
+    schedule: every day at 2:30am Europe/London
   work_known_editions_refresh:
     class: WorkKnownEditionsRefreshJob
     queue: default
-    schedule: every day at 2:40am
+    schedule: every day at 2:40am Europe/London
   wishlist_refresh:
     class: WishlistRefreshJob
     queue: default
-    schedule: every day at 2:50am
+    schedule: every day at 2:50am Europe/London
   ebay_sweep:
     class: EbaySweepJob
     queue: default
-    schedule: every day at 4:00am
+    schedule: every day at 4:00am Europe/London
   # After the providers' printing lists (2:40, up to ~45 minutes).
   anchored_refresh:
     class: AnchoredRefreshJob
     queue: default
-    schedule: every day at 3:30am
+    schedule: every day at 3:30am Europe/London
   pending_decision_sweep:
     class: PendingDecisionSweepJob
     queue: default
-    schedule: every day at 3:45am
+    schedule: every day at 3:45am Europe/London
   catalogue_edits_report:
     class: CatalogueEditsReportJob
     queue: default
@@ -56,8 +61,8 @@ production:
   catalogue_digest:
     class: CatalogueDigestJob
     queue: default
-    schedule: every day at 4:30am
+    schedule: every day at 4:30am Europe/London
   mobile_snapshot:
     class: MobileSnapshotJob
     queue: default
-    schedule: every day at 3:55am
+    schedule: every day at 3:55am Europe/London
