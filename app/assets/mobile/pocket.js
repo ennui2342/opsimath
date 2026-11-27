@@ -139,7 +139,10 @@
       runSearch();
     } catch (e) {
       console.error(e);
-      setStatus(db ? `offline · snapshot ${ago(generatedAt)}` : "sync failed — retry when online", "error");
+      // Online but the update didn't arrive (a download cut off part way,
+      // 2026-11-27) isn't "offline": say so, and that a tap retries.
+      const why = navigator.onLine ? "update didn't download — tap to retry" : "offline";
+      setStatus(db ? `${why} · snapshot ${ago(generatedAt)}` : `sync failed — ${navigator.onLine ? "tap to retry" : "retry when online"}`, "error");
     }
   }
 
